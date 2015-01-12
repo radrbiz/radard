@@ -87,6 +87,11 @@ public:
     virtual int getBinary (int colIndex, unsigned char* buf, int maxSize) = 0;
     virtual std::uint64_t getBigInt (int colIndex) = 0;
     virtual Blob getBinary (int colIndex) = 0;
+    
+    const std::string& getDBType()
+    {
+        return mDBType;
+    }
 
     // int getSingleDBValueInt(const char* sql);
     // float getSingleDBValueFloat(const char* sql);
@@ -116,6 +121,7 @@ protected:
     int mNumCol;
     std::string mHost;
     std::vector <std::string> mColNameTable;
+    std::string mDBType;
 };
 
 } // ripple

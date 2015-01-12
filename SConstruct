@@ -312,6 +312,9 @@ def config_env(toolchain, variant, env):
 
         env.Append(LIBS=boost_libs)
         env.Append(LIBS=['dl'])
+        env.Append(CPPPATH=['/usr/include/mysql'])
+        env.Append(LIBPATH=['/usr/lib/mysql'])
+        env.Append(LIBS=['mysqlclient'])
 
         if Beast.system.osx:
             env.Append(LIBS=[

@@ -810,7 +810,7 @@ bool Ledger::saveValidatedLedger (bool current)
                     << " affects no accounts";
 
             db->executeSQL (
-                SerializedTransaction::getMetaSQLInsertReplaceHeader () +
+                SerializedTransaction::getMetaSQLInsertReplaceHeader (db->getDBType()) +
                 vt.second->getTxn ()->getMetaSQL (
                     getLedgerSeq (), vt.second->getEscMeta ()) + ";");
         }

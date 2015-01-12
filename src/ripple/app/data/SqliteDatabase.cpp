@@ -54,6 +54,8 @@ SqliteDatabase::SqliteDatabase (const char* host)
     , mWalQ (nullptr)
     , walRunning (false)
 {
+    mDBType = "sqlite";
+    
     startThread ();
 
     mConnection     = nullptr;

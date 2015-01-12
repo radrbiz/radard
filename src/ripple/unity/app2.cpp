@@ -37,6 +37,7 @@
 #include <ripple/app/data/Database.cpp>
 #include <ripple/app/data/DatabaseCon.cpp>
 #include <ripple/app/data/SqliteDatabase.cpp>
+#include <ripple/app/data/MySQLDatabase.cpp>
 #include <ripple/app/data/DBInit.cpp>
 
 #include <ripple/app/shamap/RadixMapTest.h>

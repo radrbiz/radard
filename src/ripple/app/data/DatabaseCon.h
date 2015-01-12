@@ -21,6 +21,7 @@
 #define RIPPLE_DATABASECON_H
 
 #include <mutex>
+#include <beast/module/core/text/StringPairArray.h>
 
 namespace ripple {
 
@@ -30,6 +31,7 @@ class DatabaseCon : beast::LeakChecked <DatabaseCon>
 {
 public:
     DatabaseCon (std::string const& name, const char* initString[], int countInit);
+    DatabaseCon (beast::StringPairArray& mysqlParams, const char* initString[], int countInit);
     ~DatabaseCon ();
 
     Database* getDB ()

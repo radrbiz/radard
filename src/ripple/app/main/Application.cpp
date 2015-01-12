@@ -575,9 +575,18 @@ public:
         assert (mTxnDB.get () == nullptr);
         assert (mLedgerDB.get () == nullptr);
         assert (mWalletDB.get () == nullptr);
+        
 
         mRpcDB = std::make_unique <DatabaseCon> ("rpc.db", RpcDBInit, RpcDBCount);
-        mTxnDB = std::make_unique <DatabaseCon> ("transaction.db", TxnDBInit, TxnDBCount);
+        if (getConfig().transactionDatabase[beast::String("type")] != beast::String::empty)
+        {
+            mTxnDB = std::make_unique <DatabaseCon> (getConfig().transactionDatabase, TxnDBInitMySQL, TxnDBCountMySQL);
+        }
+        else
+        {
+            mTxnDB = std::make_unique <DatabaseCon> ("transaction.db", TxnDBInit, TxnDBCount);
+        }
+
         mLedgerDB = std::make_unique <DatabaseCon> ("ledger.db", LedgerDBInit, LedgerDBCount);
         mWalletDB = std::make_unique <DatabaseCon> ("wallet.db", WalletDBInit, WalletDBCount);
 
@@ -1450,6 +1459,8 @@ static bool schemaHas (DatabaseCon& dbc, std::string const& dbName, int line, st
 
 static void addTxnSeqField ()
 {
+    //CARL seems initial db already has TxnSeq now
+    return;
     if (schemaHas (getApp().getTxnDB (), "AccountTransactions", 0, "TxnSeq"))
         return;
 
@@ -1539,12 +1550,14 @@ void ApplicationImp::updateTables ()
     assert (!schemaHas (getApp().getTxnDB (), "AccountTransactions", 0, "foobar"));
     addTxnSeqField ();
 
+    /*
     if (schemaHas (getApp().getTxnDB (), "AccountTransactions", 0, "PRIMARY"))
     {
         WriteLog (lsFATAL, Application) << "AccountTransactions database should not have a primary key";
         StopSustain ();
         exit (1);
     }
+     */
 
     if (getConfig ().doImport)
     {

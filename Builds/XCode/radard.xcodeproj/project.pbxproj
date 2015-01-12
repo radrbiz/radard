@@ -420,6 +420,7 @@
 					/usr/local/Cellar/openssl/1.0.1j/include,
 					/usr/local/Cellar/boost/1.56.0/include,
 					/usr/local/include,
+					/usr/local/Cellar/mysql/5.6.21/include/mysql,
 					../../src,
 					../../src/beast,
 					../../build/proto,
@@ -428,6 +429,7 @@
 					/usr/local/Cellar/boost/1.56.0/lib,
 					/usr/local/Cellar/openssl/1.0.1j/lib,
 					/usr/local/lib,
+					/usr/local/Cellar/mysql/5.6.21/lib,
 				);
 				OTHER_CPLUSPLUSFLAGS = (
 					"$(OTHER_CFLAGS)",
@@ -471,6 +473,7 @@
 					AppKit,
 					"-framework",
 					Foundation,
+					"-lmysqlclient",
 				);
 				PRODUCT_NAME = radard;
 			};
@@ -486,6 +489,7 @@
 					/usr/local/Cellar/openssl/1.0.1j/include,
 					/usr/local/Cellar/boost/1.56.0/include,
 					/usr/local/include,
+					/usr/local/Cellar/mysql/5.6.21/include/mysql,
 					../../src,
 					../../src/beast,
 					../../build/proto,
@@ -494,6 +498,7 @@
 					/usr/local/Cellar/boost/1.56.0/lib,
 					/usr/local/Cellar/openssl/1.0.1j/lib,
 					/usr/local/lib,
+					/usr/local/Cellar/mysql/5.6.21/lib,
 				);
 				OTHER_CPLUSPLUSFLAGS = (
 					"$(OTHER_CFLAGS)",
@@ -537,6 +542,7 @@
 					AppKit,
 					"-framework",
 					Foundation,
+					"-lmysqlclient",
 				);
 				PRODUCT_NAME = radard;
 			};
