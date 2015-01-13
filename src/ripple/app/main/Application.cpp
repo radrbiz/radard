@@ -654,8 +654,11 @@ public:
 
         getApp().getLedgerDB ().getDB ()->executeSQL (boost::str (boost::format ("PRAGMA cache_size=-%d;") %
                 (getConfig ().getSize (siLgrDBCache) * 1024)));
-        getApp().getTxnDB ().getDB ()->executeSQL (boost::str (boost::format ("PRAGMA cache_size=-%d;") %
-                (getConfig ().getSize (siTxnDBCache) * 1024)));
+        if (getApp().getTxnDB ().getDB ()->getDBType() == "sqlite")
+        {
+            getApp().getTxnDB ().getDB ()->executeSQL (boost::str (boost::format ("PRAGMA cache_size=-%d;") %
+                                                (getConfig ().getSize (siTxnDBCache) * 1024)));
+        }
 
         mTxnDB->getDB ()->setupCheckpointing (m_jobQueue.get());
         mLedgerDB->getDB ()->setupCheckpointing (m_jobQueue.get());
@@ -1511,7 +1514,8 @@ static void addTxnSeqField ()
 
     WriteLog (lsINFO, Application) << "All " << i << " transactions read";
 
-    db->executeSQL ("BEGIN TRANSACTION;");
+//    db->executeSQL ("BEGIN TRANSACTION;");
+    db->beginTransaction();
 
     WriteLog (lsINFO, Application) << "Dropping old index";
     db->executeSQL ("DROP INDEX AcctTxIndex;");
@@ -1533,7 +1537,8 @@ static void addTxnSeqField ()
 
     WriteLog (lsINFO, Application) << "Building new index";
     db->executeSQL ("CREATE INDEX AcctTxIndex ON AccountTransactions(Account, LedgerSeq, TxnSeq, TransID);");
-    db->executeSQL ("END TRANSACTION;");
+//    db->executeSQL ("END TRANSACTION;");
+    db->endTransaction();
 }
 
 void ApplicationImp::updateTables ()

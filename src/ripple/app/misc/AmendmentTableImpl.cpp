@@ -376,7 +376,8 @@ AmendmentTableImpl::reportValidations (const AmendmentSet& set)
         auto sl (getApp().getWalletDB ().lock ());
         auto db = getApp().getWalletDB ().getDB ();
 
-        db->executeSQL ("BEGIN TRANSACTION;");
+//        db->executeSQL ("BEGIN TRANSACTION;");
+        db->beginTransaction();
         for (auto const& hash : changedAmendments)
         {
             AmendmentState& fState = m_amendmentMap[hash];
@@ -387,7 +388,8 @@ AmendmentTableImpl::reportValidations (const AmendmentSet& set)
                 "UPDATE Features SET LastMajority = %d WHERE Hash = '%s';") %
                 fState.m_lastMajority % to_string(hash)));
         }
-        db->executeSQL ("END TRANSACTION;");
+//        db->executeSQL ("END TRANSACTION;");
+        db->endTransaction();
         changedAmendments.clear();
     }
 }

@@ -50,6 +50,9 @@ public:
     // will return false if there are no more rows
     bool getNextRow (bool finalize);
 
+    virtual bool beginTransaction() override;
+    virtual bool endTransaction() override;
+
     bool getNull (int colIndex);
     char* getStr (int colIndex, std::string& retStr);
     std::int32_t getInt (int colIndex);

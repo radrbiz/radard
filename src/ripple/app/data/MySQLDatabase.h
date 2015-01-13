@@ -1,8 +1,6 @@
 #ifndef RIPPLE_MYSQLDATABASE_H_INCLUDED
 #define RIPPLE_MYSQLDATABASE_H_INCLUDED
 
-//#include <beast/threads/Thread.h>
-//#include <my_global.h>
 #include <mysql.h>
 
 namespace ripple {
@@ -33,6 +31,9 @@ public:
     // call this after you executeSQL
     // will return false if there are no more rows
     bool getNextRow (bool finalize);
+    
+    virtual bool beginTransaction() override;
+    virtual bool endTransaction() override;
 
     bool getNull (int colIndex);
     char* getStr (int colIndex, std::string& retStr);

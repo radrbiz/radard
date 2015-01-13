@@ -42,6 +42,8 @@ void MySQLDatabase::connect()
         }
         assert(false);
     }
+    my_bool reconnect = 1;
+    mysql_options(mConnection, MYSQL_OPT_RECONNECT, &reconnect);
 }
 
 void MySQLDatabase::disconnect()
@@ -61,11 +63,10 @@ bool MySQLDatabase::executeSQL(const char* sql, bool fail_ok)
     if (rc != 0)
     {
         WriteLog (lsWARNING, MySQLDatabase)
-            << "excute sql-" << sql
+            << "executeSQL-" << sql
             << " error_info:" << mysql_error(mConnection);
         return false;
     }
-
     
     //SQL has result(like `select`)
     if (mysql_field_count(mConnection) > 0)
@@ -74,10 +75,6 @@ bool MySQLDatabase::executeSQL(const char* sql, bool fail_ok)
         assert(mCurrentStmt);
         mCurrentStmt->mMoreRows = true;
     }
-//    else
-//    {
-//        endIterRows();
-//    }
 
     return true;
 }
@@ -99,7 +96,7 @@ bool MySQLDatabase::startIterRows (bool finalize)
     if (mCurrentStmt->mResult == nullptr)
     {
         WriteLog (lsWARNING, MySQLDatabase)
-            << "startIterRows getresult fail" << mysql_error(mConnection);
+            << "startIterRows: " << mysql_error(mConnection);
         return false;
     }
 
@@ -143,6 +140,17 @@ bool MySQLDatabase::getNextRow(bool finalize)
     return false;
 }
 
+bool MySQLDatabase::beginTransaction()
+{
+    return executeSQL("START TRANSACTION;", false);
+}
+
+bool MySQLDatabase::endTransaction()
+{
+    return executeSQL("COMMIT;", false);
+}
+
+    
 bool MySQLDatabase::getNull (int colIndex)
 {
     return mCurrentStmt->mCurRow[colIndex] == nullptr;
@@ -177,7 +185,7 @@ int MySQLDatabase::getBinary (int colIndex, unsigned char* buf, int maxSize)
     auto copySize = colLength[colIndex];
     if (copySize < maxSize)
     {
-        maxSize = copySize;
+        maxSize = static_cast<int>(copySize);
     }
     memcpy(buf, mCurrentStmt->mCurRow[colIndex], maxSize);
     return 0;

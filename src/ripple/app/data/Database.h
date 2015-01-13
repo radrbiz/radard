@@ -64,6 +64,9 @@ public:
     // call this after you executeSQL
     // will return false if there are no more rows
     virtual bool getNextRow (bool finalize = true) = 0;
+    
+    virtual bool beginTransaction() = 0;
+    virtual bool endTransaction() = 0;
 
     // get Data from the current row
     bool getNull (const char* colName);
