@@ -70,7 +70,6 @@ public:
     std::vector <std::string> mColNameTable;
     MYSQL_RES *mResult;
     MYSQL_ROW mCurRow;
-//    std::uint64_t mAffectedRows;
 };
 
 } // ripple

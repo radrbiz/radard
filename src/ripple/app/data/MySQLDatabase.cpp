@@ -1,9 +1,9 @@
-#include <my_global.h>
 #include <mysql.h>
 
 namespace ripple {
-    
-MySQLDatabase::MySQLDatabase(char const* host, std::uint32_t port, char const* username, char const* password, char const* database)
+MySQLDatabase::MySQLDatabase(char const* host, std::uint32_t port,
+                             char const* username, char const* password,
+                             char const* database)
     : Database (host),
       mPort(port),
       mUsername(username),
@@ -42,6 +42,7 @@ void MySQLDatabase::connect()
         }
         assert(false);
     }
+    // set auto connect
     my_bool reconnect = 1;
     mysql_options(mConnection, MYSQL_OPT_RECONNECT, &reconnect);
 }
@@ -149,7 +150,6 @@ bool MySQLDatabase::endTransaction()
 {
     return executeSQL("COMMIT;", false);
 }
-
     
 bool MySQLDatabase::getNull (int colIndex)
 {
