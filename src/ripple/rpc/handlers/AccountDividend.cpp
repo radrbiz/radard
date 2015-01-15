@@ -15,30 +15,27 @@ Json::Value doAccountDividend (RPC::Context& context)
     if (dividendSLE && dividendSLE->isFieldPresent(sfDividendLedger))
     {
         std::uint32_t baseLedgerSeq = dividendSLE->getFieldU32(sfDividendLedger);
-        
         std::string sql =
-        boost::str (boost::format (
-                                   "SELECT AccountTransactions.TransID FROM AccountTransactions JOIN Transactions "
+        boost::str (boost::format ("SELECT AccountTransactions.TransID FROM AccountTransactions JOIN Transactions "
                                    "ON AccountTransactions.TransID=Transactions.TransID "
                                    "WHERE Account='%s' AND AccountTransactions.LedgerSeq>%d "
                                    "ORDER BY AccountTransactions.LedgerSeq ASC LIMIT 1;")
                     % account.c_str()
                     % baseLedgerSeq);
-        
-        auto db = getApp().getTxnDB().getDB();
-        auto sl (getApp().getTxnDB().lock());
-
         Transaction::pointer txn = nullptr;
-        if (db->executeSQL(sql) && db->startIterRows())
         {
-            std::string transID = "";
-            if (db->getStr("AccountTransactions.TransID", transID))
+            auto db = getApp().getTxnDB().getDB();
+            auto sl (getApp().getTxnDB().lock());
+            if (db->executeSQL(sql) && db->startIterRows())
             {
-                uint256 txid (transID);
-                auto txn = getApp().getMasterTransaction ().fetch (txid, true);
+                std::string transID = "";
+                db->getStr(0, transID);
+                {
+                    uint256 txid (transID);
+                    txn = getApp().getMasterTransaction ().fetch (txid, true);
+                }
             }
         }
-
         if (txn)
         {
             return txn->getJson(0);
