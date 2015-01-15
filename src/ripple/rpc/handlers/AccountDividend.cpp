@@ -3,48 +3,49 @@ namespace ripple {
 // account_dividend [account]
 Json::Value doAccountDividend (RPC::Context& context)
 {
-    SLE::pointer dividendSLE = nullptr;
-    
-    //time param specified, query from ledger before this time
-    if (context.params_.isMember ("until"))
+    if (!context.params_.isMember ("account"))
     {
-        auto time_value = context.params_["until"];
-        if (!time_value.isNumeric() || time_value.asUInt() <= 0)
-        {
-            return ripple::RPC::make_error(rpcINVALID_PARAMS, "dividendObjectMalformed");
-        }
-        auto time = time_value.asUInt();
-
+        return ripple::RPC::make_error(rpcTXN_NOT_FOUND, "accountDividendNotFound");
+    }
+    
+    auto account = context.params_["account"].asString();
+    
+    Ledger::pointer ledger = getApp().getOPs().getClosedLedger();
+    SLE::pointer dividendSLE = ledger->getDividendObject();
+    if (dividendSLE && dividendSLE->isFieldPresent(sfDividendLedger))
+    {
+        std::uint32_t baseLedgerSeq = dividendSLE->getFieldU32(sfDividendLedger);
+        
         std::string sql =
         boost::str (boost::format (
-                                   "SELECT * FROM Ledgers WHERE ClosingTime <= %u ORDER BY LedgerSeq desc LIMIT 1")
-                    % time);
+                                   "SELECT AccountTransactions.TransID FROM AccountTransactions JOIN Transactions "
+                                   "ON AccountTransactions.TransID=Transactions.TransID "
+                                   "WHERE Account='%s' AND AccountTransactions.LedgerSeq>%d "
+                                   "ORDER BY AccountTransactions.LedgerSeq ASC LIMIT 1;")
+                    % account.c_str()
+                    % baseLedgerSeq);
+        
+        auto db = getApp().getTxnDB().getDB();
+        auto sl (getApp().getTxnDB().lock());
+
+        Transaction::pointer txn = nullptr;
+        if (db->executeSQL(sql) && db->startIterRows())
         {
-            auto db = getApp().getLedgerDB().getDB();
-            auto sl (getApp().getLedgerDB ().lock ());
-            if (db->executeSQL(sql) && db->startIterRows())
+            std::string transID = "";
+            if (db->getStr("AccountTransactions.TransID", transID))
             {
-                std::uint32_t ledgerSeq = db->getInt("LedgerSeq");
-                //CARL should we find a seq more pricisely?
-                Ledger::pointer ledger = getApp().getOPs().getLedgerBySeq(ledgerSeq);
-                dividendSLE = ledger->getDividendObject();
+                uint256 txid (transID);
+                auto txn = getApp().getMasterTransaction ().fetch (txid, true);
             }
         }
-    }
-    else //no time param specified, query from the lastet closed ledger
-    {
-        Ledger::pointer ledger = getApp().getOPs().getClosedLedger();
-        dividendSLE = ledger->getDividendObject();
-    }
 
-    if (dividendSLE)
-    {
-        return dividendSLE->getJson(0);
+        if (txn)
+        {
+            return txn->getJson(0);
+        }
     }
-    else
-    {
-        return ripple::RPC::make_error(rpcDIVOBJ_NOT_FOUND, "dividendObjectNotFound");
-    }
+    
+    return rpcError (rpcTXN_NOT_FOUND);
 }
 
 } // ripple

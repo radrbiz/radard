@@ -447,6 +447,17 @@ private:
         return jvRequest;
     }
 
+    //dividend_object <time>
+    Json::Value parseAccountDividend (Json::Value const& jvParams)
+    {
+        Json::Value jvRequest (Json::objectValue);
+        if (jvParams.size() >= 1)
+        {
+            jvRequest["account"]= jvParams[0u].asString ();
+        }
+        return jvRequest;
+    }
+
     // log_level:                           Get log levels
     // log_level <severity>:                Set master log level to the specified severity
     // log_level <partition> <severity>:    Set specified partition to specified severity
@@ -839,6 +850,7 @@ public:
             {   "ledger_header",        &RPCParser::parseLedgerId,              1,  1   },
             {   "ledger_request",       &RPCParser::parseLedgerId,              1,  1   },
             {   "dividend_object",      &RPCParser::parseDividendTime,          0,  1   },
+            {   "account_dividend",     &RPCParser::parseAccountDividend,          0,  1   },
             {   "log_level",            &RPCParser::parseLogLevel,              0,  2   },
             {   "logrotate",            &RPCParser::parseAsIs,                  0,  0   },
             {   "owner_info",           &RPCParser::parseAccountItems,          1,  2   },
