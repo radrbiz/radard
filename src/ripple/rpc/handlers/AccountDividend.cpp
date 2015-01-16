@@ -32,6 +32,8 @@ Json::Value doAccountDividend (RPC::Context& context)
             {
                 std::string transID = "";
                 db->getStr(0, transID);
+                db->endIterRows();
+                if (transID != "")
                 {
                     uint256 txid (transID);
                     txn = getApp().getMasterTransaction ().fetch (txid, true);

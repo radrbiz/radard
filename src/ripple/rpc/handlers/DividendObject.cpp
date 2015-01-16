@@ -25,6 +25,7 @@ Json::Value doDividendObject (RPC::Context& context)
             if (db->executeSQL(sql) && db->startIterRows())
             {
                 std::uint32_t ledgerSeq = db->getInt("LedgerSeq");
+                db->endIterRows();
                 //CARL should we find a seq more pricisely?
                 Ledger::pointer ledger = getApp().getOPs().getLedgerBySeq(ledgerSeq);
                 dividendSLE = ledger->getDividendObject();
