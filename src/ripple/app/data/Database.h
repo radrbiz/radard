@@ -119,7 +119,7 @@ public:
     }
 
 protected:
-    bool getColNumber (const char* colName, int* retIndex);
+    virtual bool getColNumber (const char* colName, int* retIndex);
 
     int mNumCol;
     std::string mHost;

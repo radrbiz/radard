@@ -74,9 +74,22 @@ bool MySQLDatabase::executeSQL(const char* sql, bool fail_ok)
     {
         mCurrentStmt = getStatement();
         assert(mCurrentStmt);
-        mCurrentStmt->mMoreRows = true;
+        mCurrentStmt->mResult = mysql_store_result(mConnection);
+        if (mCurrentStmt->mResult == nullptr)
+        {
+            WriteLog (lsWARNING, MySQLDatabase)
+                << "startIterRows: " << mysql_error(mConnection);
+            return false;
+        }
+        if (mysql_num_rows(mCurrentStmt->mResult) > 0)
+        {
+            mCurrentStmt->mMoreRows = true;
+        }
+        else
+        {
+            mCurrentStmt->mMoreRows = false;
+        }
     }
-
     return true;
 }
 
@@ -91,16 +104,10 @@ bool MySQLDatabase::startIterRows (bool finalize)
 {
     assert(mCurrentStmt);
     if (!mCurrentStmt->mMoreRows)
-        endIterRows ();
-
-    mCurrentStmt->mResult = mysql_store_result(mConnection);
-    if (mCurrentStmt->mResult == nullptr)
     {
-        WriteLog (lsWARNING, MySQLDatabase)
-            << "startIterRows: " << mysql_error(mConnection);
+        endIterRows ();
         return false;
     }
-
     mCurrentStmt->mColNameTable.clear();
     auto fieldCnt = mysql_num_fields(mCurrentStmt->mResult);
     mCurrentStmt->mColNameTable.resize(fieldCnt);
@@ -111,7 +118,23 @@ bool MySQLDatabase::startIterRows (bool finalize)
         mCurrentStmt->mColNameTable[i] = fields[i].name;
     }
     
+    getNextRow(0);
+    
     return true;
+}
+    
+bool MySQLDatabase::getColNumber (const char* colName, int* retIndex)
+{
+    for (unsigned int n = 0; n < mCurrentStmt->mColNameTable.size (); n++)
+    {
+        if (strcmp (colName, mCurrentStmt->mColNameTable[n].c_str ()) == 0)
+        {
+            *retIndex = n;
+            return (true);
+        }
+    }
+    return false;
+
 }
 
 void MySQLDatabase::endIterRows()
@@ -188,7 +211,7 @@ int MySQLDatabase::getBinary (int colIndex, unsigned char* buf, int maxSize)
         maxSize = static_cast<int>(copySize);
     }
     memcpy(buf, mCurrentStmt->mCurRow[colIndex], maxSize);
-    return 0;
+    return copySize;
 }
 
 Blob MySQLDatabase::getBinary (int colIndex)
@@ -197,10 +220,8 @@ Blob MySQLDatabase::getBinary (int colIndex)
     const unsigned char* blob = reinterpret_cast<const unsigned char*>(mCurrentStmt->mCurRow[colIndex]);
     size_t iSize = colLength[colIndex];
     Blob vucResult;
-    
     vucResult.resize(iSize);
     std::copy (blob, blob + iSize, vucResult.begin());
-    
     return vucResult;
 }
 
@@ -215,7 +236,6 @@ MySQLStatement* MySQLDatabase::getStatement()
     {
         mStmtTemp = new MySQLStatement();
     }
-
     mStmtTemp->mDatabase = this;
     mStmtTemp->mMoreRows = false;
     mStmtTemp->mColNameTable.clear();

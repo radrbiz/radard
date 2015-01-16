@@ -44,8 +44,9 @@ public:
     int getBinary (int colIndex, unsigned char* buf, int maxSize);
     Blob getBinary (int colIndex);
     std::uint64_t getBigInt (int colIndex);
-    
 private:
+    bool getColNumber (const char* colName, int* retIndex);
+    
     MySQLStatement *getStatement();
     //CARL: use this as temp, need a thread safe version
     MySQLStatement *mStmtTemp;
