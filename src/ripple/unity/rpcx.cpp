@@ -65,6 +65,7 @@
 #include <ripple/rpc/handlers/LedgerEntry.cpp>
 #include <ripple/rpc/handlers/LedgerHeader.cpp>
 #include <ripple/rpc/handlers/LedgerRequest.cpp>
+#include <ripple/rpc/handlers/DividendObject.cpp>
 #include <ripple/rpc/handlers/LogLevel.cpp>
 #include <ripple/rpc/handlers/LogRotate.cpp>
 #include <ripple/rpc/handlers/OwnerInfo.cpp>

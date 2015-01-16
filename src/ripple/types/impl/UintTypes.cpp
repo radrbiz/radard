@@ -44,6 +44,9 @@ std::string to_string(Currency const& currency)
     if (currency == zero)
         return systemCurrencyCode();
 
+	if (currency == vbcCurrency())
+		return systemCurrencyCodeVBC();
+
     if (currency == noCurrency())
         return "1";
 
@@ -58,7 +61,7 @@ std::string to_string(Currency const& currency)
 
         // Specifying the system currency code using ISO-style representation
         // is not allowed.
-        if ((iso != systemCurrencyCode()) &&
+		if ((iso != systemCurrencyCode()) && (iso != systemCurrencyCodeVBC()) &&
             (iso.find_first_not_of (allowed_characters) == std::string::npos))
         {
             return iso;
@@ -75,6 +78,12 @@ bool to_currency(Currency& currency, std::string const& code)
         currency = zero;
         return true;
     }
+
+	if (code.empty() || !code.compare(systemCurrencyCodeVBC()))
+	{
+		currency = vbcCurrency();
+		return true;
+	}
 
     static const int CURRENCY_CODE_LENGTH = 3;
     if (code.size () == CURRENCY_CODE_LENGTH)
@@ -123,7 +132,11 @@ bool to_issuer(Account& issuer, std::string const& s)
 }
 
 const char* systemCurrencyCode() {
-    return "XRP";
+    return "VRP";
+}
+
+const char* systemCurrencyCodeVBC() {
+	return "VBC";
 }
 
 Account const& xrpAccount()
@@ -136,6 +149,18 @@ Currency const& xrpCurrency()
 {
     static Currency const currency(0);
     return currency;
+}
+
+Account const& vbcAccount()
+{
+	static Account const account(0xFF);
+	return account;
+}
+
+Currency const& vbcCurrency()
+{
+	static Currency const currency(0xFF);
+	return currency;
 }
 
 Account const& noAccount()

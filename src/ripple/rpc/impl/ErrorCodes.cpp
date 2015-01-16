@@ -86,8 +86,8 @@ public:
         add (rpcNO_CURRENT,            "noCurrent",         "Current ledger is unavailable.");
         add (rpcNO_EVENTS,             "noEvents",          "Current transport does not support events.");
         add (rpcNO_GEN_DECRYPT,        "noGenDecrypt",      "Password failed to decrypt master public generator.");
-        add (rpcNO_NETWORK,            "noNetwork",         "Not synced to Ripple network.");
-        add (rpcNO_PATH,               "noPath",            "Unable to find a ripple path.");
+        add (rpcNO_NETWORK,            "noNetwork",         "Not synced to Radar network.");
+        add (rpcNO_PATH,               "noPath",            "Unable to find a radar path.");
         add (rpcNO_PERMISSION,         "noPermission",      "You don't have permission for this command.");
         add (rpcNO_PF_REQUEST,         "noPathRequest",     "No pathfinding request in progress.");
         add (rpcPASSWD_CHANGED,        "passwdChanged",     "Wrong key, password changed.");
@@ -109,6 +109,8 @@ public:
         add (rpcTXN_NOT_FOUND,         "txnNotFound",       "Transaction not found.");
         add (rpcUNKNOWN_COMMAND,       "unknownCmd",        "Unknown method.");
         add (rpcWRONG_SEED,            "wrongSeed",         "The regular key does not point as the master key.");
+        add (rpcDIVOBJ_NOT_FOUND,      "divObjNotFound",    "Dividend object not found");
+        
     }
 
     ErrorInfo const& get (error_code_i code) const

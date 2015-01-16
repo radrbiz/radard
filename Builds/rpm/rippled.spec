@@ -1,5 +1,5 @@
-Name:           rippled
-Version:        0.26.4-rc3
+Name:           radard
+Version:        1.0.1
 Release:        1%{?dist}
 Summary:        Ripple peer-to-peer network daemon
 

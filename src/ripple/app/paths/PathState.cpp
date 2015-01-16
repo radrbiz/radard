@@ -114,19 +114,23 @@ TER PathState::pushImpliedNodes (
         // Corresponds to "Implies an offer directory" in the diagram, currently
         // at http://goo.gl/Uj3HAB.
 
-        auto type = isXRP(currency) ? STPathElement::typeCurrency
+		auto type = (isXRP(currency) || isVBC(currency)) ? STPathElement::typeCurrency
             : STPathElement::typeCurrency | STPathElement::typeIssuer;
 
         // The offer's output is what is now wanted.
         // xrpAccount() is a placeholder for offers.
-        resultCode = pushNode (type, xrpAccount(), currency, issuer);
+		if (isXRP(currency))
+			resultCode = pushNode (type, xrpAccount(), currency, issuer);
+		if (isVBC(currency))
+			resultCode = pushNode(type, vbcAccount(), currency, issuer);
     }
 
 
-    // For ripple, non-XRP, ensure the issuer is on at least one side of the
+    // For ripple, non-XRP && non-VBC, ensure the issuer is on at least one side of the
     // transaction.
     if (resultCode == tesSUCCESS
-        && !isXRP(currency)
+		&& !isXRP(currency) 
+		&& !isVBC(currency)
         && nodes_.back ().account_ != issuer
         // Previous is not issuing own IOUs.
         && account != issuer)
@@ -202,6 +206,12 @@ TER PathState::pushNode (
 
         resultCode = temBAD_PATH;
     }
+	else if (hasIssuer && isVBC(node.issue_))
+	{
+		WriteLog(lsDEBUG, RippleCalc) << "pushNode: issuer specified for VBC.";
+
+		resultCode = temBAD_PATH;
+	}
     else if (hasIssuer && !issuer)
     {
         WriteLog (lsDEBUG, RippleCalc) << "pushNode: specified bad issuer.";
@@ -221,7 +231,7 @@ TER PathState::pushNode (
         // Account link
         node.account_ = account;
         node.issue_.account = hasIssuer ? issuer :
-                (isXRP (node.issue_) ? xrpAccount() : account);
+			(isXRP(node.issue_) ? xrpAccount() : (isVBC(node.issue_) ? vbcAccount() : account));
         // Zero value - for accounts.
         node.saRevRedeem = STAmount ({node.issue_.currency, account});
         node.saRevIssue = node.saRevRedeem;
@@ -249,7 +259,7 @@ TER PathState::pushNode (
             resultCode = pushImpliedNodes (
                 node.account_,
                 node.issue_.currency,
-                isXRP(node.issue_.currency) ? xrpAccount() : account);
+				isXRP(node.issue_.currency) ? xrpAccount() : (isVBC(node.issue_.currency) ? vbcAccount() : account));
 
             // Note: backNode may no longer be the immediately previous node.
         }
@@ -354,6 +364,10 @@ TER PathState::pushNode (
             node.issue_.account = xrpAccount();
         else if (isXRP (backNode.issue_.account))
             node.issue_.account = backNode.account_;
+		else if (isVBC (node.issue_.currency))
+			node.issue_.account = vbcAccount();
+		else if (isVBC (backNode.issue_.account))
+			node.issue_.account = backNode.account_;
         else
             node.issue_.account = backNode.issue_.account;
 
@@ -422,8 +436,8 @@ TER PathState::expandPath (
     Currency const& currencyOutID = saOutReq.getCurrency ();
     Account const& issuerOutID = saOutReq.getIssuer ();
     Account const& uSenderIssuerID
-        = isXRP(uMaxCurrencyID) ? xrpAccount() : uSenderID;
-    // Sender is always issuer for non-XRP.
+		= isXRP(uMaxCurrencyID) ? xrpAccount() : (isVBC(uMaxCurrencyID) ? vbcAccount() : uSenderID);
+    // Sender is always issuer for non-XRP && non-VBC.
 
     WriteLog (lsTRACE, RippleCalc)
         << "expandPath> " << spSourcePath.getJson (0);
@@ -432,9 +446,11 @@ TER PathState::expandPath (
 
     terStatus = tesSUCCESS;
 
-    // XRP with issuer is malformed.
+    // VRP or VBC with issuer is malformed.
     if ((isXRP (uMaxCurrencyID) && !isXRP (uMaxIssuerID))
-        || (isXRP (currencyOutID) && !isXRP (issuerOutID)))
+        || (isXRP (currencyOutID) && !isXRP (issuerOutID))
+		|| (isVBC (uMaxCurrencyID) && !isVBC (uMaxIssuerID))
+		|| (isVBC (currencyOutID) && !isVBC (issuerOutID)))
     {
         terStatus   = temBAD_PATH;
     }
@@ -446,7 +462,7 @@ TER PathState::expandPath (
     if (terStatus == tesSUCCESS)
     {
         terStatus   = pushNode (
-            !isXRP(uMaxCurrencyID)
+			(!isXRP(uMaxCurrencyID) && !isVBC(uMaxCurrencyID))
             ? STPathElement::typeAccount | STPathElement::typeCurrency |
               STPathElement::typeIssuer
             : STPathElement::typeAccount | STPathElement::typeCurrency,
@@ -477,13 +493,19 @@ TER PathState::expandPath (
 
         // TODO(tom): complexify this next logic further in case someone
         // understands it.
-        const auto nextAccountID   = spSourcePath.size ()
-                ? Account(spSourcePath. front ().getAccountID ())
-                : !isXRP(currencyOutID)
-                ? (issuerOutID == uReceiverID)
-                ? Account(uReceiverID)
-                : Account(issuerOutID)                      // Use implied node.
-                : xrpAccount();
+        //const auto nextAccountID   = spSourcePath.size ()
+        //        ? Account(spSourcePath. front ().getAccountID ())
+        //        : !isXRP(currencyOutID)
+        //        ? (issuerOutID == uReceiverID)
+        //        ? Account(uReceiverID)
+        //        : Account(issuerOutID)                      // Use implied node.
+        //        : xrpAccount();
+
+		// Replace above code with the below
+		const auto nextAccountID = spSourcePath.size()
+			? Account(spSourcePath.front().getAccountID())
+			: !isXRP(currencyOutID) ? (isVBC(currencyOutID) ? vbcAccount() : (issuerOutID == uReceiverID) ? Account(uReceiverID) : Account(issuerOutID))                      // Use implied node.
+			: xrpAccount();
 
         WriteLog (lsDEBUG, RippleCalc)
             << "expandPath: implied check:"
@@ -509,7 +531,7 @@ TER PathState::expandPath (
 
             // Add account implied by SendMax.
             terStatus = pushNode (
-                !isXRP(uMaxCurrencyID)
+				!isXRP(uMaxCurrencyID) && !isVBC(uMaxCurrencyID)
                     ? STPathElement::typeAccount | STPathElement::typeCurrency |
                       STPathElement::typeIssuer
                     : STPathElement::typeAccount | STPathElement::typeCurrency,
@@ -534,6 +556,7 @@ TER PathState::expandPath (
 
     if (terStatus == tesSUCCESS
         && !isXRP(currencyOutID)                         // Next is not XRP
+		&& !isVBC(currencyOutID)                         // Next is not VBC
         && issuerOutID != uReceiverID              // Out issuer is not receiver
         && (backNode.issue_.currency != currencyOutID
         // Previous will be an offer.
@@ -548,7 +571,7 @@ TER PathState::expandPath (
             << " issuer=" << issuerOutID;
 
         terStatus   = pushNode (
-            !isXRP(currencyOutID)
+			!isXRP(currencyOutID) && !isVBC(currencyOutID)
                 ? STPathElement::typeAccount | STPathElement::typeCurrency |
                   STPathElement::typeIssuer
                 : STPathElement::typeAccount | STPathElement::typeCurrency,
@@ -563,7 +586,7 @@ TER PathState::expandPath (
         // Last node is always an account.
 
         terStatus   = pushNode (
-            !isXRP(currencyOutID)
+			!isXRP(currencyOutID) && !isVBC(currencyOutID)
                 ? STPathElement::typeAccount | STPathElement::typeCurrency |
                    STPathElement::typeIssuer
                : STPathElement::typeAccount | STPathElement::typeCurrency,

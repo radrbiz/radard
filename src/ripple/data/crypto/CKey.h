@@ -299,6 +299,14 @@ public:
 
     bool Verify (uint256 const& hash, Blob const& vchSig) const
     {
+#if (defined (_WIN32) || defined (_WIN64))
+        //CARL fix crash on windows debug mode when vchSig is empty
+        if (vchSig.empty())
+        {
+            return false;
+        }
+#endif // defined (_WIN32) || defined (_WIN64)
+
         return Verify (hash, &vchSig[0], vchSig.size ());
     }
 

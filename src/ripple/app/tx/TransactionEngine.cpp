@@ -42,7 +42,7 @@ void TransactionEngine::txnWrite ()
 
         case taaCREATE:
         {
-            WriteLog (lsINFO, TransactionEngine) << "applyTransaction: taaCREATE: " << sleEntry->getText ();
+            WriteLog (lsDEBUG, TransactionEngine) << "applyTransaction: taaCREATE: " << sleEntry->getText ();
 
             if (mLedger->writeBack (lepCREATE, sleEntry) & lepERROR)
                 assert (false);
@@ -51,7 +51,7 @@ void TransactionEngine::txnWrite ()
 
         case taaMODIFY:
         {
-            WriteLog (lsINFO, TransactionEngine) << "applyTransaction: taaMODIFY: " << sleEntry->getText ();
+            WriteLog (lsDEBUG, TransactionEngine) << "applyTransaction: taaMODIFY: " << sleEntry->getText ();
 
             if (mLedger->writeBack (lepNONE, sleEntry) & lepERROR)
                 assert (false);
@@ -60,7 +60,7 @@ void TransactionEngine::txnWrite ()
 
         case taaDELETE:
         {
-            WriteLog (lsINFO, TransactionEngine) << "applyTransaction: taaDELETE: " << sleEntry->getText ();
+            WriteLog (lsDEBUG, TransactionEngine) << "applyTransaction: taaDELETE: " << sleEntry->getText ();
 
             if (!mLedger->peekAccountStateMap ()->delItem (it.first))
                 assert (false);
@@ -118,14 +118,14 @@ TER TransactionEngine::applyTransaction (
         return temUNKNOWN;
     }
 
-    if (ShouldLog (lsINFO, TransactionEngine))
+    if (ShouldLog (lsDEBUG, TransactionEngine))
     {
         std::string strToken;
         std::string strHuman;
 
         transResultInfo (terResult, strToken, strHuman);
 
-        WriteLog (lsINFO, TransactionEngine) <<
+        WriteLog (lsDEBUG, TransactionEngine) <<
             "applyTransaction: terResult=" << strToken <<
             " : " << terResult <<
             " : " << strHuman;
@@ -157,11 +157,12 @@ TER TransactionEngine::applyTransaction (
             {
                 STAmount fee        = txn.getTransactionFee ();
                 STAmount balance    = txnAcct->getFieldAmount (sfBalance);
+                STAmount balanceVBC = txnAcct->getFieldAmount(sfBalanceVBC);
 
                 // We retry/reject the transaction if the account
                 // balance is zero or we're applying against an open
                 // ledger and the balance is less than the fee
-                if ((balance == zero) ||
+                if ((balance == zero) || (balanceVBC.getNValue() == 0) ||
                     ((params & tapOPEN_LEDGER) && (balance < fee)))
                 {
                     // Account has no funds or ledger is open
@@ -172,6 +173,7 @@ TER TransactionEngine::applyTransaction (
                     if (fee > balance)
                         fee = balance;
                     txnAcct->setFieldAmount (sfBalance, balance - fee);
+                    txnAcct->setFieldAmount(sfBalanceVBC, balanceVBC);
                     txnAcct->setFieldU32 (sfSequence, t_seq + 1);
                     entryModify (txnAcct);
                     didApply = true;
@@ -233,10 +235,19 @@ TER TransactionEngine::applyTransaction (
                 STAmount saPaid = txn.getTransactionFee ();
                 mLedger->destroyCoins (saPaid.getNValue ());
 
-                uint64_t dividendCoins = txn.getDividendCoins();
-                WriteLog(lsINFO, TransactionEngine) <<
-                    "vPal: Dividend coins " << dividendCoins;
-                mLedger->createCoins(dividendCoins);
+//                if (txn.getTxnType() == ttDIVIDEND) {
+//                    uint64_t dividendCoins = mLedger->getDividendCoins();
+//                    uint64_t dividendCoinsVBC = mLedger->getDividendCoinsVBC();
+//                    
+//                    WriteLog(lsINFO, TransactionEngine) <<
+//                    "radar: Dividend coins " << dividendCoins;
+//                    mLedger->createCoins(dividendCoins);
+//                    
+//                    WriteLog(lsINFO, TransactionEngine) <<
+//                    "radar: Dividend coinsVBC " << dividendCoinsVBC;
+//                    mLedger->createCoinsVBC(dividendCoinsVBC);
+//                }
+
             }
         }
     }

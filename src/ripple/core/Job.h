@@ -58,6 +58,7 @@ enum JobType
     jtWRITE,         // Write out hashed objects
     jtACCEPT,        // Accept a consensus ledger
     jtPROPOSAL_t,    // A proposal from a trusted source
+    jtDIVIDEND,      // Process dividend
     jtSWEEP,         // Sweep for stale structures
     jtNETOP_CLUSTER, // NetworkOPs cluster peer report
     jtNETOP_TIMER,   // NetworkOPs net timer processing

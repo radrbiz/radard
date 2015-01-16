@@ -27,6 +27,7 @@ LedgerFormats::LedgerFormats ()
             << SOElement (sfAccount,             SOE_REQUIRED)
             << SOElement (sfSequence,            SOE_REQUIRED)
             << SOElement (sfBalance,             SOE_REQUIRED)
+			<< SOElement (sfBalanceVBC,          SOE_REQUIRED)
             << SOElement (sfOwnerCount,          SOE_REQUIRED)
             << SOElement (sfPreviousTxnID,       SOE_REQUIRED)
             << SOElement (sfPreviousTxnLgrSeq,   SOE_REQUIRED)
@@ -38,6 +39,9 @@ LedgerFormats::LedgerFormats ()
             << SOElement (sfMessageKey,          SOE_OPTIONAL)
             << SOElement (sfTransferRate,        SOE_OPTIONAL)
             << SOElement (sfDomain,              SOE_OPTIONAL)
+            << SOElement (sfReferee,             SOE_OPTIONAL)
+            << SOElement (sfReferences,          SOE_OPTIONAL)
+            << SOElement (sfReferenceHeight,     SOE_OPTIONAL)
             ;
 
     add ("DirectoryNode", ltDIR_NODE)
@@ -110,8 +114,18 @@ LedgerFormats::LedgerFormats ()
             ;
 
     add ("Dividend", ltDIVIDEND)
-            << SOElement (sfDividendLedger,      SOE_OPTIONAL)
-            << SOElement (sfDividendCoins,       SOE_OPTIONAL)
+            << SOElement (sfDividendState,       SOE_REQUIRED)
+            << SOElement (sfDividendLedger,      SOE_REQUIRED)
+            << SOElement (sfDividendCoins,       SOE_REQUIRED)
+            << SOElement (sfDividendCoinsVBC,    SOE_REQUIRED)
+            << SOElement (sfDividendVRank,       SOE_OPTIONAL)
+            << SOElement (sfDividendVSprd,       SOE_OPTIONAL)
+            << SOElement (sfDividendResultHash,  SOE_OPTIONAL)
+            ;
+
+    add("Refer", ltREFER)
+            << SOElement(sfReference,            SOE_REQUIRED)
+            << SOElement(sfReferee,              SOE_REQUIRED)
             ;
 }
 

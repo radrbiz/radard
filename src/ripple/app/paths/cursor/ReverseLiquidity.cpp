@@ -70,6 +70,17 @@ TER PathCursor::reverseLiquidity () const
         // rightmost offer in a chain of offers - which means that
         // deliverNodeReverse has to take all of those offers into consideration.
     }
+	if (isVBC(nextNode().account_))
+	{
+		WriteLog(lsTRACE, RippleCalc)
+			<< "reverseLiquidityForOffer: "
+			<< "OFFER --> offer: nodeIndex_=" << nodeIndex_;
+		return tesSUCCESS;
+
+		// This control structure ensures deliverNodeReverse is only called for the
+		// rightmost offer in a chain of offers - which means that
+		// deliverNodeReverse has to take all of those offers into consideration.
+	}
 
     // Next is an account node, resolve current offer node's deliver.
     STAmount saDeliverAct;

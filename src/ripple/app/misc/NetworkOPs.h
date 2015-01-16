@@ -296,7 +296,7 @@ public:
     virtual AccountTxs getTxsAccount (
         RippleAddress const& account,
         std::int32_t minLedger, std::int32_t maxLedger, bool forward,
-        Json::Value& token, int limit, bool bAdmin) = 0;
+        Json::Value& token, int limit, bool bAdmin, const std::string& txType) = 0;
 
     typedef std::tuple<std::string, std::string, std::uint32_t>
     txnMetaLedgerType;
@@ -309,7 +309,7 @@ public:
 
     virtual MetaTxsList getTxsAccountB (RippleAddress const& account,
         std::int32_t minLedger, std::int32_t maxLedger,  bool forward,
-        Json::Value& token, int limit, bool bAdmin) = 0;
+        Json::Value& token, int limit, bool bAdmin, const std::string& txType) = 0;
 
     virtual std::vector<RippleAddress> getLedgerAffectedAccounts (
         std::uint32_t ledgerSeq) = 0;
@@ -321,6 +321,8 @@ public:
     virtual void pubLedger (Ledger::ref lpAccepted) = 0;
     virtual void pubProposedTransaction (Ledger::ref lpCurrent,
         SerializedTransaction::ref stTxn, TER terResult) = 0;
+
+    virtual DividendMaster::pointer getDividendMaster() = 0;
 };
 
 std::unique_ptr<NetworkOPs>

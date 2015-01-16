@@ -41,6 +41,7 @@ private:
     {
         /* Only valid for custom currencies */
         assert (!isXRP (issue.currency));
+		assert (!isVBC (issue.currency));
 
         SLE::pointer const issuerAccount = mEngine->entryCache (
             ltACCOUNT_ROOT, Ledger::getAccountRootIndex (issue.account));

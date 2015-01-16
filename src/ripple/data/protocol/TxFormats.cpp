@@ -83,8 +83,21 @@ TxFormats::TxFormats ()
         ;
 
     add ("Dividend", ttDIVIDEND)
+        << SOElement (sfDividendType,        SOE_REQUIRED)
         << SOElement (sfDividendLedger,      SOE_REQUIRED)
+        << SOElement (sfDestination,         SOE_OPTIONAL)
         << SOElement (sfDividendCoins,       SOE_REQUIRED)
+        << SOElement (sfDividendCoinsVBC,    SOE_REQUIRED)
+        << SOElement (sfDividendCoinsVBCRank,SOE_OPTIONAL)
+        << SOElement (sfDividendCoinsVBCSprd,SOE_OPTIONAL)
+        << SOElement (sfDividendVRank,       SOE_OPTIONAL)
+        << SOElement (sfDividendVSprd,       SOE_OPTIONAL)
+        << SOElement (sfDividendResultHash,  SOE_OPTIONAL)
+        ;
+
+    add("AddReferee", ttADDREFEREE)
+        << SOElement(sfDestination,          SOE_REQUIRED)
+        << SOElement(sfAmount,               SOE_OPTIONAL)
         ;
 }
 

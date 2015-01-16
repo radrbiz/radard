@@ -37,7 +37,7 @@ protected:
     Blob mData;
 
 public:
-    Serializer (int n = 256)
+    Serializer (int n = 2048)
     {
         mData.reserve (n);
     }

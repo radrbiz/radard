@@ -509,7 +509,7 @@ CurrencySet usAccountDestCurrencies (
 bool Pathfinder::matchesOrigin (Issue const& issue)
 {
     return issue.currency == mSrcCurrencyID &&
-            (isXRP (issue) ||
+		(isXRP(issue) || isVBC(issue) ||
              issue.account == mSrcIssuerID ||
              issue.account == mSrcAccountID);
 }
@@ -695,6 +695,7 @@ void Pathfinder::addLink(
     auto const& uEndIssuer      = pathEnd.getIssuerID ();
     auto const& uEndAccount     = pathEnd.getAccountID ();
     bool const bOnXRP = uEndCurrency.isZero();
+	bool const bOnVBC = isVBC(uEndCurrency);
 
     WriteLog (lsTRACE, Pathfinder) << "addLink< flags="
                                    << addFlags << " onXRP=" << bOnXRP;
@@ -712,7 +713,7 @@ void Pathfinder::addLink(
 
     if (addFlags & afADD_ACCOUNTS)
     { // add accounts
-        if (bOnXRP)
+		if (bOnXRP || bOnVBC)
         {
             if (mDstAmount.isNative() && !currentPath.empty())
             { // non-default path to XRP destination
@@ -894,6 +895,25 @@ void Pathfinder::addLink(
                         else
                             incompletePaths.push_back (newPath);
                     }
+					else if (isVBC(book->getCurrencyOut()))
+					{ // to VBC
+
+						// add the order book itself
+						newPath.emplace_back(STPathElement::typeCurrency,
+							vbcAccount(), vbcCurrency(), vbcAccount());
+
+						if (isVBC(mDstAmount.getCurrency()))
+						{
+							// destination is VBC, add account and path is
+							// complete
+							WriteLog(lsTRACE, Pathfinder)
+								<< "complete path found bx: "
+								<< currentPath.getJson(0);
+							add_unique_path(mCompletePaths, newPath);
+						}
+						else
+							incompletePaths.push_back(newPath);
+					}
                     else if (!currentPath.hasSeen(
                         book->getIssuerOut(),
                         book->getCurrencyOut(),

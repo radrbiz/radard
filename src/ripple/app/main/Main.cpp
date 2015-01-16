@@ -241,7 +241,7 @@ int run (int argc, char** argv)
 
     if (vm.count ("version"))
     {
-        std::cout << "rippled version " <<
+        std::cout << "radard version " <<
             BuildInfo::getVersionString () << std::endl;
         return 0;
     }
@@ -354,7 +354,7 @@ int run (int argc, char** argv)
         {
             // VFALCO TODO This should be a short.
             getConfig ().setRpcPort (vm ["rpc_port"].as <int> ());
-            getConfig().overwrite("rpc", "port", vm["rpc_port"].as<std::string>());
+            getConfig().overwrite("rpc", "port", boost::lexical_cast<std::string>(vm["rpc_port"].as <int>()));
         }
 
         if (vm.count ("quorum"))

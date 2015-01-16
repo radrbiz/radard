@@ -866,7 +866,7 @@ public:
     // Initialize the Validators object with Config information.
     void prepareValidators ()
     {
-        m_validators->addStrings ("rippled.cfg", getConfig().validators);
+        m_validators->addStrings ("radard.cfg", getConfig().validators);
 
         if (! getConfig().getValidatorsURL().empty())
             m_validators->addURL (getConfig().getValidatorsURL());
@@ -1114,7 +1114,8 @@ void ApplicationImp::startNewLedger ()
     m_journal.info << "Root account: " << rootAddress.humanAccountID ();
 
     {
-        Ledger::pointer firstLedger = std::make_shared<Ledger> (rootAddress, SYSTEM_CURRENCY_START);
+		Ledger::pointer firstLedger = std::make_shared<Ledger>(rootAddress, SYSTEM_CURRENCY_START, SYSTEM_CURRENCY_START_VBC);
+		//Ledger::pointer firstLedger = std::make_shared<Ledger>(rootAddress, SYSTEM_CURRENCY_START);
         assert (firstLedger->getAccountState (rootAddress));
         // TODO(david): Add any default amendments
         // TODO(david): Set default fee/reserve
@@ -1168,6 +1169,7 @@ bool ApplicationImp::loadOldLedger (
                      std::uint32_t closeTimeResolution = 30;
                      bool closeTimeEstimated = false;
                      std::uint64_t totalCoins = 0;
+					 std::uint64_t totalCoinsVBC = 0;
 
                      if (ledger.get().isMember ("accountState"))
                      {
@@ -1195,6 +1197,12 @@ bool ApplicationImp::loadOldLedger (
                                 beast::lexicalCastThrow<std::uint64_t>
                                     (ledger.get()["total_coins"].asString());
                           }
+						  if (ledger.get().isMember("total_coinsVBC"))
+						  {
+							  totalCoinsVBC =
+								  beast::lexicalCastThrow<std::uint64_t>
+								  (ledger.get()["total_coinsVBC"].asString());
+						  }
                          ledger = ledger.get()["accountState"];
                      }
                      if (!ledger.get().isArray ())
@@ -1205,6 +1213,7 @@ bool ApplicationImp::loadOldLedger (
                      {
                          loadLedger = std::make_shared<Ledger> (seq, closeTime);
                          loadLedger->setTotalCoins(totalCoins);
+						 loadLedger->setTotalCoinsVBC(totalCoinsVBC);
 
                          for (Json::UInt index = 0; index < ledger.get().size(); ++index)
                          {

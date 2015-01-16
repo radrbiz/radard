@@ -64,6 +64,7 @@ public:
     static const std::uint64_t cMaxNativeN = 100000000000000000ull;
     static const std::uint64_t cNotNative  = 0x8000000000000000ull;
     static const std::uint64_t cPosNative  = 0x4000000000000000ull;
+    static const std::uint64_t cVBCNative  = 0x2000000000000000ull;
 
     static std::uint64_t const uRateOne;
 
@@ -81,9 +82,9 @@ public:
         mantissa_type mantissa, exponent_type exponent,
             bool native, bool negative, unchecked);
 
-    STAmount (SField::ref name, std::int64_t mantissa);
+    STAmount (SField::ref name, const Currency &c, std::int64_t mantissa);
 
-    STAmount (SField::ref name,
+    STAmount (SField::ref name, const Currency &c = xrpCurrency(),
         std::uint64_t mantissa = 0, bool negative = false);
 
     STAmount (SField::ref name, Issue const& issue,
@@ -112,7 +113,7 @@ private:
 public:
     static
     STAmount
-    createFromInt64 (SField::ref n, std::int64_t v);
+    createFromInt64(SField::ref n, const Currency &c, std::int64_t v);
 
     static
     std::unique_ptr <SerializedType>
@@ -459,6 +460,10 @@ getRate (STAmount const& offerOut, STAmount const& offerIn);
 inline bool isXRP(STAmount const& amount)
 {
     return isXRP (amount.issue().currency);
+}
+inline bool isVBC(STAmount const& amount)
+{
+	return isVBC(amount.issue().currency);
 }
 
 // VFALCO TODO Make static member accessors for these in STAmount

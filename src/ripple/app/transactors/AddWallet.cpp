@@ -81,6 +81,7 @@ public:
         STAmount saDstAmount = mTxn.getFieldAmount (sfAmount);
         STAmount saPaid = mTxn.getTransactionFee ();
         STAmount const saSrcBalance = mTxnAccount->getFieldAmount (sfBalance);
+		STAmount const saSrcBalanceVBC = mTxnAccount->getFieldAmount(sfBalanceVBC);
         std::uint32_t const uOwnerCount = mTxnAccount->getFieldU32 (sfOwnerCount);
         std::uint64_t const uReserve = mEngine->getLedger ()->getReserve (uOwnerCount);
 
@@ -100,9 +101,21 @@ public:
             return tecUNFUNDED_ADD;
         }
 
+		if (saSrcBalanceVBC < saDstAmount + uReserve)
+		{
+			// VBC: Vote no. However, transaction might succeed, if applied in a
+			// different order.
+			m_journal.trace <<
+				"Delay transaction: Insufficient funds: %s / %s (%d)" <<
+				saSrcBalanceVBC.getText() << " / " <<
+				(saDstAmount + uReserve).getText() << " with reserve = " <<
+				uReserve;
+			return tecUNFUNDED_ADD;
+		}
+
         // Deduct initial balance from source account.
         mTxnAccount->setFieldAmount (sfBalance, saSrcBalance - saDstAmount);
-
+		mTxnAccount->setFieldAmount (sfBalanceVBC, saSrcBalanceVBC - saDstAmount);
         // Create the account.
         sleDst  = mEngine->entryCreate (ltACCOUNT_ROOT,
             Ledger::getAccountRootIndex (uDstAccountID));
@@ -110,6 +123,7 @@ public:
         sleDst->setFieldAccount (sfAccount, uDstAccountID);
         sleDst->setFieldU32 (sfSequence, 1);
         sleDst->setFieldAmount (sfBalance, saDstAmount);
+		sleDst->setFieldAmount (sfBalanceVBC, saDstAmount);
         sleDst->setFieldAccount (sfRegularKey, uAuthKeyID);
 
         return tesSUCCESS;

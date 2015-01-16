@@ -82,6 +82,7 @@
 #include <ripple/app/misc/AmendmentTable.h>
 #include <ripple/app/misc/FeeVote.h>
 #include <ripple/app/misc/DividendVote.h>
+#include <ripple/app/misc/DividendMaster.h>
 #include <ripple/app/misc/IHashRouter.h>
 #include <ripple/app/peers/ClusterNodeStatus.h>
 #include <ripple/app/peers/UniqueNodeList.h>

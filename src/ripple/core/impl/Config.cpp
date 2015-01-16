@@ -43,11 +43,16 @@ namespace ripple {
 //
 
 // Fees are in XRP.
-#define DEFAULT_FEE_DEFAULT             10
-#define DEFAULT_FEE_ACCOUNT_RESERVE     200*SYSTEM_CURRENCY_PARTS
-#define DEFAULT_FEE_OWNER_RESERVE       50*SYSTEM_CURRENCY_PARTS
+#define DEFAULT_FEE_DEFAULT             1000
+#define DEFAULT_FEE_ACCOUNT_RESERVE     0
+#define DEFAULT_FEE_OWNER_RESERVE       0
 #define DEFAULT_FEE_OFFER               DEFAULT_FEE_DEFAULT
 #define DEFAULT_FEE_OPERATION           1
+
+//Fee config for radar payment tx
+#define DEFAULT_FEE_CREATE              10000
+#define DEFAULT_FEE_NONE_NATIVE         1000
+#define DEFAULT_FEE_RATE_NATIVE         0.001
 
 // Fee in fee units
 #define DEFAULT_TRANSACTION_FEE_BASE    10
@@ -270,6 +275,11 @@ Config::Config ()
     FEE_OFFER               = DEFAULT_FEE_OFFER;
     FEE_DEFAULT             = DEFAULT_FEE_DEFAULT;
     FEE_CONTRACT_OPERATION  = DEFAULT_FEE_OPERATION;
+    
+    FEE_DEFAULT_CREATE      = DEFAULT_FEE_CREATE;
+    FEE_DEFAULT_NONE_NATIVE = DEFAULT_FEE_NONE_NATIVE;
+    FEE_DEFAULT_RATE_NATIVE = DEFAULT_FEE_RATE_NATIVE;
+    
 
     LEDGER_HISTORY          = 256;
     FETCH_DEPTH             = 1000000000;

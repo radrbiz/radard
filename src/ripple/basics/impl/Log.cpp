@@ -22,6 +22,8 @@
 // VFALCO TODO Use std::chrono
 #include <boost/date_time/posix_time/posix_time.hpp>
 #include <fstream>
+#include <thread>
+#include <boost/format.hpp>
 
 namespace ripple {
 
@@ -301,7 +303,8 @@ Logs::format (std::string& output, std::string const& message,
     output = boost::posix_time::to_simple_string (
         boost::posix_time::second_clock::universal_time ());
 
-    output += " ";
+    output += boost::str( boost::format(" <%X>") % std::this_thread::get_id());
+    
     if (! partition.empty ())
         output += partition + ":";
 

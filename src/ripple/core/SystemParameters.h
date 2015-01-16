@@ -29,18 +29,29 @@ class RippleSystem
 public:
     static inline char const* getSystemName ()
     {
-        return "ripple";
+        return "radar";
     }
 
     static char const* getCurrencyCode ()
     {
-        return "XRP";
+        return "VRP";
     }
 
     static char const* getCurrencyCodeRipple ()
     {
-        return "XRR";
+        return "VRR";
     }
+	
+	static char const* getCurrencyCodeVBC ()
+    {
+        return "VBC";
+    }
+
+    static char const* getCurrencyCodeRippleVBC ()
+    {
+        return "VBB";
+    }
+	
 
     static int getCurrencyPrecision ()
     {
@@ -53,17 +64,38 @@ public:
 //         the point of call, i.e. "User-agent:" SYSTEM_NAME
 //         It will be necessary to rewrite some of them to use string streams.
 //
-#define SYSTEM_NAME                 "ripple"
+#define SYSTEM_NAME                 "radar"
 #define SYSTEM_CURRENCY_PRECISION   6
 
 // VFALCO TODO Replace with C++11 long long constants
 // VFALCO NOTE Apparently these are used elsewhere. Make them constants in the config
 //             or in the Application
 //
-#define SYSTEM_CURRENCY_GIFT        1000ull
-#define SYSTEM_CURRENCY_USERS       100000000ull
+#define SYSTEM_CURRENCY_GIFT        2ull
+#define SYSTEM_CURRENCY_USERS       1000000ull
 #define SYSTEM_CURRENCY_PARTS       1000000ull      // 10^SYSTEM_CURRENCY_PRECISION
 #define SYSTEM_CURRENCY_START       (SYSTEM_CURRENCY_GIFT*SYSTEM_CURRENCY_USERS*SYSTEM_CURRENCY_PARTS)
+#define SYSTEM_CURRENCY_GIFT_VBC        10ull
+#define SYSTEM_CURRENCY_USERS_VBC       1000000ull
+#define SYSTEM_CURRENCY_PARTS_VBC       1000000ull      // 10^SYSTEM_CURRENCY_PRECISION
+#define SYSTEM_CURRENCY_START_VBC       (SYSTEM_CURRENCY_GIFT_VBC*SYSTEM_CURRENCY_USERS_VBC*SYSTEM_CURRENCY_PARTS_VBC)
+
+#define VBC_DIVIDEND_MIN            1000ull
+#define VBC_DIVIDEND_PERIOD_1       473904000ull // 2015-1-7
+#define VBC_DIVIDEND_PERIOD_2       568598400ull // 2018-1-7
+#define VBC_DIVIDEND_PERIOD_3       663292800ull // 2021-1-7
+#define VBC_INCREASE_RATE_1         3
+#define VBC_INCREASE_RATE_1_PARTS   1000
+#define VBC_INCREASE_RATE_2         15
+#define VBC_INCREASE_RATE_2_PARTS   10000
+#define VBC_INCREASE_RATE_3         1
+#define VBC_INCREASE_RATE_3_PARTS   1000
+#define VBC_INCREASE_RATE_4         3
+#define VBC_INCREASE_RATE_4_PARTS   10000
+#define VBC_INCREASE_MAX            1000000000000000ull
+#define VRP_INCREASE_RATE           1
+#define VRP_INCREASE_RATE_PARTS     1000
+#define VRP_INCREASE_MAX            10000000000000ull
 
 } // ripple
 

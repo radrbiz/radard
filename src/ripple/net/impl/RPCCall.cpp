@@ -162,6 +162,15 @@ private:
                 jvRequest["descending"] = true;
                 --iParams;
             }
+            else if (jvParams[iParams - 1].asString () == "Dividend"
+                     || jvParams[iParams - 1].asString () == "Payment"
+                     || jvParams[iParams - 1].asString () == "OfferCreate"
+                     || jvParams[iParams - 1].asString () == "OfferCancel"
+                     )
+            {
+                jvRequest["tx_type"] = jvParams[iParams - 1].asString ();
+                --iParams;
+            }
             else
             {
                 bDone   = true;
@@ -425,6 +434,18 @@ private:
 
         return jvRequest;
     }
+    
+    //dividend_object <time>
+    Json::Value parseDividendTime (Json::Value const& jvParams)
+    {
+        Json::Value jvRequest (Json::objectValue);
+        if (jvParams.size() >= 1)
+        {
+            std::string strDividendTime = jvParams[0u].asString ();
+            jvRequest["until"]   = beast::lexicalCast <std::uint32_t> (strDividendTime);
+        }
+        return jvRequest;
+    }
 
     // log_level:                           Get log levels
     // log_level <severity>:                Set master log level to the specified severity
@@ -447,7 +468,7 @@ private:
     }
 
     // owner_info <account>|<account_public_key>
-    // owner_info <seed>|<pass_phrase>|<key> [<ledfer>]
+    // owner_info <seed>|<pass_phrase>|<key> [<ledger>]
     // account_info <account>|<account_public_key>
     // account_info <seed>|<pass_phrase>|<key> [<ledger>]
     // account_offers <account>|<account_public_key> [<ledger>]
@@ -817,6 +838,7 @@ public:
     //      {   "ledger_entry",         &RPCParser::parseLedgerEntry,          -1, -1   },
             {   "ledger_header",        &RPCParser::parseLedgerId,              1,  1   },
             {   "ledger_request",       &RPCParser::parseLedgerId,              1,  1   },
+            {   "dividend_object",      &RPCParser::parseDividendTime,          0,  1   },
             {   "log_level",            &RPCParser::parseLogLevel,              0,  2   },
             {   "logrotate",            &RPCParser::parseAsIs,                  0,  0   },
             {   "owner_info",           &RPCParser::parseAccountItems,          1,  2   },

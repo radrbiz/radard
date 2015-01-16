@@ -817,6 +817,7 @@ PeerImp::handleVerifyTimer (boost::system::error_code const& ec)
 PeerImp::error_code
 PeerImp::on_message_unknown (std::uint16_t type)
 {
+    journal_.warning << "Unknown message type " << type << " from " << remote_address_;
     error_code ec;
     // TODO
     return ec;
@@ -828,7 +829,7 @@ PeerImp::on_message_begin (std::uint16_t type,
 {
     error_code ec;
 
-#if 1
+#if 0
     beast::debug_ostream log;
     log << m->DebugString();
 #endif

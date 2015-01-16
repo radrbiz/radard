@@ -1,0 +1,569 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 46;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		3414533F1A19D8390005FD6D /* ripple.proto in Sources */ = {isa = PBXBuildFile; fileRef = 8424474F1A13B30200A37710 /* ripple.proto */; };
+		84244BB21A13B36C00A37710 /* app.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 8424480E1A13B30300A37710 /* app.cpp */; };
+		84244BB31A13B36C00A37710 /* app1.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 842448101A13B30300A37710 /* app1.cpp */; };
+		84244BB41A13B36C00A37710 /* app2.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 842448111A13B30300A37710 /* app2.cpp */; };
+		84244BB51A13B36C00A37710 /* app3.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 842448121A13B30300A37710 /* app3.cpp */; };
+		84244BB61A13B36C00A37710 /* app4.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 842448131A13B30300A37710 /* app4.cpp */; };
+		84244BB71A13B36C00A37710 /* app5.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 842448141A13B30300A37710 /* app5.cpp */; };
+		84244BB81A13B36C00A37710 /* app6.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 842448151A13B30300A37710 /* app6.cpp */; };
+		84244BB91A13B36C00A37710 /* app7.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 842448161A13B30300A37710 /* app7.cpp */; };
+		84244BBA1A13B36C00A37710 /* app8.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 842448171A13B30300A37710 /* app8.cpp */; };
+		84244BBB1A13B36C00A37710 /* app9.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 842448181A13B30300A37710 /* app9.cpp */; };
+		84244BBC1A13B36C00A37710 /* basics.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 842448191A13B30300A37710 /* basics.cpp */; };
+		84244BBD1A13B36C00A37710 /* beast.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 8424481A1A13B30300A37710 /* beast.cpp */; };
+		84244BBE1A13B36C00A37710 /* beastc.c in Sources */ = {isa = PBXBuildFile; fileRef = 8424481B1A13B30300A37710 /* beastc.c */; };
+		84244BBF1A13B36C00A37710 /* beastobjc.mm in Sources */ = {isa = PBXBuildFile; fileRef = 8424481C1A13B30300A37710 /* beastobjc.mm */; settings = {COMPILER_FLAGS = "-DOBJC_OLD_DISPATCH_PROTOTYPES"; }; };
+		84244BC01A13B36C00A37710 /* common.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 8424481D1A13B30300A37710 /* common.cpp */; };
+		84244BC11A13B36C00A37710 /* core.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 8424481E1A13B30300A37710 /* core.cpp */; };
+		84244BC21A13B36C00A37710 /* data.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 8424481F1A13B30300A37710 /* data.cpp */; };
+		84244BC31A13B36C00A37710 /* http.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 842448211A13B30300A37710 /* http.cpp */; };
+		84244BC41A13B36C00A37710 /* hyperleveldb.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 842448231A13B30300A37710 /* hyperleveldb.cpp */; settings = {COMPILER_FLAGS = "-I../../src/hyperleveldb -I../../src/snappy/snappy -I../../src/snappy/config"; }; };
+		84244BC51A13B36C00A37710 /* json.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 842448251A13B30300A37710 /* json.cpp */; };
+		84244BC61A13B36C00A37710 /* leveldb.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 842448271A13B30300A37710 /* leveldb.cpp */; settings = {COMPILER_FLAGS = "-I../../src/leveldb -I../../src/leveldb/include -I../../src/snappy/snappy -I../../src/snappy/config"; }; };
+		84244BC71A13B36C00A37710 /* net.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 842448291A13B30300A37710 /* net.cpp */; };
+		84244BC81A13B36C00A37710 /* nodestore.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 8424482B1A13B30300A37710 /* nodestore.cpp */; settings = {COMPILER_FLAGS = "-I../../src/leveldb/include -I../../src/rocksdb2/include"; }; };
+		84244BC91A13B36C00A37710 /* overlay.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 8424482C1A13B30300A37710 /* overlay.cpp */; };
+		84244BCA1A13B36C00A37710 /* peerfinder.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 8424482D1A13B30300A37710 /* peerfinder.cpp */; };
+		84244BCB1A13B36C00A37710 /* protobuf.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 8424482E1A13B30300A37710 /* protobuf.cpp */; };
+		84244BCC1A13B36C00A37710 /* resource.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 8424482F1A13B30300A37710 /* resource.cpp */; };
+		84244BCD1A13B36C00A37710 /* ripple.proto.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 842448311A13B30300A37710 /* ripple.proto.cpp */; };
+		84244BCE1A13B36C00A37710 /* rocksdb.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 842448321A13B30300A37710 /* rocksdb.cpp */; settings = {COMPILER_FLAGS = "-I../../src/rocksdb2 -I../../src/rocksdb2/include -I../../src/snappy/snappy -I../../src/snappy/config"; }; };
+		84244BCF1A13B36C00A37710 /* rpcx.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 842448341A13B30300A37710 /* rpcx.cpp */; };
+		84244BD01A13B36C00A37710 /* sitefiles.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 842448361A13B30300A37710 /* sitefiles.cpp */; };
+		84244BD11A13B36C00A37710 /* snappy.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 842448371A13B30300A37710 /* snappy.cpp */; settings = {COMPILER_FLAGS = " -I../../src/snappy/snappy -I../../src/snappy/config"; }; };
+		84244BD21A13B36C00A37710 /* sslutil.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 842448381A13B30300A37710 /* sslutil.cpp */; };
+		84244BD31A13B36C00A37710 /* types.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 8424483A1A13B30300A37710 /* types.cpp */; };
+		84244BD41A13B36C00A37710 /* validators.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 8424483C1A13B30300A37710 /* validators.cpp */; };
+		84244BD51A13B36C00A37710 /* websocket.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 8424483D1A13B30300A37710 /* websocket.cpp */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXBuildRule section */
+		3414534E1A19D8B50005FD6D /* PBXBuildRule */ = {
+			isa = PBXBuildRule;
+			compilerSpec = com.apple.compilers.proxy.script;
+			filePatterns = "*.proto";
+			fileType = pattern.proxy;
+			isEditable = 1;
+			outputFiles = (
+				"$(DERIVED_FILE_DIR)/$(INPUT_FILE_BASE).pb.h",
+			);
+			script = "PATH=${PATH}:/usr/local/bin\nprotoc -I${INPUT_FILE_DIR} ${INPUT_FILE_PATH} --cpp_out=${DERIVED_FILE_DIR}";
+		};
+/* End PBXBuildRule section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		842440521A13B2B900A37710 /* CopyFiles */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = /usr/share/man/man1/;
+			dstSubfolderSpec = 0;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 1;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		3493343D1A3FE05000418C3F /* beast */ = {isa = PBXFileReference; lastKnownFileType = folder; name = beast; path = ../../src/beast; sourceTree = "<group>"; };
+		3493343E1A3FE05000418C3F /* BeastConfig.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = BeastConfig.h; path = ../../src/BeastConfig.h; sourceTree = "<group>"; };
+		3493343F1A3FE05000418C3F /* ripple */ = {isa = PBXFileReference; lastKnownFileType = folder; name = ripple; path = ../../src/ripple; sourceTree = "<group>"; };
+		842440541A13B2B900A37710 /* radard */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = radard; sourceTree = BUILT_PRODUCTS_DIR; };
+		8424474E1A13B30200A37710 /* README.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
+		8424474F1A13B30200A37710 /* ripple.proto */ = {isa = PBXFileReference; lastKnownFileType = text; path = ripple.proto; sourceTree = "<group>"; };
+		8424480E1A13B30300A37710 /* app.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = app.cpp; sourceTree = "<group>"; };
+		8424480F1A13B30300A37710 /* app.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = app.h; sourceTree = "<group>"; };
+		842448101A13B30300A37710 /* app1.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = app1.cpp; sourceTree = "<group>"; };
+		842448111A13B30300A37710 /* app2.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = app2.cpp; sourceTree = "<group>"; };
+		842448121A13B30300A37710 /* app3.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = app3.cpp; sourceTree = "<group>"; };
+		842448131A13B30300A37710 /* app4.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = app4.cpp; sourceTree = "<group>"; };
+		842448141A13B30300A37710 /* app5.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = app5.cpp; sourceTree = "<group>"; };
+		842448151A13B30300A37710 /* app6.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = app6.cpp; sourceTree = "<group>"; };
+		842448161A13B30300A37710 /* app7.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = app7.cpp; sourceTree = "<group>"; };
+		842448171A13B30300A37710 /* app8.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = app8.cpp; sourceTree = "<group>"; };
+		842448181A13B30300A37710 /* app9.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = app9.cpp; sourceTree = "<group>"; };
+		842448191A13B30300A37710 /* basics.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = basics.cpp; sourceTree = "<group>"; };
+		8424481A1A13B30300A37710 /* beast.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = beast.cpp; sourceTree = "<group>"; };
+		8424481B1A13B30300A37710 /* beastc.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = beastc.c; sourceTree = "<group>"; };
+		8424481C1A13B30300A37710 /* beastobjc.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = beastobjc.mm; sourceTree = "<group>"; };
+		8424481D1A13B30300A37710 /* common.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = common.cpp; sourceTree = "<group>"; };
+		8424481E1A13B30300A37710 /* core.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = core.cpp; sourceTree = "<group>"; };
+		8424481F1A13B30300A37710 /* data.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = data.cpp; sourceTree = "<group>"; };
+		842448201A13B30300A37710 /* data.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = data.h; sourceTree = "<group>"; };
+		842448211A13B30300A37710 /* http.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = http.cpp; sourceTree = "<group>"; };
+		842448221A13B30300A37710 /* http.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = http.h; sourceTree = "<group>"; };
+		842448231A13B30300A37710 /* hyperleveldb.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = hyperleveldb.cpp; sourceTree = "<group>"; };
+		842448241A13B30300A37710 /* hyperleveldb.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = hyperleveldb.h; sourceTree = "<group>"; };
+		842448251A13B30300A37710 /* json.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = json.cpp; sourceTree = "<group>"; };
+		842448261A13B30300A37710 /* json.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = json.h; sourceTree = "<group>"; };
+		842448271A13B30300A37710 /* leveldb.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = leveldb.cpp; sourceTree = "<group>"; };
+		842448281A13B30300A37710 /* leveldb.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = leveldb.h; sourceTree = "<group>"; };
+		842448291A13B30300A37710 /* net.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = net.cpp; sourceTree = "<group>"; };
+		8424482A1A13B30300A37710 /* net.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = net.h; sourceTree = "<group>"; };
+		8424482B1A13B30300A37710 /* nodestore.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = nodestore.cpp; sourceTree = "<group>"; };
+		8424482C1A13B30300A37710 /* overlay.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = overlay.cpp; sourceTree = "<group>"; };
+		8424482D1A13B30300A37710 /* peerfinder.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = peerfinder.cpp; sourceTree = "<group>"; };
+		8424482E1A13B30300A37710 /* protobuf.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = protobuf.cpp; sourceTree = "<group>"; };
+		8424482F1A13B30300A37710 /* resource.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = resource.cpp; sourceTree = "<group>"; };
+		842448301A13B30300A37710 /* resource.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = resource.h; sourceTree = "<group>"; };
+		842448311A13B30300A37710 /* ripple.proto.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = ripple.proto.cpp; sourceTree = "<group>"; };
+		842448321A13B30300A37710 /* rocksdb.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = rocksdb.cpp; sourceTree = "<group>"; };
+		842448331A13B30300A37710 /* rocksdb.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = rocksdb.h; sourceTree = "<group>"; };
+		842448341A13B30300A37710 /* rpcx.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = rpcx.cpp; sourceTree = "<group>"; };
+		842448351A13B30300A37710 /* rpcx.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = rpcx.h; sourceTree = "<group>"; };
+		842448361A13B30300A37710 /* sitefiles.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = sitefiles.cpp; sourceTree = "<group>"; };
+		842448371A13B30300A37710 /* snappy.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = snappy.cpp; sourceTree = "<group>"; };
+		842448381A13B30300A37710 /* sslutil.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = sslutil.cpp; sourceTree = "<group>"; };
+		842448391A13B30300A37710 /* sslutil.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = sslutil.h; sourceTree = "<group>"; };
+		8424483A1A13B30300A37710 /* types.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = types.cpp; sourceTree = "<group>"; };
+		8424483B1A13B30300A37710 /* types.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = types.h; sourceTree = "<group>"; };
+		8424483C1A13B30300A37710 /* validators.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = validators.cpp; sourceTree = "<group>"; };
+		8424483D1A13B30300A37710 /* websocket.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = websocket.cpp; sourceTree = "<group>"; };
+		8424483E1A13B30300A37710 /* websocket.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = websocket.h; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		842440511A13B2B900A37710 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		3493343C1A3FDFF900418C3F /* build */ = {
+			isa = PBXGroup;
+			children = (
+				8424474D1A13B30200A37710 /* proto */,
+				8424480D1A13B30300A37710 /* unity */,
+			);
+			name = build;
+			sourceTree = "<group>";
+		};
+		8424404B1A13B2B900A37710 = {
+			isa = PBXGroup;
+			children = (
+				3493343C1A3FDFF900418C3F /* build */,
+				3493343D1A3FE05000418C3F /* beast */,
+				3493343E1A3FE05000418C3F /* BeastConfig.h */,
+				3493343F1A3FE05000418C3F /* ripple */,
+				842440551A13B2B900A37710 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		842440551A13B2B900A37710 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				842440541A13B2B900A37710 /* radard */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		8424474D1A13B30200A37710 /* proto */ = {
+			isa = PBXGroup;
+			children = (
+				8424474E1A13B30200A37710 /* README.md */,
+				8424474F1A13B30200A37710 /* ripple.proto */,
+			);
+			name = proto;
+			path = ../../src/ripple/proto;
+			sourceTree = "<group>";
+		};
+		8424480D1A13B30300A37710 /* unity */ = {
+			isa = PBXGroup;
+			children = (
+				8424480E1A13B30300A37710 /* app.cpp */,
+				8424480F1A13B30300A37710 /* app.h */,
+				842448101A13B30300A37710 /* app1.cpp */,
+				842448111A13B30300A37710 /* app2.cpp */,
+				842448121A13B30300A37710 /* app3.cpp */,
+				842448131A13B30300A37710 /* app4.cpp */,
+				842448141A13B30300A37710 /* app5.cpp */,
+				842448151A13B30300A37710 /* app6.cpp */,
+				842448161A13B30300A37710 /* app7.cpp */,
+				842448171A13B30300A37710 /* app8.cpp */,
+				842448181A13B30300A37710 /* app9.cpp */,
+				842448191A13B30300A37710 /* basics.cpp */,
+				8424481A1A13B30300A37710 /* beast.cpp */,
+				8424481B1A13B30300A37710 /* beastc.c */,
+				8424481C1A13B30300A37710 /* beastobjc.mm */,
+				8424481D1A13B30300A37710 /* common.cpp */,
+				8424481E1A13B30300A37710 /* core.cpp */,
+				8424481F1A13B30300A37710 /* data.cpp */,
+				842448201A13B30300A37710 /* data.h */,
+				842448211A13B30300A37710 /* http.cpp */,
+				842448221A13B30300A37710 /* http.h */,
+				842448231A13B30300A37710 /* hyperleveldb.cpp */,
+				842448241A13B30300A37710 /* hyperleveldb.h */,
+				842448251A13B30300A37710 /* json.cpp */,
+				842448261A13B30300A37710 /* json.h */,
+				842448271A13B30300A37710 /* leveldb.cpp */,
+				842448281A13B30300A37710 /* leveldb.h */,
+				842448291A13B30300A37710 /* net.cpp */,
+				8424482A1A13B30300A37710 /* net.h */,
+				8424482B1A13B30300A37710 /* nodestore.cpp */,
+				8424482C1A13B30300A37710 /* overlay.cpp */,
+				8424482D1A13B30300A37710 /* peerfinder.cpp */,
+				8424482E1A13B30300A37710 /* protobuf.cpp */,
+				8424482F1A13B30300A37710 /* resource.cpp */,
+				842448301A13B30300A37710 /* resource.h */,
+				842448311A13B30300A37710 /* ripple.proto.cpp */,
+				842448321A13B30300A37710 /* rocksdb.cpp */,
+				842448331A13B30300A37710 /* rocksdb.h */,
+				842448341A13B30300A37710 /* rpcx.cpp */,
+				842448351A13B30300A37710 /* rpcx.h */,
+				842448361A13B30300A37710 /* sitefiles.cpp */,
+				842448371A13B30300A37710 /* snappy.cpp */,
+				842448381A13B30300A37710 /* sslutil.cpp */,
+				842448391A13B30300A37710 /* sslutil.h */,
+				8424483A1A13B30300A37710 /* types.cpp */,
+				8424483B1A13B30300A37710 /* types.h */,
+				8424483C1A13B30300A37710 /* validators.cpp */,
+				8424483D1A13B30300A37710 /* websocket.cpp */,
+				8424483E1A13B30300A37710 /* websocket.h */,
+			);
+			name = unity;
+			path = ../../src/ripple/unity;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		842440531A13B2B900A37710 /* radard */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 8424405B1A13B2B900A37710 /* Build configuration list for PBXNativeTarget "radard" */;
+			buildPhases = (
+				842440501A13B2B900A37710 /* Sources */,
+				842440511A13B2B900A37710 /* Frameworks */,
+				842440521A13B2B900A37710 /* CopyFiles */,
+			);
+			buildRules = (
+				3414534E1A19D8B50005FD6D /* PBXBuildRule */,
+			);
+			dependencies = (
+			);
+			name = radard;
+			productName = rippled;
+			productReference = 842440541A13B2B900A37710 /* radard */;
+			productType = "com.apple.product-type.tool";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		8424404C1A13B2B900A37710 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				LastUpgradeCheck = 0610;
+				ORGANIZATIONNAME = "";
+				TargetAttributes = {
+					842440531A13B2B900A37710 = {
+						CreatedOnToolsVersion = 6.1;
+					};
+				};
+			};
+			buildConfigurationList = 8424404F1A13B2B900A37710 /* Build configuration list for PBXProject "radard" */;
+			compatibilityVersion = "Xcode 3.2";
+			developmentRegion = English;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+			);
+			mainGroup = 8424404B1A13B2B900A37710;
+			productRefGroup = 842440551A13B2B900A37710 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				842440531A13B2B900A37710 /* radard */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXSourcesBuildPhase section */
+		842440501A13B2B900A37710 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				3414533F1A19D8390005FD6D /* ripple.proto in Sources */,
+				84244BB21A13B36C00A37710 /* app.cpp in Sources */,
+				84244BB31A13B36C00A37710 /* app1.cpp in Sources */,
+				84244BB41A13B36C00A37710 /* app2.cpp in Sources */,
+				84244BB51A13B36C00A37710 /* app3.cpp in Sources */,
+				84244BB61A13B36C00A37710 /* app4.cpp in Sources */,
+				84244BB71A13B36C00A37710 /* app5.cpp in Sources */,
+				84244BB81A13B36C00A37710 /* app6.cpp in Sources */,
+				84244BB91A13B36C00A37710 /* app7.cpp in Sources */,
+				84244BBA1A13B36C00A37710 /* app8.cpp in Sources */,
+				84244BBB1A13B36C00A37710 /* app9.cpp in Sources */,
+				84244BBC1A13B36C00A37710 /* basics.cpp in Sources */,
+				84244BBD1A13B36C00A37710 /* beast.cpp in Sources */,
+				84244BBE1A13B36C00A37710 /* beastc.c in Sources */,
+				84244BBF1A13B36C00A37710 /* beastobjc.mm in Sources */,
+				84244BC01A13B36C00A37710 /* common.cpp in Sources */,
+				84244BC11A13B36C00A37710 /* core.cpp in Sources */,
+				84244BC21A13B36C00A37710 /* data.cpp in Sources */,
+				84244BC31A13B36C00A37710 /* http.cpp in Sources */,
+				84244BC41A13B36C00A37710 /* hyperleveldb.cpp in Sources */,
+				84244BC51A13B36C00A37710 /* json.cpp in Sources */,
+				84244BC61A13B36C00A37710 /* leveldb.cpp in Sources */,
+				84244BC71A13B36C00A37710 /* net.cpp in Sources */,
+				84244BC81A13B36C00A37710 /* nodestore.cpp in Sources */,
+				84244BC91A13B36C00A37710 /* overlay.cpp in Sources */,
+				84244BCA1A13B36C00A37710 /* peerfinder.cpp in Sources */,
+				84244BCB1A13B36C00A37710 /* protobuf.cpp in Sources */,
+				84244BCC1A13B36C00A37710 /* resource.cpp in Sources */,
+				84244BCD1A13B36C00A37710 /* ripple.proto.cpp in Sources */,
+				84244BCE1A13B36C00A37710 /* rocksdb.cpp in Sources */,
+				84244BCF1A13B36C00A37710 /* rpcx.cpp in Sources */,
+				84244BD01A13B36C00A37710 /* sitefiles.cpp in Sources */,
+				84244BD11A13B36C00A37710 /* snappy.cpp in Sources */,
+				84244BD21A13B36C00A37710 /* sslutil.cpp in Sources */,
+				84244BD31A13B36C00A37710 /* types.cpp in Sources */,
+				84244BD41A13B36C00A37710 /* validators.cpp in Sources */,
+				84244BD51A13B36C00A37710 /* websocket.cpp in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		842440591A13B2B900A37710 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++0x";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = NO;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu99;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_SYMBOLS_PRIVATE_EXTERN = NO;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 10.10;
+				MTL_ENABLE_DEBUG_INFO = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = macosx;
+			};
+			name = Debug;
+		};
+		8424405A1A13B2B900A37710 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++0x";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = NO;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = YES;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu99;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 10.10;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				SDKROOT = macosx;
+			};
+			name = Release;
+		};
+		8424405C1A13B2B900A37710 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_CXX_LANGUAGE_STANDARD = "c++0x";
+				HEADER_SEARCH_PATHS = (
+					"$(inherited)",
+					/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/include,
+					/usr/local/Cellar/openssl/1.0.1j/include,
+					/usr/local/Cellar/boost/1.56.0/include,
+					/usr/local/include,
+					../../src,
+					../../src/beast,
+					../../build/proto,
+				);
+				LIBRARY_SEARCH_PATHS = (
+					/usr/local/Cellar/boost/1.56.0/lib,
+					/usr/local/Cellar/openssl/1.0.1j/lib,
+					/usr/local/lib,
+				);
+				OTHER_CPLUSPLUSFLAGS = (
+					"$(OTHER_CFLAGS)",
+					"-Wall",
+					"-frtti",
+					"-std=c++11",
+					"-Wno-invalid-offsetof",
+					"-Wno-mismatched-tags",
+					"-Wno-deprecated-register",
+					"-Wno-sign-compare",
+					"-Wno-char-subscripts",
+					"-Wno-format",
+					"-g",
+					"-Wno-redeclared-class-member",
+					"-Wno-deprecated",
+					"-Wno-deprecated-declarations",
+					"-Wno-unused-variable",
+					"-Wno-unused-function",
+					"-O3",
+					"-fno-strict-aliasing",
+					"-DOPENSSL_NO_SSL2",
+					"-DNDEBUG",
+					"-DBEAST_COMPILE_OBJECTIVE_CPP=1",
+					"-DRADAR_ASYNC_DIVIDEND",
+				);
+				OTHER_LDFLAGS = (
+					"-lboost_coroutine",
+					"-lboost_context",
+					"-lboost_date_time",
+					"-lboost_filesystem",
+					"-lboost_program_options",
+					"-lboost_regex",
+					"-lboost_system",
+					"-lboost_thread-mt",
+					"-ldl",
+					"-lcrypto",
+					"-lprotobuf",
+					"-lssl",
+					"-v",
+					"-framework",
+					AppKit,
+					"-framework",
+					Foundation,
+				);
+				PRODUCT_NAME = radard;
+			};
+			name = Debug;
+		};
+		8424405D1A13B2B900A37710 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_CXX_LANGUAGE_STANDARD = "c++0x";
+				HEADER_SEARCH_PATHS = (
+					"$(inherited)",
+					/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/include,
+					/usr/local/Cellar/openssl/1.0.1j/include,
+					/usr/local/Cellar/boost/1.56.0/include,
+					/usr/local/include,
+					../../src,
+					../../src/beast,
+					../../build/proto,
+				);
+				LIBRARY_SEARCH_PATHS = (
+					/usr/local/Cellar/boost/1.56.0/lib,
+					/usr/local/Cellar/openssl/1.0.1j/lib,
+					/usr/local/lib,
+				);
+				OTHER_CPLUSPLUSFLAGS = (
+					"$(OTHER_CFLAGS)",
+					"-Wall",
+					"-frtti",
+					"-std=c++11",
+					"-Wno-invalid-offsetof",
+					"-Wno-mismatched-tags",
+					"-Wno-deprecated-register",
+					"-Wno-sign-compare",
+					"-Wno-char-subscripts",
+					"-Wno-format",
+					"-g",
+					"-Wno-redeclared-class-member",
+					"-Wno-deprecated",
+					"-Wno-deprecated-declarations",
+					"-Wno-unused-variable",
+					"-Wno-unused-function",
+					"-O3",
+					"-fno-strict-aliasing",
+					"-DOPENSSL_NO_SSL2",
+					"-DNDEBUG",
+					"-DBEAST_COMPILE_OBJECTIVE_CPP=1",
+					"-DRADAR_ASYNC_DIVIDEND",
+				);
+				OTHER_LDFLAGS = (
+					"-lboost_coroutine",
+					"-lboost_context",
+					"-lboost_date_time",
+					"-lboost_filesystem",
+					"-lboost_program_options",
+					"-lboost_regex",
+					"-lboost_system",
+					"-lboost_thread-mt",
+					"-ldl",
+					"-lcrypto",
+					"-lprotobuf",
+					"-lssl",
+					"-v",
+					"-framework",
+					AppKit,
+					"-framework",
+					Foundation,
+				);
+				PRODUCT_NAME = radard;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		8424404F1A13B2B900A37710 /* Build configuration list for PBXProject "radard" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				842440591A13B2B900A37710 /* Debug */,
+				8424405A1A13B2B900A37710 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		8424405B1A13B2B900A37710 /* Build configuration list for PBXNativeTarget "radard" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				8424405C1A13B2B900A37710 /* Debug */,
+				8424405D1A13B2B900A37710 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 8424404C1A13B2B900A37710 /* Project object */;
+}

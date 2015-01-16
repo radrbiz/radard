@@ -61,7 +61,7 @@ peer_protocol_detector::operator() (
         return false;
     if (n>=5 && data[4] != 0)
         return false;
-    if (n>=6 && data[5] != 1)
+    if (n>=6 && data[5] != protocol::MessageType::mtHELLO)
         return false;
     if (n>=6)
         return true;

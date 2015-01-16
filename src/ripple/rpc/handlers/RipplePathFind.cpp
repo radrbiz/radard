@@ -74,7 +74,7 @@ Json::Value doRipplePathFind (RPC::Context& context)
         !context.params_.isMember ("destination_amount")
         || ! amountFromJsonNoThrow(saDstAmount, context.params_["destination_amount"])
         || saDstAmount <= zero
-        || (!isXRP(saDstAmount.getCurrency ())
+		|| (!isXRP(saDstAmount.getCurrency()) && !isVBC(saDstAmount.getCurrency())
             && (!saDstAmount.getIssuer () ||
                 noAccount() == saDstAmount.getIssuer ())))
     {
@@ -213,12 +213,16 @@ Json::Value doRipplePathFind (RPC::Context& context)
             }
             else
             {
-                auto& issuer =
-                    isXRP (uSrcIssuerID) ?
-                        isXRP (uSrcCurrencyID) ? // Default to source account.
-                            xrpAccount() :
-                            Account (raSrc.getAccountID ())
-                        : uSrcIssuerID;            // Use specifed issuer.
+                //auto& issuer =
+                //    isXRP (uSrcIssuerID) ?
+                //        isXRP (uSrcCurrencyID) ? // Default to source account.
+                //            xrpAccount() :
+                //            Account (raSrc.getAccountID ())
+                //        : uSrcIssuerID;            // Use specifed issuer.
+
+				auto& issuer =
+					isXRP(uSrcIssuerID) ? (isXRP(uSrcCurrencyID) ? xrpAccount() : Account(raSrc.getAccountID()))
+					: (isVBC(uSrcIssuerID) ? (isVBC(uSrcCurrencyID) ? vbcAccount() : Account(raSrc.getAccountID())) : uSrcIssuerID);            // Use specifed issuer.
 
                 STAmount saMaxAmount ({uSrcCurrencyID, issuer}, 1);
                 saMaxAmount.negate ();

@@ -49,7 +49,9 @@ enum TxType
 
     ttAMENDMENT         = 100,
     ttFEE               = 101,
-    ttDIVIDEND          = 102,
+    
+    ttDIVIDEND          = 181,
+    ttADDREFEREE        = 182,
 };
 
 /** Manages the list of known transaction formats.

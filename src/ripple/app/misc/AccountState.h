@@ -53,6 +53,11 @@ public:
         return mLedgerEntry->getFieldAmount (sfBalance);
     }
 
+	STAmount getBalanceVBC() const
+	{
+		return mLedgerEntry->getFieldAmount(sfBalanceVBC);
+	}
+
     std::uint32_t getSeq () const
     {
         return mLedgerEntry->getFieldU32 (sfSequence);

@@ -58,6 +58,43 @@ static void autofill_fee (
     if (tx.isMember ("Fee"))
         return;
 
+    std::uint64_t feeByTrans = 0;
+    if (tx.isMember("TransactionType") && tx["TransactionType"].asString() == "Payment")
+    {
+        if (!tx.isMember("Destination"))
+        {
+            RPC::inject_error (rpcINVALID_PARAMS, "no destination account", result);
+            return;
+        }
+        Config d;
+        std::string dstAccountID = tx["Destination"].asString();
+        RippleAddress dstAddress;
+        if (!dstAddress.setAccountID(dstAccountID))
+        {
+            RPC::inject_error (rpcINVALID_PARAMS, "invalid account id", result);
+            return;
+        }
+
+        //dst account not exist yet, charge a fix amount of fee(0.01) for creating
+        if (!ledger->getAccountRoot(dstAddress.getAccountID()))
+        {
+            feeByTrans = d.FEE_DEFAULT_CREATE;
+        }
+
+        //if currency is native(VRP/VBC), charge 1/1000 of transfer amount,
+        //otherwise charge a fix amount of fee(0.001)
+        if (tx.isMember("Amount"))
+        {
+            STAmount amount;
+            if (!amountFromJsonNoThrow(amount, tx["Amount"]))
+            {
+                RPC::inject_error (rpcINVALID_PARAMS, "wrong amount format", result);
+                return;
+            }
+            feeByTrans += amount.isNative() ? amount.getNValue() * d.FEE_DEFAULT_RATE_NATIVE : d.FEE_DEFAULT_NONE_NATIVE;
+        }
+    }
+    
     int mult = Tuning::defaultAutoFillFeeMultiplier;
     if (request.isMember ("fee_mult_max"))
     {
@@ -89,8 +126,10 @@ static void autofill_fee (
         RPC::inject_error (rpcHIGH_FEE, ss.str(), result);
         return;
     }
-
-    tx ["Fee"] = static_cast<int>(fee);
+    
+    std::stringstream ss;
+    ss << std::max(fee, feeByTrans);
+    tx["Fee"] = ss.str();
 }
 
 static Json::Value signPayment(
@@ -342,6 +381,7 @@ Json::Value transactionSign (
     try
     {
         stpTrans = std::make_shared<SerializedTransaction> (*sopTrans);
+        //WriteLog(lsINFO, RPCHandler) << "radar: before sign " << stpTrans->getFieldAmount(sfAmount);
     }
     catch (std::exception&)
     {
@@ -371,7 +411,9 @@ Json::Value transactionSign (
 
     try
     {
-        tpTrans = std::make_shared<Transaction> (stpTrans, Validate::NO);
+        //WriteLog(lsINFO, RPCHandler) << "radar: after sign " << stpTrans->getFieldAmount(sfAmount);
+        tpTrans = std::make_shared<Transaction>(stpTrans, Validate::NO);
+        //WriteLog(lsINFO, RPCHandler) << "radar: after copy" << tpTrans->getSTransaction()->getFieldAmount(sfAmount);
     }
     catch (std::exception&)
     {
@@ -436,8 +478,9 @@ public:
         RippleAddress rootAddress
                 = RippleAddress::createAccountPublic (rootGeneratorMaster, 0);
         std::uint64_t startAmount (100000);
+        std::uint64_t startAmountVBC(100000);
         Ledger::pointer ledger (std::make_shared <Ledger> (
-            rootAddress, startAmount));
+            rootAddress, startAmount, startAmountVBC));
 
         {
             Json::Value req;

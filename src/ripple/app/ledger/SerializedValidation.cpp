@@ -157,6 +157,8 @@ SOTemplate const& SerializedValidation::getFormat ()
             format.push_back (SOElement (sfSignature,       SOE_OPTIONAL));
             format.push_back (SOElement (sfDividendLedger,  SOE_OPTIONAL));
             format.push_back (SOElement (sfDividendCoins,   SOE_OPTIONAL));
+            format.push_back (SOElement (sfDividendCoinsVBC, SOE_OPTIONAL));
+            format.push_back (SOElement (sfDividendResultHash, SOE_OPTIONAL));
         }
     };
 

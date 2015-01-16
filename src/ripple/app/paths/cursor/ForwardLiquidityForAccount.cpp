@@ -356,6 +356,16 @@ TER PathCursor::forwardLiquidityForAccount () const
                             xrpAccount(),
                             fhIGNORE_FREEZE)); // XRP can't be frozen
 
+				// Limit VBC by available. No limit for non-VBC as issuer.
+				if (isVBC(node().issue_))
+					node().saFwdDeliver = std::min(
+					node().saFwdDeliver,
+					ledger().accountHolds(
+					node().account_,
+					vbcCurrency(),
+					vbcAccount(),
+					fhIGNORE_FREEZE)); // VBC can't be frozen
+
             }
 
             // Record amount sent for pass.
@@ -365,15 +375,15 @@ TER PathCursor::forwardLiquidityForAccount () const
             {
                 resultCode   = tecPATH_DRY;
             }
-            else if (!isXRP (node().issue_))
+			else if (!isXRP(node().issue_) && !isVBC(node().issue_))
             {
-                // Non-XRP, current node is the issuer.
+                // Non-XRP & Non-VBC, current node is the issuer.
                 // We could be delivering to multiple accounts, so we don't know
                 // which ripple balance will be adjusted.  Assume just issuing.
 
                 WriteLog (lsTRACE, RippleCalc)
                     << "forwardLiquidityForAccount: ^ --> "
-                    << "ACCOUNT -- !XRP --> offer";
+                    << "ACCOUNT -- !XRP&!VBC --> offer";
 
                 // As the issuer, would only issue.
                 // Don't need to actually deliver. As from delivering leave in
@@ -381,13 +391,26 @@ TER PathCursor::forwardLiquidityForAccount () const
             }
             else
             {
-                WriteLog (lsTRACE, RippleCalc)
-                    << "forwardLiquidityForAccount: ^ --> "
-                    << "ACCOUNT -- XRP --> offer";
+				if (isXRP(node().issue_))
+				{
+					WriteLog(lsTRACE, RippleCalc)
+						<< "forwardLiquidityForAccount: ^ --> "
+						<< "ACCOUNT -- XRP --> offer";
 
-                // Deliver XRP to limbo.
-                resultCode = ledger().accountSend (
-                    node().account_, xrpAccount(), node().saFwdDeliver);
+					// Deliver XRP to limbo.
+					resultCode = ledger().accountSend(
+						node().account_, xrpAccount(), node().saFwdDeliver);
+				}
+				else
+				{
+					WriteLog(lsTRACE, RippleCalc)
+						<< "forwardLiquidityForAccount: ^ --> "
+						<< "ACCOUNT -- VBC --> offer";
+
+					// Deliver VBC to limbo.
+					resultCode = ledger().accountSend(
+						node().account_, vbcAccount(), node().saFwdDeliver);
+				}
             }
         }
     }

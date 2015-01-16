@@ -37,3 +37,4 @@
 #include <ripple/app/misc/Validations.cpp>
 #include <ripple/app/misc/FeeVoteImpl.cpp>
 #include <ripple/app/misc/DividendVoteImpl.cpp>
+#include <ripple/app/misc/DividendMasterImpl.cpp>

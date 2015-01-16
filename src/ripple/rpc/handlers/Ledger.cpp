@@ -52,6 +52,8 @@ Json::Value doLedger (RPC::Context& context)
 
     bool bFull = context.params_.isMember ("full")
             && context.params_["full"].asBool ();
+    bool bWithDividend = context.params_.isMember ("dividend")
+            && context.params_["dividend"].asBool ();
     bool bTransactions = context.params_.isMember ("transactions")
             && context.params_["transactions"].asBool ();
     bool bAccounts = context.params_.isMember ("accounts")
@@ -60,6 +62,7 @@ Json::Value doLedger (RPC::Context& context)
             && context.params_["expand"].asBool ();
     int     iOptions        = (bFull ? LEDGER_JSON_FULL : 0)
                               | (bExpand ? LEDGER_JSON_EXPAND : 0)
+                              | (bWithDividend ? LEDGER_JSON_DUMP_TXDIV : 0)
                               | (bTransactions ? LEDGER_JSON_DUMP_TXRP : 0)
                               | (bAccounts ? LEDGER_JSON_DUMP_STATE : 0);
 

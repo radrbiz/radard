@@ -84,10 +84,23 @@ bool isConsistent(IssueType<ByValue> const& ac)
 }
 
 template <bool ByValue>
+bool isConsistentVBC(IssueType<ByValue> const& ac)
+{
+	return isVBC(ac.currency) == isVBC(ac.account);
+}
+
+template <bool ByValue>
 bool isXRP(IssueType<ByValue> const& ac)
 {
     // Assumes that isConsistent() is true.
     return isXRP (ac.currency);
+}
+
+template <bool ByValue>
+bool isVBC(IssueType<ByValue> const& ac)
+{
+	// Assumes that isConsistent() is true.
+	return isVBC(ac.currency);
 }
 
 template <bool ByValue>
@@ -122,7 +135,7 @@ int compare (IssueType <LhsByValue> const& lhs,
     int diff = compare (lhs.currency, rhs.currency);
     if (diff != 0)
         return diff;
-    if (isXRP (lhs.currency))
+	if (isXRP(lhs.currency) || isVBC(lhs.currency))
         return 0;
     return compare (lhs.account, rhs.account);
 }
@@ -187,6 +200,13 @@ inline Issue const& xrpIssue ()
 {
     static Issue issue {xrpCurrency(), xrpAccount()};
     return issue;
+}
+
+/** Returns an asset specifier that represents VBC. */
+inline Issue const& vbcIssue()
+{
+	static Issue issue{ vbcCurrency(), vbcAccount() };
+	return issue;
 }
 
 /** Returns an asset specifier that represents no account and currency. */

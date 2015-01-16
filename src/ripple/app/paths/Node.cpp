@@ -37,9 +37,9 @@ Json::Value Node::getJson () const
 
     jvNode["type"]  = uFlags;
 
-    bool const hasCurrency = !isXRP (issue_.currency);
-    bool const hasAccount = !isXRP (account_);
-    bool const hasIssuer = !isXRP (issue_.account);
+	bool const hasCurrency = !isXRP(issue_.currency) && !isVBC(issue_.currency);
+	bool const hasAccount = !isXRP(account_) && !isVBC(account_);
+	bool const hasIssuer = !isXRP(issue_.account) && !isVBC(issue_.account);
 
     if (isAccount() || hasAccount)
         jvFlags.append (!isAccount() == hasAccount ? "account" : "-account");
@@ -60,13 +60,13 @@ Json::Value Node::getJson () const
 
     jvNode["flags"] = jvFlags;
 
-    if (!isXRP (account_))
+	if (!isXRP(account_) && !isVBC(account_))
         jvNode["account"] = to_string (account_);
 
-    if (!isXRP (issue_.currency))
+	if (!isXRP(issue_.currency) && !isVBC(issue_.currency))
         jvNode["currency"] = to_string (issue_.currency);
 
-    if (!isXRP (issue_.account))
+	if (!isXRP(issue_.account) && !isVBC(issue_.account))
         jvNode["issuer"] = to_string (issue_.account);
 
     if (saRevRedeem)

@@ -72,6 +72,8 @@ bool transResultInfo (TER terCode, std::string& strToken, std::string& strHuman)
         {   tefMAX_LEDGER,          "tefMAX_LEDGER",            "Ledger sequence too high."                             },
         {   tefNO_AUTH_REQUIRED,    "tefNO_AUTH_REQUIRED",      "Auth is not required."                                 },
         {   tefPAST_SEQ,            "tefPAST_SEQ",              "This sequence number has already past."                },
+        {   tefREFEREE_EXIST,       "tefREFEREE_EXIST",         "This account has already had a referee."               },
+        {   tefREFERENCE_EXIST,     "tefREFERENCE_EXIST",       "This account has already had a reference."             },
         {   tefWRONG_PRIOR,         "tefWRONG_PRIOR",           "This previous transaction does not match."             },
 
         {   telLOCAL_ERROR,         "telLOCAL_ERROR",           "Local failure."                                        },
@@ -95,7 +97,7 @@ bool transResultInfo (TER terCode, std::string& strToken, std::string& strHuman)
         {   temBAD_PATH_LOOP,       "temBAD_PATH_LOOP",         "Malformed: Loop in path."                              },
         {   temBAD_SEND_XRP_LIMIT,      "temBAD_SEND_XRP_LIMIT",        "Malformed: Limit quality is not allowed for XRP to XRP."       },
         {   temBAD_SEND_XRP_MAX,        "temBAD_SEND_XRP_MAX",          "Malformed: Send max is not allowed for XRP to XRP."            },
-        {   temBAD_SEND_XRP_NO_DIRECT,  "temBAD_SEND_XRP_NO_DIRECT",    "Malformed: No Ripple direct is not allowed for XRP to XRP."    },
+        {   temBAD_SEND_XRP_NO_DIRECT,  "temBAD_SEND_XRP_NO_DIRECT",    "Malformed: No Radar direct is not allowed for XRP to XRP."    },
         {   temBAD_SEND_XRP_PARTIAL,    "temBAD_SEND_XRP_PARTIAL",      "Malformed: Partial payment is not allowed for XRP to XRP."     },
         {   temBAD_SEND_XRP_PATHS,      "temBAD_SEND_XRP_PATHS",        "Malformed: Paths are not allowed for XRP to XRP."              },
         {   temBAD_SEQUENCE,        "temBAD_SEQUENCE",          "Malformed: Sequence is not in the past."               },
@@ -111,6 +113,7 @@ bool transResultInfo (TER terCode, std::string& strToken, std::string& strHuman)
         {   temRIPPLE_EMPTY,        "temRIPPLE_EMPTY",          "PathSet with no paths."                                },
         {   temUNCERTAIN,           "temUNCERTAIN",             "In process of determining result. Never returned."     },
         {   temUNKNOWN,             "temUNKNOWN",               "The transactions requires logic not implemented yet."  },
+        {   temBAD_DIV_TYPE,        "temBAD_DIV_TYPE",          "Bad dividend type"                                     },
 
         {   terRETRY,               "terRETRY",                 "Retry transaction."                                    },
         {   terFUNDS_SPENT,         "terFUNDS_SPENT",           "Can't set password, password set funds already spent." },

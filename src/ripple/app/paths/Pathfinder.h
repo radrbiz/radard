@@ -55,7 +55,13 @@ private:
         pt_XRP_to_nonXRP,
         pt_nonXRP_to_XRP,
         pt_nonXRP_to_same,
-        pt_nonXRP_to_nonXRP
+        pt_nonXRP_to_nonXRP,
+
+		pt_VBC_to_VBC,
+		pt_VBC_to_nonVBC,
+		pt_nonVBC_to_VBC,
+		pt_nonVBC_to_same,
+		pt_nonVBC_to_nonVBC,
     };
 
     enum NodeType

@@ -46,6 +46,7 @@ public:
     int getBookSize(Issue const&);
 
     bool isBookToXRP (Issue const&);
+	bool isBookToVBC (Issue const&);
 
     BookListeners::pointer getBookListeners (Book const&);
     BookListeners::pointer makeBookListeners (Book const&);
@@ -68,6 +69,9 @@ private:
 
     // does an order book to XRP exist
     hash_set <Issue> mXRPBooks;
+
+	// does an order book to VBC exist
+	hash_set <Issue> mVBCBooks;
 
     typedef RippleRecursiveMutex LockType;
     typedef std::lock_guard <LockType> ScopedLockType;

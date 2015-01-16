@@ -43,6 +43,30 @@ public:
     {
 
     }
+    
+    void calculateFee ()
+    {
+        mFeeDue = STAmount (mEngine->getLedger ()->scaleFeeLoad (
+                        calculateBaseFee (), mParams & tapADMIN));
+
+        Config d;
+        std::uint64_t feeByTrans = 0;
+        
+        Account const uDstAccountID (mTxn.getFieldAccount160 (sfDestination));
+        auto const index = Ledger::getAccountRootIndex (uDstAccountID);
+        //dst account not exist yet, charge a fix amount of fee(0.01) for creating
+        if (!mEngine->entryCache (ltACCOUNT_ROOT, index))
+        {
+            feeByTrans = d.FEE_DEFAULT_CREATE;
+        }
+
+        //if currency is native(VRP/VBC), charge 1/1000 of transfer amount,
+        //otherwise charge a fix amount of fee(0.001)
+        STAmount const amount (mTxn.getFieldAmount (sfAmount));
+        feeByTrans += amount.isNative() ? amount.getNValue() * d.FEE_DEFAULT_RATE_NATIVE : d.FEE_DEFAULT_NONE_NATIVE;
+
+        mFeeDue = std::max(mFeeDue, STAmount(feeByTrans, false));
+    }
 
     TER doApply () override
     {
@@ -69,7 +93,7 @@ public:
         auto const& uDstCurrency = saDstAmount.getCurrency ();
 
         // isZero() is XRP.  FIX!
-        bool const bXRPDirect = uSrcCurrency.isZero () && uDstCurrency.isZero ();
+		bool const bXRPDirect = (uSrcCurrency.isZero() && uDstCurrency.isZero()) || (isVBC(uSrcCurrency) && isVBC(uDstCurrency));
 
         m_journal.trace <<
             "maxSourceAmount=" << maxSourceAmount.getFullText () <<
@@ -327,7 +351,9 @@ public:
             // Make sure have enough reserve to send. Allow final spend to use
             // reserve for fee.
             auto const mmm = std::max(uReserve, mTxn.getTransactionFee ().getNValue ());
-            if (mPriorBalance < saDstAmount + mmm)
+            bool isVBCTransaction = isVBC(saDstAmount);
+            if (mPriorBalance < (isVBCTransaction?0:saDstAmount) + mmm
+                || (isVBCTransaction && mTxnAccount->getFieldAmount (sfBalanceVBC) < saDstAmount) )
             {
                 // Vote no.
                 // However, transaction might succeed, if applied in a different order.
@@ -342,8 +368,21 @@ public:
             {
                 // The source account does have enough money, so do the arithmetic
                 // for the transfer and make the ledger change.
-                mTxnAccount->setFieldAmount (sfBalance, mSourceBalance - saDstAmount);
-                sleDst->setFieldAmount (sfBalance, sleDst->getFieldAmount (sfBalance) + saDstAmount);
+                m_journal.info << "radar: Deduct coin "
+                    << isVBCTransaction << mSourceBalance << saDstAmount;
+
+                if (isVBCTransaction)
+				{
+					mTxnAccount->setFieldAmount(sfBalanceVBC, mTxnAccount->getFieldAmount (sfBalanceVBC) - saDstAmount);
+					sleDst->setFieldAmount(sfBalanceVBC, sleDst->getFieldAmount(sfBalanceVBC) + saDstAmount);
+				}
+				else
+				{
+					mTxnAccount->setFieldAmount(sfBalance, mSourceBalance - saDstAmount);
+					sleDst->setFieldAmount(sfBalance, sleDst->getFieldAmount(sfBalance) + saDstAmount);
+				}
+
+
 
                 // Re-arm the password change fee if we can and need to.
                 if ((sleDst->getFlags () & lsfPasswordSpent))

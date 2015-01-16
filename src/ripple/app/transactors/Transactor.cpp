@@ -30,8 +30,10 @@ TER transact_CreateOffer (SerializedTransaction const& txn, TransactionEnginePar
 TER transact_CancelOffer (SerializedTransaction const& txn, TransactionEngineParams params, TransactionEngine* engine);
 TER transact_AddWallet (SerializedTransaction const& txn, TransactionEngineParams params, TransactionEngine* engine);
 TER transact_Change (SerializedTransaction const& txn, TransactionEngineParams params, TransactionEngine* engine);
+TER transact_Dividend (SerializedTransaction const& txn, TransactionEngineParams params, TransactionEngine* engine);
 TER transact_CreateTicket (SerializedTransaction const& txn, TransactionEngineParams params, TransactionEngine* engine);
 TER transact_CancelTicket (SerializedTransaction const& txn, TransactionEngineParams params, TransactionEngine* engine);
+TER transact_AddReferee(SerializedTransaction const& txn, TransactionEngineParams params, TransactionEngine* engine);
 
 TER
 Transactor::transact (
@@ -39,10 +41,16 @@ Transactor::transact (
     TransactionEngineParams params,
     TransactionEngine* engine)
 {
+    WriteLog(lsDEBUG, Transactor)
+        << "Applying transaction";
+
     switch (txn.getTxnType ())
     {
     case ttPAYMENT:
         return transact_Payment (txn, params, engine);
+
+    case ttADDREFEREE:
+        return transact_AddReferee(txn, params, engine);
 
     case ttACCOUNT_SET:
         return transact_SetAccount (txn, params, engine);
@@ -64,8 +72,10 @@ Transactor::transact (
 
     case ttAMENDMENT:
     case ttFEE:
-    case ttDIVIDEND:
         return transact_Change (txn, params, engine);
+        
+    case ttDIVIDEND:
+		return transact_Dividend (txn, params, engine);
 
     case ttTICKET_CREATE:
         return transact_CreateTicket (txn, params, engine);
@@ -272,6 +282,8 @@ TER Transactor::apply ()
     if (terResult != tesSUCCESS)
         return (terResult);
 
+    WriteLog(lsDEBUG, Transactor)
+        << "Begin to apply";
     mTxnAccount = mEngine->entryCache (ltACCOUNT_ROOT,
         Ledger::getAccountRootIndex (mTxnAccountID));
     calculateFee ();

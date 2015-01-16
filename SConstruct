@@ -1,4 +1,4 @@
-# rippled SConstruct
+# radard SConstruct
 #
 '''
 
@@ -6,7 +6,7 @@
     ----------------------------------------------------------------------------
 
     <none>          Same as 'install'
-    install         Default target and copies it to build/rippled (default)
+    install         Default target and copies it to build/radard (default)
 
     all             All available variants
     debug           All available debug variants
@@ -66,7 +66,7 @@ CHECK_COMMAND = 'openssl version -a'
 CHECK_LINE = 'built on: '
 BUILD_TIME = 'Mon Apr  7 20:33:19 UTC 2014'
 OPENSSL_ERROR = ('Your openSSL was built on %s; '
-                 'rippled needs a version built on or after %s.')
+                 'radard needs a version built on or after %s.')
 
 def check_openssl():
     if Beast.system.platform in CHECK_PLATFORMS:
@@ -199,6 +199,8 @@ def config_base(env):
     check_openssl()
 
     env.Append(CPPDEFINES=['OPENSSL_NO_SSL2'])
+    #use async dividend
+    #env.Append(CPPDEFINES=['RADAR_ASYNC_DIVIDEND'])
 
     try:
         BOOST_ROOT = os.path.normpath(os.environ['BOOST_ROOT'])
@@ -243,9 +245,11 @@ def config_base(env):
 def config_env(toolchain, variant, env):
     if variant == 'debug':
         env.Append(CPPDEFINES=['DEBUG', '_DEBUG'])
+        env.Append(CCFLAGS=['-g']) # generate debug symbols
 
     elif variant == 'release':
         env.Append(CPPDEFINES=['NDEBUG'])
+        env.Append(CCFLAGS=['-g']) # generate debug symbols
 
     if toolchain in Split('clang gcc'):
         if Beast.system.linux:
@@ -259,7 +263,6 @@ def config_env(toolchain, variant, env):
             '-Wno-sign-compare',
             '-Wno-char-subscripts',
             '-Wno-format',
-            '-g'                        # generate debug symbols
             ])
 
         if toolchain == 'clang':
@@ -335,9 +338,13 @@ def config_env(toolchain, variant, env):
 
         if toolchain != 'msvc':
             git = Beast.Git(env)
+            tm = time.localtime()
             if git.exists:
                 id = '%s+%s.%s' % (git.tags, git.user, git.branch)
-                env.Append(CPPDEFINES={'GIT_COMMIT_ID' : '\'"%s"\'' % id })
+                env['BUILD_VERSION'] = 'G%sT%s' % (git.commit , time.strftime('%m%d%H%M', tm))
+                env['GIT_COMMIT_ID'] = id
+            else:
+                env['BUILD_VERSION'] = time.strftime('T%Y%m%d%H%M', tm)
 
         if toolchain == 'clang':
             if Beast.system.osx:
@@ -539,7 +546,10 @@ for toolchain in all_toolchains:
         for dest, source in variant_dirs.iteritems():
             env.VariantDir(dest, source, duplicate=0)
         objects = []
-        objects.append(addSource('src/ripple/unity/app.cpp', env, variant_dirs))
+        env2=env.Clone()
+        if 'GIT_COMMIT_ID' in env:
+            env2.Append(CPPDEFINES={'GIT_COMMIT_ID' : '\'"%s"\'' % env['GIT_COMMIT_ID'] })
+        objects.append(addSource('src/ripple/unity/app.cpp', env2, variant_dirs))
         objects.append(addSource('src/ripple/unity/app1.cpp', env, variant_dirs))
         objects.append(addSource('src/ripple/unity/app2.cpp', env, variant_dirs))
         objects.append(addSource('src/ripple/unity/app3.cpp', env, variant_dirs))
@@ -554,7 +564,10 @@ for toolchain in all_toolchains:
         objects.append(addSource('src/ripple/unity/beastc.c', env, variant_dirs))
         objects.append(addSource('src/ripple/unity/common.cpp', env, variant_dirs))
         objects.append(addSource('src/ripple/unity/core.cpp', env, variant_dirs))
-        objects.append(addSource('src/ripple/unity/data.cpp', env, variant_dirs))
+        env2=env.Clone()
+        if 'BUILD_VERSION' in env:
+            env2.Append(CPPDEFINES={'BUILD_VERSION' : '\'"%s"\'' % env['BUILD_VERSION'] })
+        objects.append(addSource('src/ripple/unity/data.cpp', env2, variant_dirs))
         objects.append(addSource('src/ripple/unity/http.cpp', env, variant_dirs))
         objects.append(addSource('src/ripple/unity/json.cpp', env, variant_dirs))
         objects.append(addSource('src/ripple/unity/net.cpp', env, variant_dirs))
@@ -605,7 +618,7 @@ for toolchain in all_toolchains:
             objects.append(addSource('src/ripple/unity/beastobjc.mm', env, variant_dirs))
 
         target = env.Program(
-            target = os.path.join(variant_dir, 'rippled'),
+            target = os.path.join(variant_dir, 'radard'),
             source = objects
             )
 

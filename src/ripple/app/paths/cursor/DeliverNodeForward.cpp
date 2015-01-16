@@ -79,6 +79,7 @@ TER PathCursor::deliverNodeForward (
             // There's no fee if we're transferring XRP, if the sender is the
             // issuer, or if the receiver is the issuer.
             bool noFee = isXRP (previousNode().issue_)
+				|| isVBC (previousNode().issue_)
                 || uInAccountID == previousNode().issue_.account
                 || node().offerOwnerAccount_ == previousNode().issue_.account;
             const STAmount saInFeeRate = noFee ? saOne
@@ -171,7 +172,7 @@ TER PathCursor::deliverNodeForward (
                 continue;
             }
 
-            if (!isXRP(nextNode().account_))
+			if (!isXRP(nextNode().account_) && !isVBC(nextNode().account_))
             {
                 // ? --> OFFER --> account
                 // Input fees: vary based upon the consumed offer's owner.
@@ -247,7 +248,8 @@ TER PathCursor::deliverNodeForward (
                 // Send to issuer/limbo total amount including fees (issuer gets
                 // fees).
                 auto const& id = isXRP(node().issue_) ?
-                        xrpAccount() : node().issue_.account;
+					xrpAccount() : (isVBC(node().issue_) ? vbcAccount() : node().issue_.account);
+
                 auto outPassTotal = saOutPassAct + saOutPassFees;
                 ledger().accountSend (
                     node().offerOwnerAccount_,
@@ -279,10 +281,17 @@ TER PathCursor::deliverNodeForward (
             // with owner).  Don't attempt to have someone credit themselves, it
             // is redundant.
             if (isXRP (previousNode().issue_.currency)
+				|| isVBC (previousNode().issue_.currency)
                 || uInAccountID != node().offerOwnerAccount_)
             {
-                auto id = !isXRP(previousNode().issue_.currency) ?
-                        uInAccountID : xrpAccount();
+
+				auto id = isXRP(previousNode().issue_.currency) ?
+					xrpAccount() : (isVBC(previousNode().issue_.currency) ? vbcAccount() : uInAccountID);
+
+             // Replaced by above code
+             //   auto id = !isXRP(previousNode().issue_.currency) ?
+             //           uInAccountID : xrpAccount();
+
                 resultCode = ledger().accountSend (
                     id,
                     node().offerOwnerAccount_,

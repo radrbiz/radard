@@ -84,6 +84,11 @@ public:
         return getFieldU64(sfDividendCoins);
     }
 
+	uint64_t getDividendCoinsVBC() const
+	{
+		return getFieldU64(sfDividendCoinsVBC);
+	}
+
     RippleAddress getSourceAccount () const
     {
         return getFieldAccount (sfAccount);

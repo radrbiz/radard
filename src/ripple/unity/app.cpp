@@ -73,11 +73,11 @@ int main (int argc, char** argv)
                             __GNUC_PATCHLEVEL__;
 
     static_assert (gccver >= 40801,
-        "GCC version 4.8.1 or later is required to compile rippled.");
+        "GCC version 4.8.1 or later is required to compile radard.");
 #endif
 
     static_assert (BOOST_VERSION >= 105500,
-        "Boost version 1.55 or later is required to compile rippled");
+        "Boost version 1.55 or later is required to compile radard");
 
     //
     // These debug heap calls do nothing in release or non Visual Studio builds.

@@ -220,6 +220,7 @@ bool Serializer::getFieldID (int& type, int& name, int offset) const
         return false;
     }
 
+    // WriteLog(lsDEBUG, Serializer) << "gFID: type " << type;
     name = type & 15;
     type >>= 4;
 

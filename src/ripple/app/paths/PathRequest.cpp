@@ -371,6 +371,8 @@ Json::Value PathRequest::doUpdate (RippleLineCache::ref cache, bool fast)
             {
                 if (c.isZero ())
                     sourceCurrencies.insert (std::make_pair (c, xrpAccount()));
+				else if (isVBC(c))
+					sourceCurrencies.insert (std::make_pair(c, vbcAccount()));
                 else
                     sourceCurrencies.insert (std::make_pair (c, raSrcAccount.getAccountID ()));
             }
@@ -443,10 +445,17 @@ Json::Value PathRequest::doUpdate (RippleLineCache::ref cache, bool fast)
         {
             LedgerEntrySet lesSandbox (cache->getLedger (), tapNONE);
             auto& account = currIssuer.second.isNonZero ()
-                    ? Account(currIssuer.second)
+				? (isVBC(currIssuer.second) ? (isVBC(currIssuer.first) ? vbcAccount() : raSrcAccount.getAccountID()) : Account(currIssuer.second))
                     : isXRP (currIssuer.first)
                         ? xrpAccount()
                         : raSrcAccount.getAccountID ();
+	 //   Replace below code with the above 
+     //       auto& account = currIssuer.second.isNonZero ()
+     //               ? Account(currIssuer.second)
+     //               : isXRP (currIssuer.first)
+     //                   ? xrpAccount()
+     //                   : raSrcAccount.getAccountID ();
+
             STAmount saMaxAmount ({currIssuer.first, account}, 1);
 
             saMaxAmount.negate ();

@@ -263,6 +263,9 @@ extern SField const sfMetadata;
 extern SField const sfCloseResolution;
 extern SField const sfTemplateEntryType;
 extern SField const sfTransactionResult;
+    
+extern SField const sfDividendState;
+extern SField const sfDividendType;
 
 // 16-bit integers
 extern SField const sfLedgerEntryType;
@@ -282,7 +285,9 @@ extern SField const sfTransferRate;
 extern SField const sfWalletSize;
 extern SField const sfOwnerCount;
 extern SField const sfDestinationTag;
+
 extern SField const sfDividendLedger;
+extern SField const sfReferenceHeight;
 
 // 32-bit integers (uncommon)
 extern SField const sfHighQualityIn;
@@ -314,7 +319,13 @@ extern SField const sfBaseFee;
 extern SField const sfExchangeRate;
 extern SField const sfLowNode;
 extern SField const sfHighNode;
+
 extern SField const sfDividendCoins;
+extern SField const sfDividendCoinsVBC;
+extern SField const sfDividendCoinsVBCRank;
+extern SField const sfDividendCoinsVBCSprd;
+extern SField const sfDividendVRank;
+extern SField const sfDividendVSprd;
 
 // 128-bit
 extern SField const sfEmailHash;
@@ -329,6 +340,8 @@ extern SField const sfLedgerIndex;
 extern SField const sfWalletLocator;
 extern SField const sfRootIndex;
 extern SField const sfAccountTxnID;
+
+extern SField const sfDividendResultHash;
 
 // 256-bit (uncommon)
 extern SField const sfBookDirectory;
@@ -346,6 +359,7 @@ extern SField const sfTakerGetsIssuer;
 // currency amount (common)
 extern SField const sfAmount;
 extern SField const sfBalance;
+extern SField const sfBalanceVBC;
 extern SField const sfLimitAmount;
 extern SField const sfTakerPays;
 extern SField const sfTakerGets;
@@ -382,6 +396,8 @@ extern SField const sfDestination;
 extern SField const sfIssuer;
 extern SField const sfTarget;
 extern SField const sfRegularKey;
+extern SField const sfReferee;
+extern SField const sfReference;
 
 // path set
 extern SField const sfPaths;
@@ -402,6 +418,7 @@ extern SField const sfFinalFields;
 extern SField const sfNewFields;
 extern SField const sfTemplateEntry;
 extern SField const sfMemo;
+extern SField const sfReferenceHolder;
 
 // array of objects
 // ARRAY/1 is reserved for end of array
@@ -413,6 +430,7 @@ extern SField const sfNecessary;
 extern SField const sfSufficient;
 extern SField const sfAffectedNodes;
 extern SField const sfMemos;
+extern SField const sfReferences;
 
 } // ripple
 

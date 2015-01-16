@@ -8,29 +8,27 @@ class DividendVote
 public:
 
     virtual ~DividendVote() {}
+    
+    virtual bool isStartLedger(Ledger::ref ledger) = 0;
 
-    virtual void doValidation (Ledger::ref lastClosedLedger,
-                               STObject& baseValidation) = 0;
+    virtual void doStartValidation (Ledger::ref lastClosedLedger,
+                                    STObject& baseValidation) = 0;
 
-    virtual void doVoting (Ledger::ref lastClosedLedger,
-                           SHAMap::ref initialPosition) = 0;
+    virtual void doStartVoting (Ledger::ref lastClosedLedger,
+                                SHAMap::ref initialPosition) = 0;
+    
+    virtual bool isApplyLedger(Ledger::ref ledger) = 0;
+    
+    virtual void doApplyValidation (Ledger::ref lastClosedLedger,
+                                    STObject& baseValidation) = 0;
+    
+    virtual bool doApplyVoting (Ledger::ref lastClosedLedger,
+                                SHAMap::ref initialPosition) = 0;
 
-    void setTargetDividendLedger(std::uint32_t t)
-    {
-        mTargetDividendLedger = t;
-    }
-
-    std::uint32_t getTargetDividendLedger()
-    {
-        return mTargetDividendLedger;
-    }
-
-protected:
-    std::uint32_t mTargetDividendLedger;
 };
 
 std::unique_ptr<DividendVote>
-make_DividendVote(std::uint32_t targetDividendLedger, beast::Journal journal);
+make_DividendVote(beast::Journal journal);
 
 }
 

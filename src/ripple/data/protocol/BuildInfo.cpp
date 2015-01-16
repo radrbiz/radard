@@ -33,7 +33,10 @@ char const* getRawVersionString ()
     //
     //  The build version number (edit this for each release)
     //
-        "0.26.4-rc3"
+        "1.0.1"
+#ifdef BUILD_VERSION
+    "-" BUILD_VERSION
+#endif
     //
     //  Must follow the format described here:
     //
@@ -117,7 +120,7 @@ std::string const& getFullVersionString ()
     {
         PrettyPrinter ()
         {
-            fullVersionString = "rippled-" + getVersionString ();
+            fullVersionString = "radard-" + getVersionString ();
         }
 
         std::string fullVersionString;
@@ -235,7 +238,7 @@ public:
 
         expect (current_protocol >= minimum_protocol);
 
-        log << "   Ripple Version: " << BuildInfo::getVersionString();
+        log << "   Radar Version: " << BuildInfo::getVersionString();
         log << " Protocol Version: " << to_string (current_protocol);
     }
 };

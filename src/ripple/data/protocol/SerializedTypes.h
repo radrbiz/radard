@@ -196,15 +196,15 @@ public:
         Account const& account, Currency const& currency,
         Account const& issuer, bool forceCurrency = false)
         : mType (typeNone), mAccountID (account), mCurrencyID (currency)
-        , mIssuerID (issuer), is_offer_ (isXRP(mAccountID))
+		, mIssuerID(issuer), is_offer_(isXRP(mAccountID) || isVBC(mAccountID))
     {
         if (!is_offer_)
             mType |= typeAccount;
 
-        if (forceCurrency || !isXRP(currency))
+        if (forceCurrency || (!isXRP(currency) && !isVBC(currency)))
             mType |= typeCurrency;
 
-        if (!isXRP(issuer))
+        if ((!isXRP(issuer) && !isVBC(issuer)))
             mType |= typeIssuer;
 
         hash_value_ = get_hash (*this);
@@ -214,7 +214,7 @@ public:
         unsigned int uType, Account const& account, Currency const& currency,
         Account const& issuer)
         : mType (uType), mAccountID (account), mCurrencyID (currency)
-        , mIssuerID (issuer), is_offer_ (isXRP(mAccountID))
+		, mIssuerID(issuer), is_offer_(isXRP(mAccountID) || isVBC(mAccountID))
     {
         hash_value_ = get_hash (*this);
     }

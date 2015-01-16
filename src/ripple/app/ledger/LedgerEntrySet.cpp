@@ -1152,21 +1152,27 @@ STAmount LedgerEntrySet::accountHolds (
 
     if (!currency)
     {
-        SLE::pointer sleAccount = entryCache (ltACCOUNT_ROOT,
-            Ledger::getAccountRootIndex (account));
-        std::uint64_t uReserve = mLedger->getReserve (
-            sleAccount->getFieldU32 (sfOwnerCount));
-
-        STAmount saBalance   = sleAccount->getFieldAmount (sfBalance);
-
-        if (saBalance < uReserve)
-        {
-            saAmount.clear ();
-        }
-        else
-        {
-            saAmount = saBalance - uReserve;
-        }
+		SLE::pointer sleAccount = entryCache(ltACCOUNT_ROOT,
+			Ledger::getAccountRootIndex(account));
+		std::uint64_t uReserve = mLedger->getReserve(
+			sleAccount->getFieldU32(sfOwnerCount));
+		STAmount saBalance;
+		if (isVBC(currency))
+		{
+			saBalance = sleAccount->getFieldAmount(sfBalanceVBC);
+		}
+		else
+		{
+			saBalance = sleAccount->getFieldAmount(sfBalance);
+		}
+		if (saBalance < uReserve)
+		{
+			saAmount.clear();
+		}
+		else
+		{
+			saAmount = saBalance - uReserve;
+		}
 
         WriteLog (lsTRACE, LedgerEntrySet) << "accountHolds:" <<
             " account=" << to_string (account) <<
@@ -1188,7 +1194,7 @@ STAmount LedgerEntrySet::accountHolds (
 
 bool LedgerEntrySet::isGlobalFrozen (Account const& issuer)
 {
-    if (!enforceFreeze () || isXRP (issuer))
+	if (!enforceFreeze() || isXRP(issuer) || isVBC(issuer))
         return false;
 
     SLE::pointer sle = entryCache (ltACCOUNT_ROOT, Ledger::getAccountRootIndex (issuer));
@@ -1205,7 +1211,7 @@ bool LedgerEntrySet::isFrozen(
     Currency const& currency,
     Account const& issuer)
 {
-    if (!enforceFreeze () || isXRP (currency))
+	if (!enforceFreeze() || isXRP(currency) || isVBC(currency))
         return false;
 
     SLE::pointer sle = entryCache (ltACCOUNT_ROOT, Ledger::getAccountRootIndex (issuer));
@@ -1454,6 +1460,8 @@ TER LedgerEntrySet::rippleCredit (
 
     assert (!isXRP (uSenderID) && uSenderID != noAccount());
     assert (!isXRP (uReceiverID) && uReceiverID != noAccount());
+	assert (!isVBC (uSenderID) && uSenderID != noAccount());
+	assert (!isVBC (uReceiverID) && uReceiverID != noAccount());
 
     if (!sleRippleState)
     {
@@ -1568,6 +1576,7 @@ TER LedgerEntrySet::rippleSend (
     TER             terResult;
 
     assert (!isXRP (uSenderID) && !isXRP (uReceiverID));
+	assert (!isVBC (uSenderID) && !isVBC (uReceiverID));
     assert (uSenderID != uReceiverID);
 
     if (uSenderID == issuer || uReceiverID == issuer || issuer == noAccount())
@@ -1627,7 +1636,7 @@ TER LedgerEntrySet::accountSend (
         return rippleSend (uSenderID, uReceiverID, saAmount, saActual);
     }
 
-    /* XRP send which does not check reserve and can do pure adjustment.
+    /* XRP or VBC send which does not check reserve and can do pure adjustment.
      * Note that sender or receiver may be null and this not a mistake; this
      * setup is used during pathfinding and it is carefully controlled to
      * ensure that transfers are balanced.
@@ -1647,11 +1656,23 @@ TER LedgerEntrySet::accountSend (
         std::string sender_bal ("-");
         std::string receiver_bal ("-");
 
-        if (sender)
-            sender_bal = sender->getFieldAmount (sfBalance).getFullText ();
+		if (isVBC(saAmount))
+		{
+			if (sender)
+				sender_bal = sender->getFieldAmount(sfBalanceVBC).getFullText();
 
-        if (receiver)
-            receiver_bal = receiver->getFieldAmount (sfBalance).getFullText ();
+			if (receiver)
+				receiver_bal = receiver->getFieldAmount(sfBalanceVBC).getFullText();
+		}
+		else
+		{
+			if (sender)
+				sender_bal = sender->getFieldAmount(sfBalance).getFullText();
+
+			if (receiver)
+				receiver_bal = receiver->getFieldAmount(sfBalance).getFullText();
+		}
+
 
         WriteLog (lsTRACE, LedgerEntrySet) << "accountSend> " <<
             to_string (uSenderID) << " (" << sender_bal <<
@@ -1659,41 +1680,84 @@ TER LedgerEntrySet::accountSend (
             ") : " << saAmount.getFullText ();
     }
 
-    if (sender)
-    {
-        if (sender->getFieldAmount (sfBalance) < saAmount)
-        {
-            terResult = (mParams & tapOPEN_LEDGER)
-                ? telFAILED_PROCESSING
-                : tecFAILED_PROCESSING;
-        }
-        else
-        {
-            // Decrement XRP balance.
-            sender->setFieldAmount (sfBalance,
-                sender->getFieldAmount (sfBalance) - saAmount);
-            entryModify (sender);
-        }
-    }
+	if (isVBC(saAmount))
+	{
+		if (sender)
+		{
+			if (sender->getFieldAmount(sfBalanceVBC) < saAmount)
+			{
+				terResult = (mParams & tapOPEN_LEDGER)
+					? telFAILED_PROCESSING
+					: tecFAILED_PROCESSING;
+			}
+			else
+			{
+				// Decrement VBC balance.
+				sender->setFieldAmount(sfBalanceVBC,
+					sender->getFieldAmount(sfBalanceVBC) - saAmount);
+				entryModify(sender);
+			}
+		}
 
-    if (tesSUCCESS == terResult && receiver)
-    {
-        // Increment XRP balance.
-        receiver->setFieldAmount (sfBalance,
-            receiver->getFieldAmount (sfBalance) + saAmount);
-        entryModify (receiver);
-    }
+		if (tesSUCCESS == terResult && receiver)
+		{
+			// Increment VBC balance.
+			receiver->setFieldAmount(sfBalanceVBC,
+				receiver->getFieldAmount(sfBalanceVBC) + saAmount);
+			entryModify(receiver);
+		}
+	}
+	else
+	{
+		if (sender)
+		{
+			if (sender->getFieldAmount(sfBalance) < saAmount)
+			{
+				terResult = (mParams & tapOPEN_LEDGER)
+					? telFAILED_PROCESSING
+					: tecFAILED_PROCESSING;
+			}
+			else
+			{
+				// Decrement XRP balance.
+				sender->setFieldAmount(sfBalance,
+					sender->getFieldAmount(sfBalance) - saAmount);
+				entryModify(sender);
+			}
+		}
+
+		if (tesSUCCESS == terResult && receiver)
+		{
+			// Increment XRP balance.
+			receiver->setFieldAmount(sfBalance,
+				receiver->getFieldAmount(sfBalance) + saAmount);
+			entryModify(receiver);
+		}
+	}
+
 
     if (ShouldLog (lsTRACE, LedgerEntrySet))
     {
         std::string sender_bal ("-");
         std::string receiver_bal ("-");
 
-        if (sender)
-            sender_bal = sender->getFieldAmount (sfBalance).getFullText ();
+		if (isVBC(saAmount))
+		{
+			if (sender)
+				sender_bal = sender->getFieldAmount(sfBalanceVBC).getFullText();
 
-        if (receiver)
-            receiver_bal = receiver->getFieldAmount (sfBalance).getFullText ();
+			if (receiver)
+				receiver_bal = receiver->getFieldAmount(sfBalanceVBC).getFullText();
+		}
+		else
+		{
+			if (sender)
+				sender_bal = sender->getFieldAmount(sfBalance).getFullText();
+
+			if (receiver)
+				receiver_bal = receiver->getFieldAmount(sfBalance).getFullText();
+		}
+
 
         WriteLog (lsTRACE, LedgerEntrySet) << "accountSend< " <<
             to_string (uSenderID) << " (" << sender_bal <<

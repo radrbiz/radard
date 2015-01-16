@@ -86,6 +86,8 @@ static void updateHelper (SLE::ref entry,
             destMap[book.out].push_back (orderBook);
             if (isXRP(book.out))
                 XRPBooks.insert(book.in);
+			//if (isVBC(book.out))
+			//	VBCBooks.insert(book.in);
             ++books;
         }
     }
@@ -97,6 +99,7 @@ void OrderBookDB::update (Ledger::pointer ledger)
     OrderBookDB::IssueToOrderBook destMap;
     OrderBookDB::IssueToOrderBook sourceMap;
     hash_set< Issue > XRPBooks;
+	hash_set< Issue > VBCBooks;
 
     WriteLog (lsDEBUG, OrderBookDB) << "OrderBookDB::update>";
 
@@ -133,6 +136,7 @@ void OrderBookDB::update (Ledger::pointer ledger)
 void OrderBookDB::addOrderBook(Book const& book)
 {
     bool toXRP = isXRP (book.out);
+	bool toVBC = isVBC (book.out);
     ScopedLockType sl (mLock);
 
     if (toXRP)
@@ -145,6 +149,14 @@ void OrderBookDB::addOrderBook(Book const& book)
                 return;
         }
     }
+	else if (toVBC)
+	{
+		for (auto ob : mSourceMap[book.in])
+		{
+			if (isVBC (ob->getCurrencyOut())) // also to VBC
+				return;
+		}
+	}
     else
     {
         for (auto ob: mDestMap[book.out])
@@ -163,6 +175,8 @@ void OrderBookDB::addOrderBook(Book const& book)
     mDestMap[book.out].push_back (orderBook);
     if (toXRP)
         mXRPBooks.insert(book.in);
+	if (toVBC)
+		mVBCBooks.insert(book.in);
 }
 
 // return list of all orderbooks that want this issuerID and currencyID
@@ -183,6 +197,12 @@ bool OrderBookDB::isBookToXRP(Issue const& issue)
 {
     ScopedLockType sl (mLock);
     return mXRPBooks.count(issue) > 0;
+}
+
+bool OrderBookDB::isBookToVBC(Issue const& issue)
+{
+	ScopedLockType sl(mLock);
+	return mVBCBooks.count(issue) > 0;
 }
 
 BookListeners::pointer OrderBookDB::makeBookListeners (Book const& book)

@@ -52,8 +52,14 @@ typedef hash_set<NodeID> NodeIDSet;
 /** A special account that's used as the "issuer" for XRP. */
 Account const& xrpAccount();
 
+/** A special account that's used as the "issuer" for VBC. */
+Account const& vbcAccount();
+
 /** XRP currency. */
 Currency const& xrpCurrency();
+
+/** VBC currency. */
+Currency const& vbcCurrency();
 
 /** A placeholder for empty accounts. */
 Account const& noAccount();
@@ -77,6 +83,16 @@ inline bool isXRP(Account const& c)
     return c == zero;
 }
 
+inline bool isVBC(Currency const& c)
+{
+	return c == vbcCurrency();
+}
+
+inline bool isVBC(Account const& c)
+{
+	return c == vbcAccount();
+}
+
 /** Returns a human-readable form of the account. */
 std::string to_string(Account const&);
 
@@ -84,6 +100,7 @@ std::string to_string(Account const&);
 std::string to_string(Currency const& c);
 
 const char* systemCurrencyCode();
+const char* systemCurrencyCodeVBC();
 
 /** Tries to convert a string to a Currency, returns true on success. */
 bool to_currency(Currency&, std::string const&);

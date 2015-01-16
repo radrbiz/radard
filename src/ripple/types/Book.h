@@ -74,6 +74,13 @@ bool isConsistent(BookType<ByValue> const& book)
 }
 
 template <bool ByValue>
+bool isConsistentVBC(BookType<ByValue> const& book)
+{
+	return isConsistentVBC(book.in) && isConsistentVBC(book.out)
+		&& book.in != book.out;
+}
+
+template <bool ByValue>
 std::string to_string (BookType<ByValue> const& book)
 {
     return to_string(book.in) + "->" + to_string(book.out);
@@ -186,7 +193,7 @@ public:
     value_type operator() (argument_type const& value) const
     {
         value_type result (currency_hash_type::member (value.currency));
-        if (!isXRP (value.currency))
+		if (!isXRP(value.currency) && !isVBC(value.currency))
             boost::hash_combine (result,
                 issuer_hash_type::member (value.account));
         return result;

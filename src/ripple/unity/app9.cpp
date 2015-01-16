@@ -29,6 +29,7 @@
 #include <ripple/app/transactors/Transactor.cpp>
 
 #include <ripple/app/transactors/Change.cpp>
+#include <ripple/app/transactors/Dividend.cpp>
 #include <ripple/app/transactors/CancelOffer.cpp>
 #include <ripple/app/transactors/Payment.cpp>
 #include <ripple/app/transactors/SetRegularKey.cpp>
@@ -40,3 +41,4 @@
 #include <ripple/app/transactors/CreateOfferBridged.cpp>
 #include <ripple/app/transactors/CreateTicket.cpp>
 #include <ripple/app/transactors/CancelTicket.cpp>
+#include <ripple/app/transactors/AddReferee.cpp>

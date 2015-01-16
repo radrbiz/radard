@@ -84,6 +84,21 @@ Json::Value doAccountTx (RPC::Context& context)
         uLedgerMin = uLedgerMax = l->getLedgerSeq ();
     }
 
+    std::string txType = "";
+    if (params.isMember("tx_type"))
+    {
+        txType = params["tx_type"].asString();
+        //check validation of tx_type, protect from SQL injection
+        try {
+            TxFormats::getInstance().findTypeByName(txType);
+        } catch (...) {
+            WriteLog (lsWARNING, AccountTx) <<
+            "Invalide tx_type " << txType;
+            txType = "";
+            return rpcError (rpcINVALID_PARAMS);
+        }
+    }
+    
     Json::Value resumeToken;
 
     if (params.isMember(jss::marker))
@@ -103,7 +118,7 @@ Json::Value doAccountTx (RPC::Context& context)
         {
             auto txns = context.netOps_.getTxsAccountB (
                 raAccount, uLedgerMin, uLedgerMax, bForward, resumeToken, limit,
-                context.role_ == Config::ADMIN);
+                context.role_ == Config::ADMIN, txType);
 
             for (auto& it: txns)
             {
@@ -124,7 +139,7 @@ Json::Value doAccountTx (RPC::Context& context)
         {
             auto txns = context.netOps_.getTxsAccount (
                 raAccount, uLedgerMin, uLedgerMax, bForward, resumeToken, limit,
-                context.role_ == Config::ADMIN);
+                context.role_ == Config::ADMIN, txType);
 
             for (auto& it: txns)
             {

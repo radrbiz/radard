@@ -103,6 +103,9 @@ enum error_code_i
     rpcSRC_CUR_MALFORMED,
     rpcSRC_ISR_MALFORMED,
     rpcATX_DEPRECATED,
+    
+    //Dividend
+    rpcDIVOBJ_NOT_FOUND,
 
     // Internal error (should never happen)
     rpcINTERNAL,        // Generic internal error.

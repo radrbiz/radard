@@ -46,6 +46,7 @@ Json::Value doLedgerData            (RPC::Context&);
 Json::Value doLedgerEntry           (RPC::Context&);
 Json::Value doLedgerHeader          (RPC::Context&);
 Json::Value doLedgerRequest         (RPC::Context&);
+Json::Value doDividendObject        (RPC::Context&);
 Json::Value doLogLevel              (RPC::Context&);
 Json::Value doLogRotate             (RPC::Context&);
 Json::Value doOwnerInfo             (RPC::Context&);

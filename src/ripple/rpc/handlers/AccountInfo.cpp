@@ -33,6 +33,9 @@ Json::Value doAccountInfo (RPC::Context& context)
 {
     auto& params = context.params_;
 
+    WriteLog(lsINFO, RPCHandler)
+        << (params.isMember("account") ? params["account"] : "No member \"account\"");
+
     Ledger::pointer ledger;
     Json::Value result = RPC::lookupLedger (params, ledger, context.netOps_);
 

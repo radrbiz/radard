@@ -84,7 +84,7 @@ public:
     missing_backend ()
     {
         throw std::runtime_error (
-            "Your rippled.cfg is missing a [node_db] entry, "
+            "Your radard.cfg is missing a [node_db] entry, "
             "please see the rippled-example.cfg file!"
             );
     }

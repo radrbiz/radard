@@ -118,7 +118,11 @@ public:
         // A proposal from a trusted source
         add (jtPROPOSAL_t,    "trustedProposal",
             maxLimit, false,  false, 100,   500);
-
+        
+        // Process dividend
+        add (jtDIVIDEND,      "dividend",
+            1,        false,  false, 0,     0);
+        
         // Sweep for stale structures
         add (jtSWEEP,         "sweep",
             maxLimit, true,   false, 0,     0);

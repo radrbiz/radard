@@ -81,7 +81,8 @@ public:
         , m_standalone (standalone)
         , m_network_quorum (network_quorum)
     {
-        m_dividendVote = make_DividendVote(0, deprecatedLogs().journal("DividendVote"));
+        m_dividendVote = make_DividendVote(deprecatedLogs().journal("DividendVote"));
+        m_dividendMaster = make_DividendMaster(deprecatedLogs().journal("DividendMaster"));
     }
 
     ~NetworkOPsImp ()
@@ -406,7 +407,7 @@ public:
     AccountTxs getTxsAccount (
         RippleAddress const& account, std::int32_t minLedger,
         std::int32_t maxLedger, bool forward, Json::Value& token, int limit,
-        bool bAdmin);
+        bool bAdmin, const std::string& txType);
 
     using NetworkOPs::txnMetaLedgerType;
     using NetworkOPs::MetaTxsList;
@@ -421,11 +422,15 @@ public:
     getTxsAccountB (
         RippleAddress const& account, std::int32_t minLedger,
         std::int32_t maxLedger,  bool forward, Json::Value& token,
-        int limit, bool bAdmin);
+        int limit, bool bAdmin, const std::string& txType);
 
     std::vector<RippleAddress> getLedgerAffectedAccounts (
         std::uint32_t ledgerSeq);
 
+    DividendMaster::pointer getDividendMaster()
+    {
+        return m_dividendMaster;
+    }
     //
     // Monitoring: publisher side
     //
@@ -515,6 +520,7 @@ private:
     std::unique_ptr <LocalTxs> m_localTX;
     std::unique_ptr <FeeVote> m_feeVote;
     std::unique_ptr <DividendVote> m_dividendVote;
+    DividendMaster::pointer m_dividendMaster;
 
     LockType mLock;
 
@@ -1995,6 +2001,8 @@ NetworkOPs::AccountTxs NetworkOPsImp::getAccountTxs (
                     ledger->pendSaveValidated(false, false);
             }
 
+            // drop bad dividend before 3501
+            if (txn->getLedger() > 3501 || txn->getSTransaction()->getTxnType() != ttDIVIDEND)
             ret.emplace_back (txn, std::make_shared<TransactionMetaSet> (
                 txn->getID (), txn->getLedger (), rawMeta.getData ()));
         }
@@ -2058,7 +2066,7 @@ std::vector<NetworkOPsImp::txnMetaLedgerType> NetworkOPsImp::getAccountTxsB (
 NetworkOPsImp::AccountTxs NetworkOPsImp::getTxsAccount (
     RippleAddress const& account, std::int32_t minLedger,
     std::int32_t maxLedger, bool forward, Json::Value& token,
-    int limit, bool bAdmin)
+    int limit, bool bAdmin, const std::string& txType)
 {
     AccountTxs ret;
 
@@ -2091,6 +2099,13 @@ NetworkOPsImp::AccountTxs NetworkOPsImp::getTxsAccount (
             return ret;
         }
     }
+    
+    //Add trans type support
+    std::string txTypeSQL = "";
+    if (txType != "")
+    {
+        txTypeSQL = "AND TransType = '" + txType + "' ";
+    }
 
     // ST NOTE We're using the token reference both for passing inputs and
     //         outputs, so we need to clear it in between.
@@ -2102,11 +2117,13 @@ NetworkOPsImp::AccountTxs NetworkOPsImp::getTxsAccount (
          "FROM AccountTransactions INNER JOIN Transactions "
          "ON Transactions.TransID = AccountTransactions.TransID "
          "WHERE AccountTransactions.Account = '%s' "
+         "%s"
          "AND AccountTransactions.LedgerSeq BETWEEN '%u' AND '%u' "
          "ORDER BY AccountTransactions.LedgerSeq %s, "
          "AccountTransactions.TxnSeq %s, AccountTransactions.TransID %s "
          "LIMIT %u;")
              % account.humanAccountID()
+             % txTypeSQL
              % ((forward && (findLedger != 0)) ? findLedger : minLedger)
              % ((!forward && (findLedger != 0)) ? findLedger: maxLedger)
              % (forward ? "ASC" : "DESC")
@@ -2165,6 +2182,8 @@ NetworkOPsImp::AccountTxs NetworkOPsImp::getTxsAccount (
 
                 --numberOfResults;
 
+                // drop bad dividend before 3501
+                if (txn->getLedger() > 3501 || txn->getSTransaction()->getTxnType() != ttDIVIDEND)
                 ret.emplace_back (std::move (txn),
                     std::make_shared<TransactionMetaSet> (
                         txn->getID (), txn->getLedger (), rawMeta.getData ()));
@@ -2178,7 +2197,7 @@ NetworkOPsImp::AccountTxs NetworkOPsImp::getTxsAccount (
 NetworkOPsImp::MetaTxsList NetworkOPsImp::getTxsAccountB (
     RippleAddress const& account, std::int32_t minLedger,
     std::int32_t maxLedger,  bool forward, Json::Value& token,
-    int limit, bool bAdmin)
+    int limit, bool bAdmin, const std::string& txType)
 {
     MetaTxsList ret;
 
@@ -2214,17 +2233,26 @@ NetworkOPsImp::MetaTxsList NetworkOPsImp::getTxsAccountB (
 
     token = Json::nullValue;
 
+    //Add trans type support
+    std::string txTypeSQL = "";
+    if (txType != "")
+    {
+        txTypeSQL = "AND TransType = '" + txType + "' ";
+    }
+    
     std::string sql = boost::str (boost::format
         ("SELECT AccountTransactions.LedgerSeq,AccountTransactions.TxnSeq,"
          "Status,RawTxn,TxnMeta "
          "FROM AccountTransactions INNER JOIN Transactions "
          "ON Transactions.TransID = AccountTransactions.TransID "
          "WHERE AccountTransactions.Account = '%s' "
+         "%s"
          "AND AccountTransactions.LedgerSeq BETWEEN '%u' AND '%u' "
          "ORDER BY AccountTransactions.LedgerSeq %s, "
          "AccountTransactions.TxnSeq %s, AccountTransactions.TransID %s "
          "LIMIT %u;")
              % account.humanAccountID()
+             % txTypeSQL
              % ((forward && (findLedger != 0)) ? findLedger : minLedger)
              % ((!forward && (findLedger != 0)) ? findLedger: maxLedger)
              % (forward ? "ASC" : "DESC")
@@ -2622,13 +2650,15 @@ void NetworkOPsImp::pubLedger (Ledger::ref accepted)
             }
         }
     }
-
+    
+    m_journal.info << "start pubAccepted: " << alpAccepted->getMap ().size ();
     // Don't lock since pubAcceptedTransaction is locking.
     BOOST_FOREACH (const AcceptedLedger::value_type & vt, alpAccepted->getMap ())
     {
         m_journal.trace << "pubAccepted: " << vt.second->getJson ();
         pubValidatedTransaction (lpAccepted, *vt.second);
     }
+    m_journal.info << "finish pubAccepted: " << alpAccepted->getMap ().size ();
 }
 
 void NetworkOPsImp::reportFeeChange ()
@@ -2804,7 +2834,7 @@ void NetworkOPsImp::pubAccountTransaction (
             }
         }
     }
-    m_journal.info << "pubAccountTransaction:" <<
+    m_journal.debug << "pubAccountTransaction:" <<
         " iProposed=" << iProposed <<
         " iAccepted=" << iAccepted;
 

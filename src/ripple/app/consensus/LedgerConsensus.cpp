@@ -1081,8 +1081,16 @@ private:
                     m_feeVote.doValidation (newLCL, *v);
                     getApp().getAmendmentTable ().doValidation (newLCL, *v);
                 }
-
-                m_dividendVote.doValidation (newLCL, *v);
+#ifdef RADAR_ASYNC_DIVIDEND
+                else if (m_dividendVote.isApplyLedger(newLCL))
+                {
+                    m_dividendVote.doApplyValidation(newLCL, *v);
+                }
+#endif  //RADAR_ASYNC_DIVIDEND
+                else if (m_dividendVote.isStartLedger(newLCL))
+                {
+                    m_dividendVote.doStartValidation(newLCL, *v);
+                }
 
                 v->sign (signingHash, mValPrivate);
                 v->setTrusted ();
@@ -1453,6 +1461,8 @@ private:
 
         if (set)
         {
+            WriteLog (lsINFO, LedgerConsensus) <<
+                "Processing candidate transactions";
             for (SHAMapItem::pointer item = set->peekFirstItem (); !!item;
                 item = set->peekNextItem (item->getTag ()))
             {
@@ -1460,7 +1470,7 @@ private:
                 if (!checkLedger->hasTransaction (item->getTag ()))
                 {
                     // Then try to apply the transaction to applyLedger
-                    WriteLog (lsINFO, LedgerConsensus) <<
+                    WriteLog (lsDEBUG, LedgerConsensus) <<
                         "Processing candidate transaction: " << item->getTag ();
                     try
                     {
@@ -1481,6 +1491,8 @@ private:
                     }
                 }
             }
+            WriteLog (lsINFO, LedgerConsensus) <<
+                "Processing candidate transactions finished retriable:" << retriableTransactions.size();
         }
 
         int changes;
@@ -1662,28 +1674,74 @@ private:
 
       @param initialLedger The ledger that contains our initial position.
     */
-    void takeInitialPosition (Ledger& initialLedger)
+    void takeInitialPosition(Ledger& initialLedger)
     {
         SHAMap::pointer initialSet;
 
-        if ((getConfig ().RUN_STANDALONE || (mProposing && mHaveCorrectLCL))
-                && ((mPreviousLedger->getLedgerSeq () % 256) == 0))
+        if (getConfig().RUN_STANDALONE || (mProposing && mHaveCorrectLCL))
         {
-            // previous ledger was flag ledger
-            SHAMap::pointer preSet
-                = initialLedger.peekTransactionMap ()->snapShot (true);
-            m_feeVote.doVoting (mPreviousLedger, preSet);
-            getApp().getAmendmentTable ().doVoting (mPreviousLedger, preSet);
-            initialSet = preSet->snapShot (false);
-        } else if ((getConfig ().RUN_STANDALONE || (mProposing && mHaveCorrectLCL))
-                && (mPreviousLedger->getLedgerSeq() > 2)
-                && ((mPreviousLedger->getLedgerSeq() % 10) == 0)) {
-            WriteLog(lsINFO, LedgerConsensus) << "vPal: Time for dividend";
-            SHAMap::pointer preSet = initialLedger.peekTransactionMap()->snapShot(true);
-            m_dividendVote.doVoting(mPreviousLedger, preSet);
-            initialSet = preSet->snapShot(false);
-        } else
-            initialSet = initialLedger.peekTransactionMap ()->snapShot (false);
+            if ((mPreviousLedger->getLedgerSeq() % 256) == 0)
+            {
+                // previous ledger was flag ledger
+                SHAMap::pointer preSet
+                    = initialLedger.peekTransactionMap()->snapShot(true);
+                m_feeVote.doVoting(mPreviousLedger, preSet);
+                getApp().getAmendmentTable().doVoting(mPreviousLedger, preSet);
+                initialSet = preSet->snapShot(false);
+            }
+#ifdef RADAR_ASYNC_DIVIDEND
+            else if (mPreviousLedger->isDividendStarted())
+            {
+                DividendMaster::pointer dividendMaster = getApp().getOPs().getDividendMaster();
+                if (dividendMaster->tryLock())
+                {
+                    if (!dividendMaster->isReady() && !dividendMaster->isRunning())
+                    {
+                        getApp().getJobQueue().addJob(jtDIVIDEND,
+                                                      "calcDividend",
+                                                      std::bind(&DividendMaster::calcDividend, mPreviousLedger));
+                    }
+                    dividendMaster->unlock();
+                }
+                if (m_dividendVote.isApplyLedger(mPreviousLedger))
+                {
+                    SHAMap::pointer preSet = initialLedger.peekTransactionMap()->snapShot(true);
+                    if (!m_dividendVote.doApplyVoting(mPreviousLedger, preSet))
+                    {
+                        WriteLog(lsWARNING, LedgerConsensus) << "We are missing a dividend apply";
+                        throw;
+                    }
+                    initialSet = preSet->snapShot(false);
+                }
+            }
+#else
+            else if (mPreviousLedger->isDividendStarted())
+            {
+                DividendMaster::pointer dividendMaster = getApp().getOPs().getDividendMaster();
+                dividendMaster->setReady(false);
+                dividendMaster->calcDividend(mPreviousLedger);
+                if (dividendMaster->isReady())
+                {
+                    SHAMap::pointer preSet = initialLedger.peekTransactionMap()->snapShot(true);
+                    dividendMaster->fillDivResult(preSet);
+                    dividendMaster->fillDivReady(preSet);
+                    initialSet = preSet->snapShot(false);
+                }
+            }
+#endif  //RADAR_ASYNC_DIVIDEND
+            else if (m_dividendVote.isStartLedger(mPreviousLedger))
+            {
+                WriteLog(lsINFO, LedgerConsensus) << "radar: Time for dividend";
+                SHAMap::pointer preSet = initialLedger.peekTransactionMap()->snapShot(true);
+                m_dividendVote.doStartVoting(mPreviousLedger, preSet);
+                initialSet = preSet->snapShot(false);
+            }
+        }
+
+        if (initialSet == nullptr)
+        {
+            initialSet = initialLedger.peekTransactionMap()->snapShot(false);
+        }
 
         // Tell the ledger master not to acquire the ledger we're probably building
         getApp().getLedgerMaster().setBuildingLedger (mPreviousLedger->getLedgerSeq () + 1);

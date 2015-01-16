@@ -102,7 +102,7 @@ public:
         // This replaces CONFIG_FILE_NAME
         static char const* getConfigFileName ()
         {
-            return "rippled.cfg";
+            return "radard.cfg";
         }
 
         static char const* getDatabaseDirName ()
@@ -379,6 +379,10 @@ public:
     std::uint64_t                      FEE_OWNER_RESERVE;      // Amount of units not allowed to send per owner entry.
     std::uint64_t                      FEE_OFFER;              // Rate per day.
     int                                FEE_CONTRACT_OPERATION; // fee for each contract operation
+    
+    std::uint64_t                      FEE_DEFAULT_CREATE;     // fee for create account
+    std::uint64_t                      FEE_DEFAULT_NONE_NATIVE;// fee for nonnative payment
+    double                             FEE_DEFAULT_RATE_NATIVE;// fee rate for native(VBC/VRP) payment
 
     // Node storage configuration
     std::uint32_t                      LEDGER_HISTORY;
