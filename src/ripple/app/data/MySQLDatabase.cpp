@@ -153,14 +153,15 @@ bool MySQLDatabase::getNextRow(bool finalize)
     if (mCurrentStmt->mMoreRows)
     {
         mCurrentStmt->mCurRow = mysql_fetch_row(mCurrentStmt->mResult);
-        assert(mCurrentStmt->mCurRow);
-        return true;
+        if (mCurrentStmt->mCurRow)
+        {
+            return mCurrentStmt->mCurRow;
+        }
     }
     if (finalize)
     {
         endIterRows();
     }
-
     return false;
 }
 
@@ -211,7 +212,7 @@ int MySQLDatabase::getBinary (int colIndex, unsigned char* buf, int maxSize)
         maxSize = static_cast<int>(copySize);
     }
     memcpy(buf, mCurrentStmt->mCurRow[colIndex], maxSize);
-    return copySize;
+    return static_cast<int>(copySize);
 }
 
 Blob MySQLDatabase::getBinary (int colIndex)
