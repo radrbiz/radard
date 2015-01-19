@@ -66,6 +66,7 @@ HandlerTable HANDLERS({
     {   "ledger_request",       &doLedgerRequest,       Config::ADMIN,   NO_CONDITION     },
     {   "dividend_object",      &doDividendObject,      Config::USER,   NEEDS_NETWORK_CONNECTION },
     {   "account_dividend",     &doAccountDividend,     Config::USER,   NEEDS_NETWORK_CONNECTION },
+    {   "ancestors",            &doAncestors,           Config::USER,   NEEDS_NETWORK_CONNECTION },
     {   "log_level",            &doLogLevel,            Config::ADMIN,   NO_CONDITION     },
     {   "logrotate",            &doLogRotate,           Config::ADMIN,   NO_CONDITION     },
     {   "owner_info",           &doOwnerInfo,           Config::USER,  NEEDS_CURRENT_LEDGER  },
