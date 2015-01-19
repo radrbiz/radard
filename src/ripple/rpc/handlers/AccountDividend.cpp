@@ -5,7 +5,7 @@ Json::Value doAccountDividend (RPC::Context& context)
 {
     if (!context.params_.isMember ("account"))
     {
-        return ripple::RPC::make_error(rpcTXN_NOT_FOUND, "accountDividendNotFound");
+        return ripple::RPC::make_error(rpcACT_NOT_FOUND, "accountDividendNotFound");
     }
     Json::Value result;
     auto account = context.params_["account"].asString();
