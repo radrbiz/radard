@@ -20,7 +20,7 @@ public:
     virtual bool isRunning() = 0;
     
     // <AccountID, DivCoins, DivCoinsVBC, DivCoinsVBCRank, DivCoinsVBCSpd, VRank, VSpd>
-    typedef std::vector<std::tuple<Account, uint64_t, uint64_t, uint64_t, uint64_t, uint32_t, uint64_t>> AccountsDividend;
+    typedef std::vector<std::tuple<Account, uint64_t, uint64_t, uint64_t, uint64_t, uint32_t, uint64_t, uint64_t>> AccountsDividend;
     
     virtual AccountsDividend& getDivResult() = 0;
     virtual void setTotalDividendVBC(uint64_t) = 0;

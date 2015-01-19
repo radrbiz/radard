@@ -119,6 +119,11 @@ namespace ripple {
                             m_journal.warning << "No dividend coins by spread";
                             return temINVALID;
                         }
+                        if (!mTxn.isFieldPresent(sfDividendTSprd))
+                        {
+                            m_journal.warning << "No dividend T spread";
+                            return temINVALID;
+                        }
                         break;
                     }
                     case DividendMaster::DivType_Done:
@@ -182,26 +187,29 @@ namespace ripple {
                 m_journal.trace << "des account " << RippleAddress::createAccountID(account).humanAccountID();
             }
             
+            uint64_t divCoinsVBC = mTxn.getFieldU64(sfDividendCoinsVBC);
+            uint64_t divCoins = mTxn.getFieldU64(sfDividendCoins);
+            
+            if (divCoinsVBC == 0 && divCoins ==0)
+                return tesSUCCESS;
+            
             SLE::pointer sleAccoutModified = mEngine->entryCache(
                 ltACCOUNT_ROOT, Ledger::getAccountRootIndex(account));
-
-            uint64_t divBlanceVBC = mTxn.getFieldU64(sfDividendCoinsVBC);
-            uint64_t divBalance = mTxn.getFieldU64(sfDividendCoins);
 
             if (sleAccoutModified)
             {
                 mEngine->entryModify(sleAccoutModified);
-                if (divBlanceVBC > 0)
+                if (divCoinsVBC > 0)
                 {
                     uint64_t prevBalanceVBC = sleAccoutModified->getFieldAmount(sfBalanceVBC).getNValue();
-                    sleAccoutModified->setFieldAmount(sfBalanceVBC, prevBalanceVBC + divBlanceVBC);
-                    mEngine->getLedger()->createCoinsVBC(divBlanceVBC);
+                    sleAccoutModified->setFieldAmount(sfBalanceVBC, prevBalanceVBC + divCoinsVBC);
+                    mEngine->getLedger()->createCoinsVBC(divCoinsVBC);
                 }
-                if (divBalance > 0)
+                if (divCoins > 0)
                 {
                     uint64_t prevBalance = sleAccoutModified->getFieldAmount(sfBalance).getNValue();
-                    sleAccoutModified->setFieldAmount(sfBalance, prevBalance + divBalance);
-                    mEngine->getLedger()->createCoins(divBalance);
+                    sleAccoutModified->setFieldAmount(sfBalance, prevBalance + divCoins);
+                    mEngine->getLedger()->createCoins(divCoins);
                 }
                 
                 if (m_journal.trace) {

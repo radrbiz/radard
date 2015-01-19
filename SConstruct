@@ -341,10 +341,10 @@ def config_env(toolchain, variant, env):
             tm = time.localtime()
             if git.exists:
                 id = '%s+%s.%s' % (git.tags, git.user, git.branch)
-                env['BUILD_VERSION'] = 'G%sT%s' % (git.commit , time.strftime('%m%d%H%M', tm))
+                env['BUILD_VERSION'] = '%s-t%s' % (git.tags , time.strftime('%m%d%H%M', tm))
                 env['GIT_COMMIT_ID'] = id
             else:
-                env['BUILD_VERSION'] = time.strftime('T%Y%m%d%H%M', tm)
+                env['BUILD_VERSION'] = time.strftime('%Y%m%d%H%M', tm)
 
         if toolchain == 'clang':
             if Beast.system.osx:

@@ -79,15 +79,13 @@ class Git(object):
     """Provides information about git and the repository we are called from"""
     def __init__(self, env):
         self.tags = self.branch = self.user = ''
-        self.commit = ''
         self.exists = env.Detect('git')
         if self.exists:
             try:
-                self.tags = _execute('git describe --tags --always')
+                self.tags = _execute('git describe --always --dirty')
                 self.branch = _execute('git rev-parse --abbrev-ref HEAD')
                 remote = _execute('git config remote.origin.url')
                 self.user = remote.split(':')[1].split('/')[0]
-                self.commit = _execute('git rev-parse --short HEAD')
             except:
                 self.exists = False
 

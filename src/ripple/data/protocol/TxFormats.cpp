@@ -92,6 +92,7 @@ TxFormats::TxFormats ()
         << SOElement (sfDividendCoinsVBCSprd,SOE_OPTIONAL)
         << SOElement (sfDividendVRank,       SOE_OPTIONAL)
         << SOElement (sfDividendVSprd,       SOE_OPTIONAL)
+        << SOElement (sfDividendTSprd,       SOE_OPTIONAL)
         << SOElement (sfDividendResultHash,  SOE_OPTIONAL)
         ;
 

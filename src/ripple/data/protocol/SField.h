@@ -326,6 +326,7 @@ extern SField const sfDividendCoinsVBCRank;
 extern SField const sfDividendCoinsVBCSprd;
 extern SField const sfDividendVRank;
 extern SField const sfDividendVSprd;
+extern SField const sfDividendTSprd;
 
 // 128-bit
 extern SField const sfEmailHash;

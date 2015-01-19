@@ -160,12 +160,13 @@ SField const sfExchangeRate  = make::one(&sfExchangeRate,  STI_UINT64, 6, "Excha
 SField const sfLowNode       = make::one(&sfLowNode,       STI_UINT64, 7, "LowNode");
 SField const sfHighNode      = make::one(&sfHighNode,      STI_UINT64, 8, "HighNode");
 
-SField const sfDividendCoins = make::one(&sfDividendCoins, STI_UINT64, 186, "DividendCoins");
 SField const sfDividendCoinsVBC = make::one(&sfDividendCoinsVBC, STI_UINT64, 181, "DividendCoinsVBC");
 SField const sfDividendCoinsVBCRank = make::one(&sfDividendCoinsVBCRank, STI_UINT64, 182, "DividendCoinsVBCRank");
 SField const sfDividendCoinsVBCSprd = make::one(&sfDividendCoinsVBCSprd, STI_UINT64, 183, "DividendCoinsVBCSprd");
 SField const sfDividendVRank    = make::one(&sfDividendVRank,    STI_UINT64, 184, "DividendVRank");
 SField const sfDividendVSprd    = make::one(&sfDividendVSprd,    STI_UINT64, 185, "DividendVSprd");
+SField const sfDividendCoins = make::one(&sfDividendCoins, STI_UINT64, 186, "DividendCoins");
+SField const sfDividendTSprd    = make::one(&sfDividendTSprd,    STI_UINT64, 187, "DividendTSprd");
 
 // 128-bit
 SField const sfEmailHash = make::one(&sfEmailHash, STI_HASH128, 1, "EmailHash");

@@ -33,10 +33,7 @@ char const* getRawVersionString ()
     //
     //  The build version number (edit this for each release)
     //
-        "1.0.1"
-#ifdef BUILD_VERSION
-    "-" BUILD_VERSION
-#endif
+        "1.0.1-sp1"
     //
     //  Must follow the format described here:
     //
@@ -121,6 +118,15 @@ std::string const& getFullVersionString ()
         PrettyPrinter ()
         {
             fullVersionString = "radard-" + getVersionString ();
+#ifdef BUILD_VERSION
+            std::string buildSignature(BUILD_VERSION);
+            if (!buildSignature.empty())
+            {
+                beast::String s;
+                s << " (" << buildSignature << ")";
+                fullVersionString += s.toStdString();
+            }
+#endif
         }
 
         std::string fullVersionString;

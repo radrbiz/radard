@@ -29,8 +29,8 @@ public:
     DividendMasterImpl(beast::Journal journal)
         : m_journal(journal),
         m_ready(false),
-        m_running(false),
-        m_dividendLedgerSeq(0)
+        m_dividendLedgerSeq(0),
+        m_running(false)
     {
     }
 
@@ -133,7 +133,12 @@ public:
             trans.setFieldU32(sfDividendLedger, m_dividendLedgerSeq);
             trans.setFieldU64(sfDividendCoins, std::get<1>(it));
             trans.setFieldU64(sfDividendCoinsVBC, std::get<2>(it));
-            
+            trans.setFieldU64(sfDividendCoinsVBCRank, std::get<3>(it));
+            trans.setFieldU64(sfDividendCoinsVBCSprd, std::get<4>(it));
+            trans.setFieldU64(sfDividendVRank, std::get<5>(it));
+            trans.setFieldU64(sfDividendVSprd, std::get<6>(it));
+            trans.setFieldU64(sfDividendTSprd, std::get<7>(it));
+
             uint256 txID = trans.getTransactionID();
             Serializer s;
             trans.add(s, true);
@@ -205,6 +210,7 @@ public:
             trans.setFieldU64(sfDividendCoinsVBCSprd, std::get<4>(it));
             trans.setFieldU64(sfDividendVRank, std::get<5>(it));
             trans.setFieldU64(sfDividendVSprd, std::get<6>(it));
+            trans.setFieldU64(sfDividendTSprd, std::get<7>(it));
 
             uint256 txID = trans.getTransactionID();
             Serializer s;
@@ -368,9 +374,9 @@ bool DividendMaster::calcDividendFunc(Ledger::ref baseLedger, uint64_t dividendC
                                           std::forward_as_tuple(sle->getFieldAccount(sfAccount).getAccountID(), addrParent, height));
         }
     });
-    WriteLog(lsINFO, DividendMaster) << "calcDividend got " << accountsByBalance.size() << " accounts Mem " << memUsed();
+    WriteLog(lsINFO, DividendMaster) << "calcDividend got " << accountsByBalance.size() << " accounts for ranking " << accountsByReference.size() << " accounts for sprd Mem " << memUsed();
     
-    if (accountsByBalance.empty())
+    if (accountsByBalance.empty() && accountsByReference.empty())
     {
         accountsOut.clear();
         actualTotalDividend = 0;
@@ -435,11 +441,11 @@ bool DividendMaster::calcDividendFunc(Ledger::ref baseLedger, uint64_t dividendC
                 sumVSpd += v;
             }
             
-            if (accountParent.isZero())
-                continue;
-            
             t += balance;
             std::get<3>(it.second) = t;
+            
+            if (accountParent.isZero())
+                continue;
             
             totalChildrenHolding += t;
             totalChildrenVSpd += adjust(t);
@@ -455,9 +461,6 @@ bool DividendMaster::calcDividendFunc(Ledger::ref baseLedger, uint64_t dividendC
     actualTotalDividend = 0; actualTotalDividendVBC = 0;
     uint64_t totalDivVBCbyRank = dividendCoinsVBC / 2;
     uint64_t totalDivVBCbyPower = dividendCoinsVBC - totalDivVBCbyRank;
-    if (ShouldLog(lsTRACE, DividendMaster)) {
-        WriteLog(lsTRACE, DividendMaster) << "Account divVBCByRank\tdivVBCByPower\tdivVBC\tBalanceVBC\tVRank\tVSpread\vTSpread";
-    }
     for (const auto& it : accountsByReference) {
         uint64_t divVBC = 0;
         boost::multiprecision::uint128_t divVBCbyRank(0), divVBCbyPower(0);
@@ -470,31 +473,30 @@ bool DividendMaster::calcDividendFunc(Ledger::ref baseLedger, uint64_t dividendC
             divVBCbyPower /= sumVSpd;
             divVBC = static_cast<uint64_t>(divVBCbyRank + divVBCbyPower);
             if (divVBC < VBC_DIVIDEND_MIN) {
-                // both dividends are not needed in this case
-                continue;
+                divVBC = 0;
+                divVBCbyRank = 0;
+                divVBCbyPower = 0;
             }
             actualTotalDividendVBC += divVBC;
         }
         uint64_t div = 0;
-        if (dividendCoins > 0) {
+        if (dividendCoins > 0 && (dividendCoinsVBC == 0 || divVBC >= VBC_DIVIDEND_MIN)) {
             div = std::get<0>(it.second) * VRP_INCREASE_RATE / VRP_INCREASE_RATE_PARTS;
             actualTotalDividend += div;
         }
         
-        if (ShouldLog(lsTRACE, DividendMaster)) {
-            const Account& account = std::get<0>(it.first);
-            RippleAddress address;
-            address.setAccountID(account);
-            WriteLog(lsTRACE, DividendMaster) << address.humanAccountID() << " " << divVBCbyRank << "\t" << divVBCbyPower << "\t" << divVBC << "\t" << std::get<0>(it.second) << "\t" << std::get<1>(it.second) << "\t" << std::get<2>(it.second) << "\t" << std::get<3>(it.second);
+        if (ShouldLog(lsINFO, DividendMaster)) {
+            WriteLog(lsINFO, DividendMaster) << "{\"account\":\"" << RippleAddress::createAccountID(std::get<0>(it.first)).humanAccountID() << "\",\"data\":{\"divVBCByRank\":\"" << divVBCbyRank << "\",\"divVBCByPower\":\"" << divVBCbyPower << "\",\"divVBC\":\"" << divVBC << "\",\"balance\":\"" << std::get<0>(it.second) << "\",\"vrank\":\"" << std::get<1>(it.second) << "\",\"vsprd\":\"" << std::get<2>(it.second) << "\",\"tsprd\":\"" << std::get<3>(it.second) << "\"}}";
         }
         
-        accountsOut.push_back(std::make_tuple(std::get<0>(it.first), div, divVBC, static_cast<uint64_t>(divVBCbyRank), static_cast<uint64_t>(divVBCbyPower), std::get<1>(it.second), std::get<2>(it.second)));
+        if (div !=0 || divVBC !=0)
+        accountsOut.push_back(std::make_tuple(std::get<0>(it.first), div, divVBC, static_cast<uint64_t>(divVBCbyRank), static_cast<uint64_t>(divVBCbyPower), std::get<1>(it.second), std::get<2>(it.second), std::get<3>(it.second)));
     }
     
     WriteLog(lsINFO, DividendMaster) << "calcDividend got actualTotalDividend " << actualTotalDividend << " actualTotalDividendVBC " << actualTotalDividendVBC << " Mem " << memUsed();
     
     // collect remainning
-    accountsOut.push_back(std::make_tuple(Account(), dividendCoins - actualTotalDividend, dividendCoinsVBC - actualTotalDividendVBC, 0, 0, 0, 0));
+    accountsOut.push_back(std::make_tuple(Account(), dividendCoins - actualTotalDividend, dividendCoinsVBC - actualTotalDividendVBC, 0, 0, 0, 0, 0));
     
     accountsByReference.clear();
     WriteLog(lsINFO, DividendMaster) << "calcDividend done with " << accountsOut.size() << " accounts Mem " << memUsed();
