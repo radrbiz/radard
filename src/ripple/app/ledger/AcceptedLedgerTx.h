@@ -92,8 +92,10 @@ public:
         return mMeta ? mMeta->getIndex () : 0;
     }
     std::string getEscMeta () const;
-    Json::Value getJson () const
+    Json::Value getJson ()
     {
+        if (mJson == Json::nullValue)
+            buildJson ();
         return mJson;
     }
 
