@@ -178,12 +178,13 @@ namespace ripple {
         //apply dividend result here
         TER applyTx()
         {
-            m_journal.debug << "radar: apply dividend.";
+            if (m_journal.debug.active())
+                m_journal.debug << "radar: apply dividend.";
 
             auto ledgerSeq = mTxn.getFieldU32(sfDividendLedger);
             const Account& account = mTxn.getFieldAccount160(sfDestination);
 
-            if (m_journal.trace) {
+            if (m_journal.trace.active()) {
                 m_journal.trace << "des account " << RippleAddress::createAccountID(account).humanAccountID();
             }
             
