@@ -2597,7 +2597,8 @@ void NetworkOPsImp::pubProposedTransaction (
         }
     }
     AcceptedLedgerTx alt (lpCurrent, stTxn, terResult);
-    m_journal.trace << "pubProposed: " << alt.getJson ();
+    if (m_journal.trace.active())
+        m_journal.trace << "pubProposed: " << alt.getJson ();
     pubAccountTransaction (lpCurrent, alt, false);
 }
 
@@ -2655,7 +2656,8 @@ void NetworkOPsImp::pubLedger (Ledger::ref accepted)
     // Don't lock since pubAcceptedTransaction is locking.
     BOOST_FOREACH (const AcceptedLedger::value_type & vt, alpAccepted->getMap ())
     {
-        m_journal.trace << "pubAccepted: " << vt.second->getJson ();
+        if (m_journal.trace.active())
+            m_journal.trace << "pubAccepted: " << vt.second->getJson ();
         pubValidatedTransaction (lpAccepted, *vt.second);
     }
     m_journal.info << "finish pubAccepted: " << alpAccepted->getMap ().size ();

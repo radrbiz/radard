@@ -212,12 +212,12 @@ namespace ripple {
                     mEngine->getLedger()->createCoins(divCoins);
                 }
                 
-                if (m_journal.trace) {
+                if (m_journal.trace.active()) {
                     m_journal.trace << "Dividend Applied:" << sleAccoutModified->getJson(0);
                 }
             }
             else {
-                if (m_journal.warning) {
+                if (m_journal.warning.active()) {
                     m_journal.warning << "Dividend account not found :" << RippleAddress::createAccountID(account).humanAccountID();
                 }
             }
