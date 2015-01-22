@@ -2735,8 +2735,8 @@ void NetworkOPsImp::pubValidatedTransaction (
         *alTx.getTxn (), alTx.getResult (), true, alAccepted);
     jvObj[jss::meta] = alTx.getMeta ()->getJson (0);
 
-    Json::FastWriter w;
-    std::string sObj = w.write (jvObj);
+    std::string sObj;
+    bool bSobjInitialized = false;
 
     {
         ScopedLockType sl (mLock);
@@ -2748,6 +2748,11 @@ void NetworkOPsImp::pubValidatedTransaction (
 
             if (p)
             {
+                if (!bSobjInitialized) {
+                    Json::FastWriter w;
+                    sObj = w.write (jvObj);
+                    bSobjInitialized = true;
+                }
                 p->send (jvObj, sObj, true);
                 ++it;
             }
@@ -2763,6 +2768,11 @@ void NetworkOPsImp::pubValidatedTransaction (
 
             if (p)
             {
+                if (!bSobjInitialized) {
+                    Json::FastWriter w;
+                    sObj = w.write (jvObj);
+                    bSobjInitialized = true;
+                }
                 p->send (jvObj, sObj, true);
                 ++it;
             }
