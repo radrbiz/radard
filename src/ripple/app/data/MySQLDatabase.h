@@ -51,7 +51,6 @@ public:
     std::uint64_t getBigInt (int colIndex);
 private:
     bool getColNumber (const char* colName, int* retIndex);
-    
     MySQLStatement *getStatement();
     
     std::uint32_t mPort;
@@ -59,8 +58,6 @@ private:
     std::string mPassword;
     std::string mDatabase;
 
-//    bool inBatch;
-//    std::shared_ptr<std::vector<std::string>> sqlQueue;
     boost::thread_specific_ptr<MySQLStatement> mStmt;
 };
     
