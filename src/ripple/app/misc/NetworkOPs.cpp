@@ -491,7 +491,9 @@ private:
 
     Json::Value transJson (
         const SerializedTransaction& stTxn, TER terResult, bool bValidated,
-        Ledger::ref lpCurrent);
+        Ledger::ref lpCurrent){
+        return NetworkOPs_transJson(stTxn, terResult, bValidated, lpCurrent);
+    }
     bool haveConsensusObject ();
 
     Json::Value pubBootstrapAccountInfo (
@@ -2676,7 +2678,7 @@ void NetworkOPsImp::reportFeeChange ()
 
 // This routine should only be used to publish accepted or validated
 // transactions.
-Json::Value NetworkOPsImp::transJson(
+Json::Value NetworkOPs_transJson(
     const SerializedTransaction& stTxn, TER terResult, bool bValidated,
     Ledger::ref lpCurrent)
 {
@@ -2731,9 +2733,7 @@ Json::Value NetworkOPsImp::transJson(
 void NetworkOPsImp::pubValidatedTransaction (
     Ledger::ref alAccepted, const AcceptedLedgerTx& alTx)
 {
-    Json::Value jvObj = transJson (
-        *alTx.getTxn (), alTx.getResult (), true, alAccepted);
-    jvObj[jss::meta] = alTx.getMeta ()->getJson (0);
+    Json::Value jvObj;
 
     std::string sObj;
     bool bSobjInitialized = false;
@@ -2749,6 +2749,8 @@ void NetworkOPsImp::pubValidatedTransaction (
             if (p)
             {
                 if (!bSobjInitialized) {
+                    jvObj = transJson (*alTx.getTxn (), alTx.getResult (), true, alAccepted);
+                    jvObj[jss::meta] = alTx.getMeta ()->getJson (0);
                     Json::FastWriter w;
                     sObj = w.write (jvObj);
                     bSobjInitialized = true;
@@ -2769,6 +2771,8 @@ void NetworkOPsImp::pubValidatedTransaction (
             if (p)
             {
                 if (!bSobjInitialized) {
+                    jvObj = transJson (*alTx.getTxn (), alTx.getResult (), true, alAccepted);
+                    jvObj[jss::meta] = alTx.getMeta ()->getJson (0);
                     Json::FastWriter w;
                     sObj = w.write (jvObj);
                     bSobjInitialized = true;
@@ -2780,7 +2784,7 @@ void NetworkOPsImp::pubValidatedTransaction (
                 it = mSubRTTransactions.erase (it);
         }
     }
-    getApp().getOrderBookDB ().processTxn (alAccepted, alTx, jvObj);
+    getApp().getOrderBookDB ().processTxn (alAccepted, alTx);
     pubAccountTransaction (alAccepted, alTx, true);
 }
 

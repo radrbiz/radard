@@ -17,6 +17,8 @@
 */
 //==============================================================================
 
+#include <ripple/common/jsonrpc_fields.h>
+
 namespace ripple {
 
 OrderBookDB::OrderBookDB (Stoppable& parent)
@@ -236,9 +238,12 @@ BookListeners::pointer OrderBookDB::getBookListeners (Book const& book)
 // Based on the meta, send the meta to the streams that are listening.
 // We need to determine which streams a given meta effects.
 void OrderBookDB::processTxn (
-    Ledger::ref ledger, const AcceptedLedgerTx& alTx, Json::Value const& jvObj)
+    Ledger::ref ledger, const AcceptedLedgerTx& alTx)
 {
     ScopedLockType sl (mLock);
+    
+    Json::Value jvObj;
+    bool bJvObjInitialized = false;
 
     if (alTx.getResult () == tesSUCCESS)
     {
@@ -275,7 +280,15 @@ void OrderBookDB::processTxn (
                                  data->getFieldAmount (sfTakerPays).issue()});
 
                             if (listeners)
+                            {
+                                if (!bJvObjInitialized)
+                                {
+                                    jvObj = NetworkOPs_transJson (*alTx.getTxn (), alTx.getResult (), true, ledger);
+                                    jvObj[jss::meta] = alTx.getMeta ()->getJson (0);
+                                    bJvObjInitialized = true;
+                                }
                                 listeners->publish (jvObj);
+                            }
                         }
                     }
                 }

@@ -330,6 +330,9 @@ make_NetworkOPs (NetworkOPs::clock_type& clock, bool standalone,
     std::size_t network_quorum, JobQueue& job_queue, LedgerMaster& ledgerMaster,
     beast::Stoppable& parent, beast::Journal journal);
 
+Json::Value NetworkOPs_transJson (
+    const SerializedTransaction& stTxn, TER terResult, bool bValidated,
+    Ledger::ref lpCurrent);
 } // ripple
 
 #endif
