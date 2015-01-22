@@ -746,7 +746,7 @@ bool Ledger::saveValidatedLedger (bool current)
     {
         auto db = getApp().getTxnDB ().getDB ();
         auto dbLock (getApp().getTxnDB ().lock ());
-//        db->executeSQL ("BEGIN TRANSACTION;");
+        db->batchStart();
         db->beginTransaction();
 
         db->executeSQL (boost::str (deleteTrans1 % getLedgerSeq ()));
@@ -815,8 +815,8 @@ bool Ledger::saveValidatedLedger (bool current)
                 vt.second->getTxn ()->getMetaSQL (
                     getLedgerSeq (), vt.second->getEscMeta ()) + ";");
         }
-//        db->executeSQL ("COMMIT TRANSACTION;");
         db->endTransaction();
+        db->batchCommit(true);
     }
 
     {

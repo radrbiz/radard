@@ -56,6 +56,11 @@ public:
     {
         return executeSQL (strSql.c_str (), fail_okay);
     }
+    
+    //execute a batch of sql in one call (only sql without result can call this)
+//    virtual bool executeSQLBatch(const std::vector<std::string>& sqlQueue);
+    virtual bool batchStart(){return true;};
+    virtual bool batchCommit(bool async){return true;};
 
     // returns false if there are no results
     virtual bool startIterRows (bool finalize = true) = 0;

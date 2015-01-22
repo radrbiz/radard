@@ -122,7 +122,11 @@ public:
         // Process dividend
         add (jtDIVIDEND,      "dividend",
             1,        false,  false, 0,     0);
-        
+
+        // Process dividend
+        add (jtDB_BATCH,      "dbBatch",
+             1,        false,  false, 0,     0);
+
         // Sweep for stale structures
         add (jtSWEEP,         "sweep",
             maxLimit, true,   false, 0,     0);

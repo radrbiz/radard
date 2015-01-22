@@ -11,83 +11,92 @@ MySQLDatabase::MySQLDatabase(char const* host, std::uint32_t port,
       mDatabase(database)
 {
     mDBType = "MySQL";
-    mStmtTemp = nullptr;
-    mCurrentStmt = nullptr;
 }
     
 MySQLDatabase::~MySQLDatabase()
 {
-    if (mStmtTemp)
-    {
-        delete mStmtTemp;
-    }
-}
-    
-void MySQLDatabase::connect()
-{
-    mConnection = mysql_init(nullptr);
-    if (!mConnection || mysql_real_connect(mConnection, mHost.c_str(),
-                                           mUsername.c_str(), mPassword.c_str(),
-                                           mDatabase.c_str(), mPort, NULL, 0) == nullptr)
-    {
-        WriteLog (lsFATAL, MySQLDatabase)
-            << "connect fail: host-" << mHost
-            << " port-" << mPort
-            << " database:" << mDatabase
-            << " error_info:" << mysql_error(mConnection);
-        if (mConnection)
-        {
-            mysql_close(mConnection);
-            mConnection = nullptr;
-        }
-        assert(false);
-    }
-    // set auto connect
-    my_bool reconnect = 1;
-    mysql_options(mConnection, MYSQL_OPT_RECONNECT, &reconnect);
-}
-
-void MySQLDatabase::disconnect()
-{
-    if (mConnection)
-    {
-        mysql_close(mConnection);
-        mConnection = nullptr;
-    }
 }
     
 // returns true if the query went ok
 bool MySQLDatabase::executeSQL(const char* sql, bool fail_ok)
 {
-    assert(mConnection && (mCurrentStmt == nullptr));
-    int rc = mysql_query(mConnection, sql);
+    auto stmt = getStatement();
+    if (stmt->mInBatch)
+    {
+        stmt->mSqlQueue->push_back(sql);
+        return true;
+    }
+    
+    assert(stmt->mConnection);
+    endIterRows();
+    int rc = mysql_query(stmt->mConnection, sql);
     if (rc != 0)
     {
         WriteLog (lsWARNING, MySQLDatabase)
             << "executeSQL-" << sql
-            << " error_info:" << mysql_error(mConnection);
+            << " error_info:" << mysql_error(stmt->mConnection);
         return false;
     }
-    
     //SQL has result(like `select`)
-    if (mysql_field_count(mConnection) > 0)
+    if (mysql_field_count(stmt->mConnection) > 0)
     {
-        mCurrentStmt = getStatement();
-        assert(mCurrentStmt);
-        mCurrentStmt->mResult = mysql_store_result(mConnection);
-        if (mCurrentStmt->mResult == nullptr)
+        stmt->mResult = mysql_store_result(stmt->mConnection);
+        if (stmt->mResult == nullptr)
         {
             WriteLog (lsWARNING, MySQLDatabase)
-                << "startIterRows: " << mysql_error(mConnection);
+                << "startIterRows: " << mysql_error(stmt->mConnection);
             return false;
         }
-        if (mysql_num_rows(mCurrentStmt->mResult) > 0)
+        if (mysql_num_rows(stmt->mResult) > 0)
         {
-            mCurrentStmt->mMoreRows = true;
+            stmt->mMoreRows = true;
         }
         else
         {
-            mCurrentStmt->mMoreRows = false;
+            stmt->mMoreRows = false;
+        }
+    }
+    return true;
+}
+    
+bool MySQLDatabase::batchStart()
+{
+    auto stmt = getStatement();
+    stmt->mInBatch = true;
+    stmt->mSqlQueue->clear();
+    return true;
+}
+
+bool MySQLDatabase::batchCommit(bool async)
+{
+    auto stmt = getStatement();
+    if (!stmt->mInBatch)
+    {
+        return false;
+    }
+    stmt->mInBatch = false;
+    if (async)
+    {
+        getApp().getJobQueue().addJob(jtDIVIDEND,
+                                      "dbBatch",
+                                      std::bind(&MySQLDatabase::executeSQLBatch, this, stmt->mSqlQueue));
+        stmt->mSqlQueue = std::make_shared<std::vector<std::string>>();
+    }
+    else
+    {
+        executeSQLBatch(stmt->mSqlQueue);
+        stmt->mSqlQueue->clear();
+    }
+    return true;
+}
+
+bool MySQLDatabase::executeSQLBatch(std::shared_ptr<std::vector<std::string>> queue)
+{
+    for (auto it = queue->begin(); it != queue->end(); ++it)
+    {
+        if (!executeSQL(it->c_str(), true))
+        {
+            return false;
         }
     }
     return true;
@@ -96,26 +105,26 @@ bool MySQLDatabase::executeSQL(const char* sql, bool fail_ok)
 // tells you how many rows were changed by an update or insert
 std::uint64_t MySQLDatabase::getNumRowsAffected ()
 {
-    return mysql_affected_rows(mConnection);
+    return mysql_affected_rows(getStatement()->mConnection);
 }
 
 // returns false if there are no results
 bool MySQLDatabase::startIterRows (bool finalize)
 {
-    assert(mCurrentStmt);
-    if (!mCurrentStmt->mMoreRows)
+    auto stmt = getStatement();
+    if (!stmt->mMoreRows)
     {
         endIterRows ();
         return false;
     }
-    mCurrentStmt->mColNameTable.clear();
-    auto fieldCnt = mysql_num_fields(mCurrentStmt->mResult);
-    mCurrentStmt->mColNameTable.resize(fieldCnt);
+    stmt->mColNameTable.clear();
+    auto fieldCnt = mysql_num_fields(stmt->mResult);
+    stmt->mColNameTable.resize(fieldCnt);
     
-    auto fields = mysql_fetch_fields(mCurrentStmt->mResult);
+    auto fields = mysql_fetch_fields(stmt->mResult);
     for (auto i = 0; i < fieldCnt; i++)
     {
-        mCurrentStmt->mColNameTable[i] = fields[i].name;
+        stmt->mColNameTable[i] = fields[i].name;
     }
     
     getNextRow(0);
@@ -125,9 +134,10 @@ bool MySQLDatabase::startIterRows (bool finalize)
     
 bool MySQLDatabase::getColNumber (const char* colName, int* retIndex)
 {
-    for (unsigned int n = 0; n < mCurrentStmt->mColNameTable.size (); n++)
+    auto stmt = getStatement();
+    for (unsigned int n = 0; n < stmt->mColNameTable.size (); n++)
     {
-        if (strcmp (colName, mCurrentStmt->mColNameTable[n].c_str ()) == 0)
+        if (strcmp (colName, stmt->mColNameTable[n].c_str ()) == 0)
         {
             *retIndex = n;
             return (true);
@@ -139,23 +149,29 @@ bool MySQLDatabase::getColNumber (const char* colName, int* retIndex)
 
 void MySQLDatabase::endIterRows()
 {
-    if (mCurrentStmt && mCurrentStmt->mResult)
+    auto stmt = getStatement();
+    if (stmt->mResult)
     {
-        mysql_free_result(mCurrentStmt->mResult);
+        mysql_free_result(stmt->mResult);
+        stmt->mResult = nullptr;
     }
+    stmt->mMoreRows = false;
+    stmt->mColNameTable.clear();
+    stmt->mResult = nullptr;
+    stmt->mCurRow = nullptr;
 }
 
 // call this after you executeSQL
 // will return false if there are no more rows
 bool MySQLDatabase::getNextRow(bool finalize)
 {
-    assert(mCurrentStmt);
-    if (mCurrentStmt->mMoreRows)
+    auto stmt = getStatement();
+    if (stmt->mMoreRows)
     {
-        mCurrentStmt->mCurRow = mysql_fetch_row(mCurrentStmt->mResult);
-        if (mCurrentStmt->mCurRow)
+        stmt->mCurRow = mysql_fetch_row(stmt->mResult);
+        if (stmt->mCurRow)
         {
-            return mCurrentStmt->mCurRow;
+            return stmt->mCurRow;
         }
     }
     if (finalize)
@@ -177,48 +193,55 @@ bool MySQLDatabase::endTransaction()
     
 bool MySQLDatabase::getNull (int colIndex)
 {
-    return mCurrentStmt->mCurRow[colIndex] == nullptr;
+    auto stmt = getStatement();
+    return stmt->mCurRow[colIndex] == nullptr;
 }
 
 char* MySQLDatabase::getStr (int colIndex, std::string& retStr)
 {
-    const char* text = reinterpret_cast<const char*> (mCurrentStmt->mCurRow[colIndex]);
+    auto stmt = getStatement();
+    const char* text = reinterpret_cast<const char*> (stmt->mCurRow[colIndex]);
     retStr = (text == nullptr) ? "" : text;
     return const_cast<char*> (retStr.c_str ());
 }
 
 std::int32_t MySQLDatabase::getInt (int colIndex)
 {
-    return boost::lexical_cast<std::int32_t>(mCurrentStmt->mCurRow[colIndex]);
+    auto stmt = getStatement();
+    return boost::lexical_cast<std::int32_t>(stmt->mCurRow[colIndex]);
 }
 
 float MySQLDatabase::getFloat (int colIndex)
 {
-    return boost::lexical_cast<float>(mCurrentStmt->mCurRow[colIndex]);
+    auto stmt = getStatement();
+    return boost::lexical_cast<float>(stmt->mCurRow[colIndex]);
 }
 
 bool MySQLDatabase::getBool (int colIndex)
 {
-    return mCurrentStmt->mCurRow[colIndex][0] != '0';
+    auto stmt = getStatement();
+    return stmt->mCurRow[colIndex][0] != '0';
 }
 
 // returns amount stored in buf
 int MySQLDatabase::getBinary (int colIndex, unsigned char* buf, int maxSize)
 {
-    auto colLength = mysql_fetch_lengths(mCurrentStmt->mResult);
+    auto stmt = getStatement();
+    auto colLength = mysql_fetch_lengths(stmt->mResult);
     auto copySize = colLength[colIndex];
     if (copySize < maxSize)
     {
         maxSize = static_cast<int>(copySize);
     }
-    memcpy(buf, mCurrentStmt->mCurRow[colIndex], maxSize);
+    memcpy(buf, stmt->mCurRow[colIndex], maxSize);
     return static_cast<int>(copySize);
 }
 
 Blob MySQLDatabase::getBinary (int colIndex)
 {
-    auto colLength = mysql_fetch_lengths(mCurrentStmt->mResult);
-    const unsigned char* blob = reinterpret_cast<const unsigned char*>(mCurrentStmt->mCurRow[colIndex]);
+    auto stmt = getStatement();
+    auto colLength = mysql_fetch_lengths(stmt->mResult);
+    const unsigned char* blob = reinterpret_cast<const unsigned char*>(stmt->mCurRow[colIndex]);
     size_t iSize = colLength[colIndex];
     Blob vucResult;
     vucResult.resize(iSize);
@@ -228,30 +251,64 @@ Blob MySQLDatabase::getBinary (int colIndex)
 
 std::uint64_t MySQLDatabase::getBigInt (int colIndex)
 {
-    return boost::lexical_cast<std::int32_t>(mCurrentStmt->mCurRow[colIndex]);
+    auto stmt = getStatement();
+    return boost::lexical_cast<std::int32_t>(stmt->mCurRow[colIndex]);
 }
 
 MySQLStatement* MySQLDatabase::getStatement()
 {
-    if (mStmtTemp == nullptr)
+    auto stmt = mStmt.get();
+    if (!stmt)
     {
-        mStmtTemp = new MySQLStatement();
+        stmt = new MySQLStatement(mHost.c_str(), mPort, mUsername.c_str(), mPassword.c_str(), mDatabase.c_str());
+        mStmt.reset(stmt);
     }
-    mStmtTemp->mDatabase = this;
-    mStmtTemp->mMoreRows = false;
-    mStmtTemp->mColNameTable.clear();
-    mStmtTemp->mResult = nullptr;
-    mStmtTemp->mCurRow = nullptr;
-    return mStmtTemp;
+    return stmt;
 }
     
 //---------------------------------------------------
-MySQLStatement::MySQLStatement()
+MySQLStatement::MySQLStatement(char const* host, std::uint32_t port, char const* username, char const* password, char const* database)
 {
+    mConnection = mysql_init(nullptr);
+    if (!mConnection || mysql_real_connect(mConnection, host,
+                                           username, password,
+                                           database, port, NULL, CLIENT_MULTI_STATEMENTS) == nullptr)
+    {
+        WriteLog (lsFATAL, MySQLDatabase)
+            << "connect fail: host-" << host
+            << " port-" << port
+            << " database:" << database
+            << " error_info:" << mysql_error(mConnection);
+        if (mConnection)
+        {
+            mysql_close(mConnection);
+            mConnection = nullptr;
+        }
+        assert(false);
+    }
+    // set auto connect
+    my_bool reconnect = 1;
+    mysql_options(mConnection, MYSQL_OPT_RECONNECT, &reconnect);
+    
+    mSqlQueue = std::make_shared<std::vector<std::string>>();
+    mInBatch = false;
+
+    mMoreRows = false;
+    mResult = nullptr;
+    mCurRow = nullptr;
 }
 
 MySQLStatement::~MySQLStatement()
 {
+    if (mResult)
+    {
+        mysql_free_result(mResult);
+    }
+
+    if (mConnection)
+    {
+        mysql_close(mConnection);
+    }
 }
-        
+
 } // ripple

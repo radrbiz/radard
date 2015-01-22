@@ -2,11 +2,12 @@
 #define RIPPLE_MYSQLDATABASE_H_INCLUDED
 
 #include <mysql.h>
+#include <boost/thread/tss.hpp>
 
 namespace ripple {
 
 class MySQLStatement;
-    
+class MySQLThreadSpecificData;
 class MySQLDatabase
     : public Database
     , private beast::LeakChecked <MySQLDatabase>
@@ -15,11 +16,15 @@ public:
     explicit MySQLDatabase (char const* host, std::uint32_t port, char const* username, char const* password, char const* database);
     ~MySQLDatabase ();
 
-    void connect ();
-    void disconnect ();
+    void connect (){};
+    void disconnect (){};
 
     // returns true if the query went ok
     bool executeSQL (const char* sql, bool fail_okay);
+    bool executeSQLBatch(std::shared_ptr<std::vector<std::string>> queue);
+    
+    bool batchStart() override;
+    bool batchCommit(bool async) override;
 
     // tells you how many rows were changed by an update or insert
     std::uint64_t getNumRowsAffected ();
@@ -32,8 +37,8 @@ public:
     // will return false if there are no more rows
     bool getNextRow (bool finalize);
     
-    virtual bool beginTransaction() override;
-    virtual bool endTransaction() override;
+    bool beginTransaction() override;
+    bool endTransaction() override;
 
     bool getNull (int colIndex);
     char* getStr (int colIndex, std::string& retStr);
@@ -48,25 +53,26 @@ private:
     bool getColNumber (const char* colName, int* retIndex);
     
     MySQLStatement *getStatement();
-    //CARL: use this as temp, need a thread safe version
-    MySQLStatement *mStmtTemp;
     
-    MYSQL *mConnection;
     std::uint32_t mPort;
     std::string mUsername;
     std::string mPassword;
     std::string mDatabase;
 
-    MySQLStatement *mCurrentStmt;
+//    bool inBatch;
+//    std::shared_ptr<std::vector<std::string>> sqlQueue;
+    boost::thread_specific_ptr<MySQLStatement> mStmt;
 };
     
 class MySQLStatement
 {
 public:
-    MySQLStatement();
+    MySQLStatement(char const* host, std::uint32_t port, char const* username, char const* password, char const* database);
     ~MySQLStatement();
 
-    MySQLDatabase* mDatabase;
+    MYSQL *mConnection;
+    std::shared_ptr<std::vector<std::string>> mSqlQueue;
+    bool mInBatch;
     bool mMoreRows;
     std::vector <std::string> mColNameTable;
     MYSQL_RES *mResult;
