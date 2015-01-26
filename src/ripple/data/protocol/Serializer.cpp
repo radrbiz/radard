@@ -44,6 +44,10 @@ static inline unsigned char* SHA512Wrapper(const unsigned char *d, size_t n,unsi
     {
         sha512_sse4(d, md, n);
     }
+    else
+    {
+        return SHA512(d, n, md);
+    }
     return NULL;
 #endif
 }
