@@ -201,6 +201,8 @@ def config_base(env):
     env.Append(CPPDEFINES=['OPENSSL_NO_SSL2'])
     #use async dividend
     #env.Append(CPPDEFINES=['RADAR_ASYNC_DIVIDEND'])
+    if Beast.system.linux:
+        env.Append(CPPDEFINES=['USE_SHA512_ASM'])
 
     try:
         BOOST_ROOT = os.path.normpath(os.environ['BOOST_ROOT'])
@@ -474,7 +476,6 @@ def addSource(path, env, variant_dirs, CPPPATH=[]):
         env = env.Clone()
         env.Prepend(CPPPATH=CPPPATH)
     return env.Object(Beast.variantFile(path, variant_dirs))
-
 #-------------------------------------------------------------------------------
 
 # Configure the base construction environment
@@ -582,6 +583,12 @@ for toolchain in all_toolchains:
         objects.append(addSource('src/ripple/unity/types.cpp', env, variant_dirs))
         objects.append(addSource('src/ripple/unity/validators.cpp', env, variant_dirs))
         objects.append(addSource('src/ripple/unity/websocket.cpp', env, variant_dirs))
+        if Beast.system.linux:
+            env.Replace(AS = "yasm")
+            env.Replace(ASFLAGS='-f elf64')
+            objects.append(addSource('src/beast/beast/crypto/sha512_sse4.asm', env, variant_dirs))
+            objects.append(addSource('src/beast/beast/crypto/sha512_avx.asm', env, variant_dirs))
+            objects.append(addSource('src/beast/beast/crypto/sha512_avx2_rorx.asm', env, variant_dirs))
 
         objects.append(addSource('src/ripple/unity/nodestore.cpp', env, variant_dirs, [
             'src/leveldb/include',

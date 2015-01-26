@@ -20,7 +20,33 @@
 #include <ripple/basics/Log.h>
 #include <beast/unit_test/suite.h>
 
+#ifdef USE_SHA512_ASM
+#include <beast/module/core/system/SystemStats.h>
+#include <sha512_asm.h>
+#endif
+
 namespace ripple {
+    
+static inline unsigned char* SHA512Wrapper(const unsigned char *d, size_t n,unsigned char *md)
+{
+#ifndef USE_SHA512_ASM
+    return SHA512(d, n, md);
+#else
+    if (beast::SystemStats::hasAVX2())
+    {
+        sha512_rorx(d, md, n);
+    }
+    else if (beast::SystemStats::hasAVX())
+    {
+        sha512_avx(d, md, n);
+    }
+    else if (beast::SystemStats::hasSSE4())
+    {
+        sha512_sse4(d, md, n);
+    }
+    return NULL;
+#endif
+}
 
 int Serializer::addZeros (size_t uBytes)
 {
@@ -344,7 +370,7 @@ uint256 Serializer::getSHA512Half (int size) const
 uint256 Serializer::getSHA512Half (const_byte_view v)
 {
     uint256 j[2];
-    SHA512 (v.data(), v.size(),
+    SHA512Wrapper (v.data(), v.size(),
         reinterpret_cast<unsigned char*> (j));
     return j[0];
 }
@@ -352,7 +378,7 @@ uint256 Serializer::getSHA512Half (const_byte_view v)
 uint256 Serializer::getSHA512Half (const unsigned char* data, int len)
 {
     uint256 j[2];
-    SHA512 (data, len, (unsigned char*) j);
+    SHA512Wrapper (data, len, (unsigned char*) j);
     return j[0];
 }
 

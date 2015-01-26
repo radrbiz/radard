@@ -48,14 +48,15 @@ struct CPUInformation
 {
     CPUInformation() noexcept
         : hasMMX (false), hasSSE (false),
-          hasSSE2 (false), hasSSE3 (false), has3DNow (false)
+          hasSSE2 (false), hasSSE3 (false), has3DNow (false),
+          hasSSE4 (false), hasAVX (false), hasAVX2 (false)
     {
         initialise();
     }
 
     void initialise() noexcept;
 
-    bool hasMMX, hasSSE, hasSSE2, hasSSE3, has3DNow;
+    bool hasMMX, hasSSE, hasSSE2, hasSSE3, has3DNow, hasSSE4, hasAVX, hasAVX2;
 };
 
 static const CPUInformation& getCPUInformation() noexcept
@@ -69,7 +70,10 @@ bool SystemStats::hasSSE() noexcept { return getCPUInformation().hasSSE; }
 bool SystemStats::hasSSE2() noexcept { return getCPUInformation().hasSSE2; }
 bool SystemStats::hasSSE3() noexcept { return getCPUInformation().hasSSE3; }
 bool SystemStats::has3DNow() noexcept { return getCPUInformation().has3DNow; }
-
+bool SystemStats::hasSSE4() noexcept { return getCPUInformation().hasSSE4; }
+bool SystemStats::hasAVX() noexcept { return getCPUInformation().hasAVX; }
+bool SystemStats::hasAVX2() noexcept { return getCPUInformation().hasAVX2; }
+    
 //==============================================================================
 String SystemStats::getStackBacktrace()
 {
