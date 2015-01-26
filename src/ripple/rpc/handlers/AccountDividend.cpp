@@ -3,48 +3,64 @@ namespace ripple {
 // account_dividend [account]
 Json::Value doAccountDividend (RPC::Context& context)
 {
-    SLE::pointer dividendSLE = nullptr;
-    
-    //time param specified, query from ledger before this time
-    if (context.params_.isMember ("until"))
+    if (!context.params_.isMember ("account"))
     {
-        auto time_value = context.params_["until"];
-        if (!time_value.isNumeric() || time_value.asUInt() <= 0)
-        {
-            return ripple::RPC::make_error(rpcINVALID_PARAMS, "dividendObjectMalformed");
-        }
-        auto time = time_value.asUInt();
-
+        return ripple::RPC::make_error(rpcACT_NOT_FOUND, "accountDividendNotFound");
+    }
+    Json::Value result;
+    auto account = context.params_["account"].asString();
+    result["Account"] = account;
+    
+    Ledger::pointer ledger = getApp().getOPs().getClosedLedger();
+    SLE::pointer dividendSLE = ledger->getDividendObject();
+    if (dividendSLE && dividendSLE->isFieldPresent(sfDividendLedger))
+    {
+        std::uint32_t baseLedgerSeq = dividendSLE->getFieldU32(sfDividendLedger);
         std::string sql =
-        boost::str (boost::format (
-                                   "SELECT * FROM Ledgers WHERE ClosingTime <= %u ORDER BY LedgerSeq desc LIMIT 1")
-                    % time);
+        boost::str (boost::format ("SELECT AccountTransactions.TransID FROM AccountTransactions JOIN Transactions "
+                                   "ON AccountTransactions.TransID=Transactions.TransID "
+                                   "WHERE Account='%s' AND AccountTransactions.LedgerSeq>%d "
+                                   "AND TransType='Dividend' "
+                                   "ORDER BY AccountTransactions.LedgerSeq ASC LIMIT 1;")
+                    % account.c_str()
+                    % baseLedgerSeq);
+        Transaction::pointer txn = nullptr;
         {
-            auto db = getApp().getLedgerDB().getDB();
-            auto sl (getApp().getLedgerDB ().lock ());
+            auto db = getApp().getTxnDB().getDB();
+            auto sl (getApp().getTxnDB().lock());
             if (db->executeSQL(sql) && db->startIterRows())
             {
-                std::uint32_t ledgerSeq = db->getInt("LedgerSeq");
-                //CARL should we find a seq more pricisely?
-                Ledger::pointer ledger = getApp().getOPs().getLedgerBySeq(ledgerSeq);
-                dividendSLE = ledger->getDividendObject();
+                std::string transID = "";
+                db->getStr(0, transID);
+                {
+                    uint256 txid (transID);
+                    txn = getApp().getMasterTransaction ().fetch (txid, true);
+                }
             }
         }
-    }
-    else //no time param specified, query from the lastet closed ledger
-    {
-        Ledger::pointer ledger = getApp().getOPs().getClosedLedger();
-        dividendSLE = ledger->getDividendObject();
-    }
+        if (txn)
+        {
+            result["DividendCoins"] = to_string(txn->getSTransaction()->getFieldU64(sfDividendCoins));
+            result["DividendCoinsVBC"] = to_string(txn->getSTransaction()->getFieldU64(sfDividendCoinsVBC));
+            result["DividendCoinsVBCRank"] = to_string(txn->getSTransaction()->getFieldU64(sfDividendCoinsVBCRank));
+            result["DividendCoinsVBCSprd"] = to_string(txn->getSTransaction()->getFieldU64(sfDividendCoinsVBCSprd));
+            result["DividendTSprd"] = to_string(txn->getSTransaction()->getFieldU64(sfDividendTSprd));
+            result["DividendVRank"] = to_string(txn->getSTransaction()->getFieldU64(sfDividendVRank));
+            result["DividendVSprd"] = to_string(txn->getSTransaction()->getFieldU64(sfDividendVSprd));
+            result["DividendLedger"] = to_string(txn->getSTransaction()->getFieldU32(sfDividendLedger));
 
-    if (dividendSLE)
-    {
-        return dividendSLE->getJson(0);
+            return result;
+        }
     }
-    else
-    {
-        return ripple::RPC::make_error(rpcDIVOBJ_NOT_FOUND, "dividendObjectNotFound");
-    }
+    result["DividendCoins"] = "0";
+    result["DividendCoinsVBC"] = "0";
+    result["DividendCoinsVBCRank"] = "0";
+    result["DividendCoinsVBCSprd"] = "0";
+    result["DividendTSprd"] = "0";
+    result["DividendVRank"] = "0";
+    result["DividendVSprd"] = "0";
+    result["DividendLedger"] = "0";
+    return result;
 }
 
 } // ripple

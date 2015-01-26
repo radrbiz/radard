@@ -67,6 +67,7 @@
 #include <ripple/rpc/handlers/LedgerRequest.cpp>
 #include <ripple/rpc/handlers/DividendObject.cpp>
 #include <ripple/rpc/handlers/AccountDividend.cpp>
+#include <ripple/rpc/handlers/Ancestors.cpp>
 #include <ripple/rpc/handlers/LogLevel.cpp>
 #include <ripple/rpc/handlers/LogRotate.cpp>
 #include <ripple/rpc/handlers/OwnerInfo.cpp>
