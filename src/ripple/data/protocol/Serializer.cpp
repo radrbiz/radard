@@ -22,7 +22,7 @@
 
 #ifdef USE_SHA512_ASM
 #include <beast/module/core/system/SystemStats.h>
-#include <sha512_asm.h>
+#include <beast/crypto/sha512_asm.h>
 #endif
 
 namespace ripple {
