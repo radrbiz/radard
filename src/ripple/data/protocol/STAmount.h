@@ -82,9 +82,9 @@ public:
         mantissa_type mantissa, exponent_type exponent,
             bool native, bool negative, unchecked);
 
-    STAmount (SField::ref name, const Currency &c, std::int64_t mantissa);
+    STAmount (SField::ref name, bool isVBC, std::int64_t mantissa);
 
-    STAmount (SField::ref name, const Currency &c = xrpCurrency(),
+    STAmount (SField::ref name, bool isVBC = false,
         std::uint64_t mantissa = 0, bool negative = false);
 
     STAmount (SField::ref name, Issue const& issue,
@@ -113,7 +113,7 @@ private:
 public:
     static
     STAmount
-    createFromInt64(SField::ref n, const Currency &c, std::int64_t v);
+    createFromInt64(SField::ref n, bool isVBC, std::int64_t v);
 
     static
     std::unique_ptr <SerializedType>
