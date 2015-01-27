@@ -201,7 +201,7 @@ def config_base(env):
     env.Append(CPPDEFINES=['OPENSSL_NO_SSL2'])
     #use async dividend
     #env.Append(CPPDEFINES=['RADAR_ASYNC_DIVIDEND'])
-    if Beast.system.linux:
+    if Beast.system.linux and ARGUMENTS.get('use-sha512-asm'):
         env.Append(CPPDEFINES=['USE_SHA512_ASM'])
 
     try:
@@ -588,12 +588,13 @@ for toolchain in all_toolchains:
         objects.append(addSource('src/ripple/unity/types.cpp', env, variant_dirs))
         objects.append(addSource('src/ripple/unity/validators.cpp', env, variant_dirs))
         objects.append(addSource('src/ripple/unity/websocket.cpp', env, variant_dirs))
-        if Beast.system.linux:
+        if Beast.system.linux and ARGUMENTS.get('use-sha512-asm'):
             env.Replace(AS = "yasm")
             env.Replace(ASFLAGS='-f elf64')
             objects.append(addSource('src/beast/beast/crypto/sha512_sse4.asm', env, variant_dirs))
             objects.append(addSource('src/beast/beast/crypto/sha512_avx.asm', env, variant_dirs))
             objects.append(addSource('src/beast/beast/crypto/sha512_avx2_rorx.asm', env, variant_dirs))
+            objects.append(addSource('src/beast/beast/crypto/sha512asm.c', env, variant_dirs))
 
         objects.append(addSource('src/ripple/unity/nodestore.cpp', env, variant_dirs, [
             'src/leveldb/include',

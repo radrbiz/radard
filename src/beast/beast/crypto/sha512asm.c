@@ -174,12 +174,6 @@ Init_SHA512ASM_sse4 ()
 	sha512_update_func = sha512_sse4;
 }
 
-void
-Init_SHA512ASM_ssl()
-{
-    sha512_update_func = sha512_sse4;
-}
-
 static void
 _init (SHA512ASM_Context *sc, const uint64_t iv[SHA512ASM_HASH_WORDS])
 {
