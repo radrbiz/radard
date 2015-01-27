@@ -1150,7 +1150,7 @@ STAmount LedgerEntrySet::accountHolds (
 {
     STAmount    saAmount;
 
-    if (!currency)
+    if (isXRP(currency) || isVBC(currency))
     {
 		SLE::pointer sleAccount = entryCache(ltACCOUNT_ROOT,
 			Ledger::getAccountRootIndex(account));
