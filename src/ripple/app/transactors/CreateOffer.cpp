@@ -256,7 +256,7 @@ public:
 
             terResult = temREDUNDANT;
         }
-        // We don't allow a non-native currency to use the currency code XRP.
+        // We don't allow a non-native currency to use the currency code VRP.
         else if (badCurrency() == uPaysCurrency || badCurrency() == uGetsCurrency)
         {
             m_journal.warning <<
@@ -264,8 +264,8 @@ public:
 
             terResult = temBAD_CURRENCY;
         }
-        else if (saTakerPays.isNative () != !uPaysIssuerID ||
-                 saTakerGets.isNative () != !uGetsIssuerID)
+        else if (saTakerPays.isNative () != (isXRP(uPaysIssuerID) || isVBC(uPaysIssuerID)) ||
+                 saTakerGets.isNative () != (isXRP(uGetsIssuerID) || isVBC(uGetsIssuerID)))
         {
             m_journal.warning <<
                 "Malformed offer: bad issuer";
