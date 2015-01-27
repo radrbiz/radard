@@ -32,6 +32,10 @@
 #include <ripple/validators/Manager.h>
 #include <beast/asio/io_latency_probe.h>
 #include <beast/module/core/thread/DeadlineTimer.h>
+#include <beast/module/core/system/SystemStats.h>
+#ifdef USE_SHA512_ASM
+#include <beast/crypto/sha512asm.h>
+#endif //USE_SHA512_ASM
 #include <fstream>
 
 namespace ripple {
@@ -356,6 +360,25 @@ public:
     {
         add (m_resourceManager.get ());
 
+#ifdef USE_SHA512_ASM
+        if (beast::SystemStats::hasAVX2())
+        {
+            Init_SHA512ASM_avx2();
+        }
+        else if (beast::SystemStats::hasAVX())
+        {
+            Init_SHA512ASM_avx();
+        }
+        else if (beast::SystemStats::hasSSE4())
+        {
+            Init_SHA512ASM_sse4();
+        }
+        else
+        {
+            assert(false);
+        }
+#endif //#ifdef USE_SHA512_ASM
+        
         //
         // VFALCO - READ THIS!
         //

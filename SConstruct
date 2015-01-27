@@ -243,6 +243,11 @@ def config_base(env):
         env.Append(CPPPATH=[os.path.join(profile_jemalloc, 'include')])
         env.Append(LINKFLAGS=['-Wl,-rpath,' + os.path.join(profile_jemalloc, 'lib')])
 
+    profile_perf = ARGUMENTS.get('profile-perf')
+    if profile_perf:
+        env.Append(LINKFLAGS=['-Wl,-no-as-needed'])
+        env.Append(LIBS=['profiler'])
+
 # Set toolchain and variant specific construction variables
 def config_env(toolchain, variant, env):
     if variant == 'debug':
