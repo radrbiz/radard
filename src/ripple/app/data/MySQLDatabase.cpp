@@ -77,7 +77,7 @@ bool MySQLDatabase::batchCommit(bool async)
     stmt->mInBatch = false;
     if (async)
     {
-        getApp().getJobQueue().addJob(jtDIVIDEND,
+        getApp().getJobQueue().addJob(jtDB_BATCH,
                                       "dbBatch",
                                       std::bind(&MySQLDatabase::executeSQLBatch, this, stmt->mSqlQueue));
         stmt->mSqlQueue = std::make_shared<std::vector<std::string>>();

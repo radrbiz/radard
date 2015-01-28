@@ -59,11 +59,11 @@ enum JobType
     jtACCEPT,        // Accept a consensus ledger
     jtPROPOSAL_t,    // A proposal from a trusted source
     jtDIVIDEND,      // Process dividend
+    jtDB_BATCH,      // Batch db update
     jtSWEEP,         // Sweep for stale structures
     jtNETOP_CLUSTER, // NetworkOPs cluster peer report
     jtNETOP_TIMER,   // NetworkOPs net timer processing
     jtADMIN,         // An administrative operation
-    jtDB_BATCH,      // Batch db update
 
     // Special job types which are not dispatched by the job pool
     jtPEER          ,
