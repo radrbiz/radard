@@ -31,7 +31,9 @@ class DatabaseCon : beast::LeakChecked <DatabaseCon>
 {
 public:
     DatabaseCon (std::string const& name, const char* initString[], int countInit);
+#ifdef USE_MYSQL
     DatabaseCon (beast::StringPairArray& mysqlParams, const char* initString[], int countInit);
+#endif
     ~DatabaseCon ();
 
     Database* getDB ()

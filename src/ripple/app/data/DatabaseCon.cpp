@@ -42,6 +42,7 @@ DatabaseCon::DatabaseCon (std::string const& strName, const char* initStrings[],
     mDatabase->executeSQL (initStrings[i], true);
 }
     
+#ifdef USE_MYSQL
 DatabaseCon::DatabaseCon(beast::StringPairArray& params, const char* initStrings[], int initCount)
 {
     assert(params[beast::String("type")] == "mysql"
@@ -63,6 +64,7 @@ DatabaseCon::DatabaseCon(beast::StringPairArray& params, const char* initStrings
     for (int i = 0; i < initCount; ++i)
         mDatabase->executeSQL (initStrings[i], true);
 }
+#endif // USE_MYSQL
 
 DatabaseCon::~DatabaseCon ()
 {

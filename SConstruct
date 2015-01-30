@@ -300,7 +300,6 @@ def config_env(toolchain, variant, env):
             'boost_program_options',
             'boost_regex',
             'boost_system',
-            'boost_thread',
         ]
         # We prefer static libraries for boost
         if env.get('BOOST_ROOT'):
@@ -313,9 +312,17 @@ def config_env(toolchain, variant, env):
 
         env.Append(LIBS=boost_libs)
         env.Append(LIBS=['dl'])
-        env.Append(CPPPATH=['/usr/include/mysql'])
-        env.Append(LIBPATH=['/usr/lib/mysql'])
-        env.Append(LIBS=['mysqlclient', 'z'])
+
+        # If MySql is used.
+        if ARGUMENTS.get('use-mysql'):
+            env.Append(CPPDEFINES=['USE_MYSQL'])
+            env.Append(LIBS=['mysqlclient', 'z'])
+            if Beast.system.osx:
+                env.Append(LIBS=['boost_thread-mt'])
+            else:
+                env.Append(CPPPATH=['/usr/include/mysql'])
+                env.Append(LIBPATH=['/usr/lib/mysql'])
+                env.Append(LIBS=['boost_thread'])
 
         if Beast.system.osx:
             env.Append(LIBS=[
@@ -327,6 +334,9 @@ def config_env(toolchain, variant, env):
                 'AppKit',
                 'Foundation'
                 ])
+            # Try find in brew installed libraries.
+            env.Append(CPPPATH=['/usr/local/include'])
+            env.Append(LIBPATH=['/usr/local/lib'])
         else:
             env.Append(LIBS=['rt'])
 

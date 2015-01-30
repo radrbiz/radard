@@ -580,7 +580,12 @@ public:
         mRpcDB = std::make_unique <DatabaseCon> ("rpc.db", RpcDBInit, RpcDBCount);
         if (getConfig().transactionDatabase[beast::String("type")] != beast::String::empty)
         {
+#ifdef  USE_MYSQL
             mTxnDB = std::make_unique <DatabaseCon> (getConfig().transactionDatabase, TxnDBInitMySQL, TxnDBCountMySQL);
+#else   // USE_MYSQL
+            m_journal.fatal << "Mysql type used but not compiled in!";
+            return false;
+#endif  // USE_MYSQL
         }
         else
         {
