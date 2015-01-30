@@ -298,7 +298,6 @@ MySQLStatement::MySQLStatement(char const* host, std::uint32_t port, char const*
     my_bool reconnect = 1;
     mysql_options(mConnection, MYSQL_OPT_RECONNECT, &reconnect);
     
-    mSqlQueue = std::make_shared<std::vector<std::string>>();
     mInBatch = false;
 
     mMoreRows = false;
