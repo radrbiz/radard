@@ -21,7 +21,7 @@ public:
 
     // returns true if the query went ok
     bool executeSQL (const char* sql, bool fail_okay);
-    bool executeSQLBatch(std::shared_ptr<std::vector<std::string>> queue);
+    bool executeSQLBatch();
     
     bool batchStart() override;
     bool batchCommit(bool async) override;
@@ -59,6 +59,10 @@ private:
     std::string mDatabase;
 
     boost::thread_specific_ptr<MySQLStatement> mStmt;
+    
+    std::list<std::string> mSqlQueue;
+    bool mThreadBatch = false;
+    std::mutex mThreadBatchLock;
 };
     
 class MySQLStatement
@@ -68,7 +72,7 @@ public:
     ~MySQLStatement();
 
     MYSQL *mConnection;
-    std::shared_ptr<std::vector<std::string>> mSqlQueue;
+    std::list<std::string> mSqlQueue;
     bool mInBatch;
     bool mMoreRows;
     std::vector <std::string> mColNameTable;

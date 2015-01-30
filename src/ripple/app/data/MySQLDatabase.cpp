@@ -23,7 +23,7 @@ bool MySQLDatabase::executeSQL(const char* sql, bool fail_ok)
     auto stmt = getStatement();
     if (stmt->mInBatch)
     {
-        stmt->mSqlQueue->push_back(sql);
+        stmt->mSqlQueue.push_back(sql);
         return true;
     }
     
@@ -63,7 +63,7 @@ bool MySQLDatabase::batchStart()
 {
     auto stmt = getStatement();
     stmt->mInBatch = true;
-    stmt->mSqlQueue->clear();
+    stmt->mSqlQueue.clear();
     return true;
 }
 
@@ -77,28 +77,36 @@ bool MySQLDatabase::batchCommit(bool async)
     stmt->mInBatch = false;
     if (async)
     {
-        getApp().getJobQueue().addJob(jtDB_BATCH,
-                                      "dbBatch",
-                                      std::bind(&MySQLDatabase::executeSQLBatch, this, stmt->mSqlQueue));
-        stmt->mSqlQueue = std::make_shared<std::vector<std::string>>();
+        std::unique_lock <std::mutex> lock (mThreadBatchLock);
+        std::move(stmt->mSqlQueue.begin(), stmt->mSqlQueue.end(), std::back_inserter(mSqlQueue));
+        if (!mThreadBatch && !mSqlQueue.empty ())
+        {
+            mThreadBatch = true;
+            getApp().getJobQueue().addJob(jtDB_BATCH,
+                                          "dbBatch",
+                                          std::bind(&MySQLDatabase::executeSQLBatch, this));
+        }
     }
     else
     {
-        executeSQLBatch(stmt->mSqlQueue);
-        stmt->mSqlQueue->clear();
+        std::move(stmt->mSqlQueue.begin(), stmt->mSqlQueue.end(), std::back_inserter(mSqlQueue));
+        executeSQLBatch();
     }
     return true;
 }
 
-bool MySQLDatabase::executeSQLBatch(std::shared_ptr<std::vector<std::string>> queue)
+bool MySQLDatabase::executeSQLBatch()
 {
-    for (auto it = queue->begin(); it != queue->end(); ++it)
+    std::unique_lock <std::mutex> lock (mThreadBatchLock);
+    while (!mSqlQueue.empty())
     {
-        if (!executeSQL(it->c_str(), true))
-        {
-            return false;
-        }
+        std::string sql = mSqlQueue.front();
+        mSqlQueue.pop_front();
+        lock.unlock();
+        executeSQL(sql.c_str(), true);
+        lock.lock();
     }
+    mThreadBatch = false;
     return true;
 }
 
