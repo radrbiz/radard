@@ -659,7 +659,7 @@ public:
 
         getApp().getLedgerDB ().getDB ()->executeSQL (boost::str (boost::format ("PRAGMA cache_size=-%d;") %
                 (getConfig ().getSize (siLgrDBCache) * 1024)));
-        if (getApp().getTxnDB ().getDB ()->getDBType() == "sqlite")
+        if (getApp().getTxnDB ().getDB ()->getDBType() == Database::Type::Sqlite)
         {
             getApp().getTxnDB ().getDB ()->executeSQL (boost::str (boost::format ("PRAGMA cache_size=-%d;") %
                                                 (getConfig ().getSize (siTxnDBCache) * 1024)));

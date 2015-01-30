@@ -41,6 +41,10 @@ class JobQueue;
 class Database
 {
 public:
+    enum class Type {
+        MySQL,
+        Sqlite,
+    };
     explicit Database (const char* host);
 
     virtual ~Database ();
@@ -96,7 +100,7 @@ public:
     virtual std::uint64_t getBigInt (int colIndex) = 0;
     virtual Blob getBinary (int colIndex) = 0;
     
-    const std::string& getDBType()
+    const Type getDBType()
     {
         return mDBType;
     }
@@ -129,7 +133,7 @@ protected:
     int mNumCol;
     std::string mHost;
     std::vector <std::string> mColNameTable;
-    std::string mDBType;
+    Type mDBType;
 };
 
 } // ripple

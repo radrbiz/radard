@@ -141,7 +141,7 @@ public:
     // SQL Functions with metadata
     static
     std::string const&
-    getMetaSQLInsertReplaceHeader (const std::string& dbType);
+    getMetaSQLInsertReplaceHeader (const Database::Type dbType);
 
     std::string getMetaSQL (
         std::uint32_t inLedger, std::string const& escapedMetaData) const;

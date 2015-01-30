@@ -241,9 +241,9 @@ Json::Value SerializedTransaction::getJson (int options, bool binary) const
 }
 
 std::string const&
-SerializedTransaction::getMetaSQLInsertReplaceHeader (const std::string& dbType)
+SerializedTransaction::getMetaSQLInsertReplaceHeader (const Database::Type dbType)
 {
-    if (dbType == "MySQL")
+    if (dbType == Database::Type::MySQL)
     {
         static std::string const sqlMySQL = "REPLACE INTO Transactions "
         "(TransID, TransType, FromAcct, FromSeq, LedgerSeq, Status, RawTxn, TxnMeta)"

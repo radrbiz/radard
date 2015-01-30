@@ -10,7 +10,7 @@ MySQLDatabase::MySQLDatabase(char const* host, std::uint32_t port,
       mPassword(password),
       mDatabase(database)
 {
-    mDBType = "MySQL";
+    mDBType = Type::MySQL;
 }
     
 MySQLDatabase::~MySQLDatabase()
