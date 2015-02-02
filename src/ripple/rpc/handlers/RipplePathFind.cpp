@@ -163,7 +163,9 @@ Json::Value doRipplePathFind (RPC::Context& context)
                 return rpcError (rpcSRC_CUR_MALFORMED);
             }
 
-            if (uSrcCurrencyID.isNonZero ())
+            if (isVBC(uSrcCurrencyID))
+                uSrcIssuerID = vbcAccount();
+            else if (uSrcCurrencyID.isNonZero ())
                 uSrcIssuerID = raSrc.getAccountID ();
 
             // Parse optional issuer.
@@ -171,6 +173,7 @@ Json::Value doRipplePathFind (RPC::Context& context)
                 ((!jvSource["issuer"].isString () ||
                   !to_issuer (uSrcIssuerID, jvSource["issuer"].asString ())) ||
                  (uSrcIssuerID.isZero () != uSrcCurrencyID.isZero ()) ||
+                 (isVBC(uSrcIssuerID) != isVBC(uSrcCurrencyID)) ||
                  (noAccount() == uSrcIssuerID)))
             {
                 WriteLog (lsINFO, RPCHandler) << "Bad issuer.";

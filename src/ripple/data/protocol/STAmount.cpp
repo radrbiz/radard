@@ -55,24 +55,24 @@ STAmount::STAmount (SField::ref name, Issue const& issue,
 {
 }
 
-STAmount::STAmount(SField::ref name, const Currency &c, std::int64_t mantissa)
+STAmount::STAmount(SField::ref name, bool isVBC, std::int64_t mantissa)
     : SerializedType (name)
+    , mIssue(isVBC?vbcIssue():xrpIssue())
     , mOffset (0)
     , mIsNative (true)
 {
-    mIssue.currency = c;
     set (mantissa);
 }
 
-STAmount::STAmount (SField::ref name, const Currency &c,
+STAmount::STAmount (SField::ref name, bool isVBC,
         std::uint64_t mantissa, bool negative)
     : SerializedType (name)
+    , mIssue(isVBC?vbcIssue():xrpIssue())
     , mValue (mantissa)
     , mOffset (0)
     , mIsNative (true)
     , mIsNegative (negative)
 {
-    mIssue.currency = c;
 }
 
 STAmount::STAmount (SField::ref name, Issue const& issue,
@@ -135,21 +135,21 @@ STAmount::construct (SerializerIterator& sit, SField::ref name)
     // native
     if ((value & cNotNative) == 0)
     {
-        Issue issue;
+        bool isVBC = false;
         if (value & cVBCNative) {
-            issue.currency = vbcCurrency();
+            isVBC = true;
             value &= ~cVBCNative;
         }
         
         // positive
         if ((value & cPosNative) != 0)
-            return std::make_unique<STAmount> (name, issue.currency, value & ~cPosNative, false);
+            return std::make_unique<STAmount> (name, isVBC, value & ~cPosNative, false);
 
         // negative
         if (value == 0)
             throw std::runtime_error ("negative zero is not canonical");
 
-        return std::make_unique<STAmount> (name, issue.currency, value, true);
+        return std::make_unique<STAmount> (name, isVBC, value, true);
     }
 
     Issue issue;
@@ -194,11 +194,11 @@ STAmount::construct (SerializerIterator& sit, SField::ref name)
 }
 
 STAmount
-STAmount::createFromInt64 (SField::ref name, const Currency &c, std::int64_t value)
+STAmount::createFromInt64 (SField::ref name, bool isVBC, std::int64_t value)
 {
     return value >= 0
-           ? STAmount (name, c, static_cast<std::uint64_t> (value), false)
-           : STAmount (name, c, static_cast<std::uint64_t> (-value), true);
+           ? STAmount (name, isVBC, static_cast<std::uint64_t> (value), false)
+           : STAmount (name, isVBC, static_cast<std::uint64_t> (-value), true);
 }
 
 STAmount STAmount::deserialize (SerializerIterator& it)
@@ -296,7 +296,7 @@ STAmount operator+ (STAmount const& v1, STAmount const& v2)
     }
 
     if (v1.mIsNative)
-        return STAmount (v1.getFName (), v1.getCurrency(), v1.getSNValue () + v2.getSNValue ());
+        return STAmount (v1.getFName (), isVBC(v1), v1.getSNValue () + v2.getSNValue ());
 
     int ov1 = v1.mOffset, ov2 = v2.mOffset;
     std::int64_t vv1 = static_cast<std::int64_t> (v1.mValue);
@@ -344,7 +344,7 @@ STAmount operator- (STAmount const& v1, STAmount const& v2)
         // XXX This could be better, check for overflow and that maximum range
         // is covered.
         return STAmount::createFromInt64 (
-                v1.getFName (), v1.getCurrency(), v1.getSNValue () - v2.getSNValue ());
+                v1.getFName (), isVBC(v1), v1.getSNValue () - v2.getSNValue ());
     }
 
     int ov1 = v1.mOffset, ov2 = v2.mOffset;
@@ -951,6 +951,8 @@ amountFromJson (SField::ref name, Json::Value const& v)
 		if (isXRP(issue.currency) || isVBC(issue.currency))
             throw std::runtime_error ("invalid issuer");
     }
+    else if (isVBC(issue.currency))
+        issue.account = vbcAccount();
 
     if (value.isInt ())
     {
@@ -1121,7 +1123,7 @@ STAmount
 operator+ (STAmount const& lhs, std::uint64_t rhs)
 {
     // VFALCO TODO The cast looks dangerous, is it needed?
-    return STAmount(lhs.getFName(), lhs.getCurrency(),
+    return STAmount(lhs.getFName(), isVBC(lhs),
         lhs.getSNValue () + static_cast <std::int64_t> (rhs));
 }
 
@@ -1129,7 +1131,7 @@ STAmount
 operator- (STAmount const& lhs, std::uint64_t rhs)
 {
     // VFALCO TODO The cast looks dangerous, is it needed?
-    return STAmount(lhs.getFName(), lhs.getCurrency(),
+    return STAmount(lhs.getFName(), isVBC(lhs),
         lhs.getSNValue () - static_cast <std::int64_t> (rhs));
 }
 
@@ -1221,7 +1223,7 @@ multiply (STAmount const& v1, STAmount const& v2, Issue const& issue)
         if (((maxV >> 32) * minV) > 2095475792ull) // cMaxNative / 2^32
             throw std::runtime_error ("Native value overflow");
 
-        return STAmount(v1.getFName (), v1.getCurrency(), minV * maxV);
+        return STAmount(v1.getFName (), isVBC(v1), minV * maxV);
     }
 
     std::uint64_t value1 = v1.mantissa();
@@ -1324,7 +1326,7 @@ addRound (STAmount const& v1, STAmount const& v2, bool roundUp)
                          v2.exponent(), v2.negative());
 
     if (v1.native())
-        return STAmount(v1.getFName(), v1.getCurrency(), v1.getSNValue() + v2.getSNValue());
+        return STAmount(v1.getFName(), isVBC(v1), v1.getSNValue() + v2.getSNValue());
 
     int ov1 = v1.exponent(), ov2 = v2.exponent();
     auto vv1 = static_cast<std::int64_t> (v1.mantissa());
@@ -1397,7 +1399,7 @@ subRound (STAmount const& v1, STAmount const& v2, bool roundUp)
                          v2.exponent(), !v2.negative());
 
     if (v1.native())
-        return STAmount(v1.getFName(), v1.getCurrency(), v1.getSNValue() - v2.getSNValue());
+        return STAmount(v1.getFName(), isVBC(v1), v1.getSNValue() - v2.getSNValue());
 
     int ov1 = v1.exponent(), ov2 = v2.exponent();
     auto vv1 = static_cast<std::int64_t> (v1.mantissa());
@@ -1478,7 +1480,7 @@ mulRound (STAmount const& v1, STAmount const& v2,
         if (((maxV >> 32) * minV) > 2095475792ull) // cMaxNative / 2^32
             throw std::runtime_error ("Native value overflow");
 
-        return STAmount(v1.getFName(), v1.getCurrency(), minV * maxV);
+        return STAmount(v1.getFName(), isVBC(v1), minV * maxV);
     }
 
     std::uint64_t value1 = v1.mantissa(), value2 = v2.mantissa();
