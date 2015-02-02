@@ -5,7 +5,7 @@ Json::Value doAncestors (RPC::Context& context)
 {
     if (!context.params_.isMember ("account"))
     {
-        return ripple::RPC::make_error(rpcACT_NOT_FOUND, "ancestorsNotFound");
+        return RPC::missing_field_error ("account");
     }
     Json::Value result;
     auto account = context.params_["account"].asString();
@@ -19,12 +19,13 @@ Json::Value doAncestors (RPC::Context& context)
     int counter = 2000;
     while (counter-- > 0)
     {
+        SLE::pointer sle = ledger->getSLEi (Ledger::getAccountRootIndex (curAccountID));
+        if (!sle)
+            break;
         Json::Value record;
         record["account"] = curAccountID.humanAccountID();
-        SLE::pointer sle = ledger->getSLEi (Ledger::getAccountRootIndex (curAccountID));
-        std::uint32_t height = sle->getFieldU32(sfReferenceHeight);
+        std::uint32_t height = sle->isFieldPresent(sfReferenceHeight) ? sle->getFieldU32(sfReferenceHeight) : 0;
         record["height"] = to_string(height);
-        RippleAddress refereeAccountID;
         if (height > 0)
         {
             RippleAddress refereeAccountID = sle->getFieldAccount(sfReferee);
@@ -36,6 +37,11 @@ Json::Value doAncestors (RPC::Context& context)
         {
             break;
         }
+    }
+    if (result == Json::nullValue)
+    {
+        result["account"] = accountID.humanAccountID ();
+        result            = rpcError (rpcACT_NOT_FOUND, result);
     }
     return result;
 }

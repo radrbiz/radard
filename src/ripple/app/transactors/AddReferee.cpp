@@ -56,7 +56,7 @@ public:
                 " reference=" << to_string(referenceID) <<
                 " referee=" << to_string(refereeID);
 
-            return temREDUNDANT;
+            return temINVALID;
         }
 
         //
@@ -66,28 +66,25 @@ public:
 
         if (!sleReferee) {
             // Referee account does not exist.
-            m_journal.trace <<
-                "Malformed transaction: Referee account does not exist.";
+            m_journal.trace <<  "Referee account does not exist.";
 
             return tecNO_DST;
         } else if (!sleReference) {
             // Reference account does not exist.
-            m_journal.trace <<
-                "Malformed transaction: Reference account does not exist.";
+            m_journal.trace << "Reference account does not exist.";
 
             return terNO_ACCOUNT;
-        }
-        else if ((sleReference->isFieldPresent(sfReferee) &&
-                  sleReference->getFieldAccount(sfReferee).getAccountID().isNonZero())
-                 || (sleReference->isFieldPresent(sfReferences) &&
-                     !sleReference->getFieldArray(sfReferences).empty()))
-        {
-            m_journal.trace << "Malformed transaction: Referee has been set.";
+        } else if (sleReference->isFieldPresent(sfReferee)
+                   && sleReference->getFieldAccount(sfReferee).getAccountID().isNonZero()) {
+            m_journal.trace << "Referee has been set.";
 
             return tefREFEREE_EXIST;
-        }
-        else
-        {
+        } else if (sleReference->isFieldPresent(sfReferences)
+                   && !sleReference->getFieldArray(sfReferences).empty()) {
+            m_journal.trace << "Reference has been set.";
+            
+            return tefREFERENCE_EXIST;
+        } else {
             STArray references(sfReferences);
             if (sleReferee->isFieldPresent(sfReferences)) {
                 references = sleReferee->getFieldArray(sfReferences);

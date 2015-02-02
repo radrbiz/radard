@@ -454,7 +454,10 @@ CurrencySet usAccountSourceCurrencies (
 
     // YYY Only bother if they are above reserve
     if (includeXRP)
+    {
         usCurrencies.insert (xrpCurrency());
+        usCurrencies.insert (vbcCurrency());
+    }
 
     // List of ripple lines.
     auto& rippleLines (lrCache->getRippleLines (raAccountID.getAccountID ()));
