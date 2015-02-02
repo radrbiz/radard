@@ -1556,8 +1556,8 @@ void ApplicationImp::updateTables ()
     }
 
     // perform any needed table updates
-    assert (schemaHas (getApp().getTxnDB (), "AccountTransactions", 0, "TransID"));
-    assert (!schemaHas (getApp().getTxnDB (), "AccountTransactions", 0, "foobar"));
+    //assert (schemaHas (getApp().getTxnDB (), "AccountTransactions", 0, "TransID"));
+    //assert (!schemaHas (getApp().getTxnDB (), "AccountTransactions", 0, "foobar"));
     addTxnSeqField ();
 
     /*
