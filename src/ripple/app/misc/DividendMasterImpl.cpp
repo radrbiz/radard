@@ -457,7 +457,7 @@ bool DividendMaster::calcDividendFunc(Ledger::ref baseLedger, uint64_t dividendC
     WriteLog(lsINFO, DividendMaster) << "calcDividend got v spread total: " << sumVSpd << " Mem " << memUsed();
     
     // traverse accountsByReference to calc dividend
-    accountsOut.reserve(accountsByReference.size());
+    accountsOut.reserve(accountsByReference.size()+1);
     actualTotalDividend = 0; actualTotalDividendVBC = 0;
     uint64_t totalDivVBCbyRank = dividendCoinsVBC / 2;
     uint64_t totalDivVBCbyPower = dividendCoinsVBC - totalDivVBCbyRank;
@@ -496,7 +496,17 @@ bool DividendMaster::calcDividendFunc(Ledger::ref baseLedger, uint64_t dividendC
     WriteLog(lsINFO, DividendMaster) << "calcDividend got actualTotalDividend " << actualTotalDividend << " actualTotalDividendVBC " << actualTotalDividendVBC << " Mem " << memUsed();
     
     // collect remainning
-    accountsOut.push_back(std::make_tuple(Account(), dividendCoins - actualTotalDividend, dividendCoinsVBC - actualTotalDividendVBC, 0, 0, 0, 0, 0));
+    uint64_t remainCoins = 0, remainCoinsVBC = 0;
+    if (dividendCoins > actualTotalDividend) {
+        remainCoins = dividendCoins - actualTotalDividend;
+        actualTotalDividend = dividendCoins;
+    }
+    if (dividendCoinsVBC > actualTotalDividendVBC) {
+        remainCoinsVBC = dividendCoinsVBC - actualTotalDividendVBC;
+        actualTotalDividendVBC = dividendCoinsVBC;
+    }
+    if (remainCoins > 0 || remainCoinsVBC > 0)
+        accountsOut.push_back(std::make_tuple(Account("0x56CE5173B6A2CBEDF203BD69159212094C651041"), remainCoins, remainCoinsVBC, 0, 0, 0, 0, 0));
     
     accountsByReference.clear();
     WriteLog(lsINFO, DividendMaster) << "calcDividend done with " << accountsOut.size() << " accounts Mem " << memUsed();
