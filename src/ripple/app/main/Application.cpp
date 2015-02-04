@@ -32,6 +32,7 @@
 #include <ripple/validators/Manager.h>
 #include <beast/asio/io_latency_probe.h>
 #include <beast/module/core/thread/DeadlineTimer.h>
+#include <beast/module/core/system/SystemStats.h>
 #include <fstream>
 
 namespace ripple {
@@ -354,8 +355,7 @@ public:
         , m_io_latency_sampler (m_collectorManager->collector()->make_event ("ios_latency"),
             m_logs.journal("Application"), std::chrono::milliseconds (100), m_mainIoPool.getService())
     {
-        add (m_resourceManager.get ());
-
+        add (m_resourceManager.get ());        
         //
         // VFALCO - READ THIS!
         //

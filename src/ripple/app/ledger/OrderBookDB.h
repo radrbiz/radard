@@ -53,8 +53,7 @@ public:
 
     // see if this txn effects any orderbook
     void processTxn (
-        Ledger::ref ledger, const AcceptedLedgerTx& alTx,
-        Json::Value const& jvObj);
+        Ledger::ref ledger, const AcceptedLedgerTx& alTx);
 
     typedef hash_map <Issue, OrderBook::List> IssueToOrderBook;
 

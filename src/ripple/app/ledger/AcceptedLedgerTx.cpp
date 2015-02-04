@@ -34,7 +34,6 @@ AcceptedLedgerTx::AcceptedLedgerTx (Ledger::ref ledger, SerializerIterator& sit)
         ledger->getLedgerSeq (), mRawMeta);
     mAffected = mMeta->getAffectedAccounts ();
     mResult =   mMeta->getResultTER ();
-    buildJson ();
 }
 
 AcceptedLedgerTx::AcceptedLedgerTx (Ledger::ref ledger,
@@ -45,7 +44,6 @@ AcceptedLedgerTx::AcceptedLedgerTx (Ledger::ref ledger,
     , mAffected (met->getAffectedAccounts ())
 {
     mResult = mMeta->getResultTER ();
-    buildJson ();
 }
 
 AcceptedLedgerTx::AcceptedLedgerTx (Ledger::ref ledger,
@@ -55,7 +53,6 @@ AcceptedLedgerTx::AcceptedLedgerTx (Ledger::ref ledger,
     , mResult (result)
     , mAffected (txn->getMentionedAccounts ())
 {
-    buildJson ();
 }
 
 std::string AcceptedLedgerTx::getEscMeta () const

@@ -491,7 +491,9 @@ private:
 
     Json::Value transJson (
         const SerializedTransaction& stTxn, TER terResult, bool bValidated,
-        Ledger::ref lpCurrent);
+        Ledger::ref lpCurrent){
+        return NetworkOPs_transJson(stTxn, terResult, bValidated, lpCurrent);
+    }
     bool haveConsensusObject ();
 
     Json::Value pubBootstrapAccountInfo (
@@ -2597,7 +2599,8 @@ void NetworkOPsImp::pubProposedTransaction (
         }
     }
     AcceptedLedgerTx alt (lpCurrent, stTxn, terResult);
-    m_journal.trace << "pubProposed: " << alt.getJson ();
+    if (m_journal.trace.active())
+        m_journal.trace << "pubProposed: " << alt.getJson ();
     pubAccountTransaction (lpCurrent, alt, false);
 }
 
@@ -2655,7 +2658,8 @@ void NetworkOPsImp::pubLedger (Ledger::ref accepted)
     // Don't lock since pubAcceptedTransaction is locking.
     BOOST_FOREACH (const AcceptedLedger::value_type & vt, alpAccepted->getMap ())
     {
-        m_journal.trace << "pubAccepted: " << vt.second->getJson ();
+        if (m_journal.trace.active())
+            m_journal.trace << "pubAccepted: " << vt.second->getJson ();
         pubValidatedTransaction (lpAccepted, *vt.second);
     }
     m_journal.info << "finish pubAccepted: " << alpAccepted->getMap ().size ();
@@ -2674,7 +2678,7 @@ void NetworkOPsImp::reportFeeChange ()
 
 // This routine should only be used to publish accepted or validated
 // transactions.
-Json::Value NetworkOPsImp::transJson(
+Json::Value NetworkOPs_transJson(
     const SerializedTransaction& stTxn, TER terResult, bool bValidated,
     Ledger::ref lpCurrent)
 {
@@ -2729,12 +2733,10 @@ Json::Value NetworkOPsImp::transJson(
 void NetworkOPsImp::pubValidatedTransaction (
     Ledger::ref alAccepted, const AcceptedLedgerTx& alTx)
 {
-    Json::Value jvObj = transJson (
-        *alTx.getTxn (), alTx.getResult (), true, alAccepted);
-    jvObj[jss::meta] = alTx.getMeta ()->getJson (0);
+    Json::Value jvObj;
 
-    Json::FastWriter w;
-    std::string sObj = w.write (jvObj);
+    std::string sObj;
+    bool bSobjInitialized = false;
 
     {
         ScopedLockType sl (mLock);
@@ -2746,6 +2748,13 @@ void NetworkOPsImp::pubValidatedTransaction (
 
             if (p)
             {
+                if (!bSobjInitialized) {
+                    jvObj = transJson (*alTx.getTxn (), alTx.getResult (), true, alAccepted);
+                    jvObj[jss::meta] = alTx.getMeta ()->getJson (0);
+                    Json::FastWriter w;
+                    sObj = w.write (jvObj);
+                    bSobjInitialized = true;
+                }
                 p->send (jvObj, sObj, true);
                 ++it;
             }
@@ -2761,6 +2770,13 @@ void NetworkOPsImp::pubValidatedTransaction (
 
             if (p)
             {
+                if (!bSobjInitialized) {
+                    jvObj = transJson (*alTx.getTxn (), alTx.getResult (), true, alAccepted);
+                    jvObj[jss::meta] = alTx.getMeta ()->getJson (0);
+                    Json::FastWriter w;
+                    sObj = w.write (jvObj);
+                    bSobjInitialized = true;
+                }
                 p->send (jvObj, sObj, true);
                 ++it;
             }
@@ -2768,7 +2784,7 @@ void NetworkOPsImp::pubValidatedTransaction (
                 it = mSubRTTransactions.erase (it);
         }
     }
-    getApp().getOrderBookDB ().processTxn (alAccepted, alTx, jvObj);
+    getApp().getOrderBookDB ().processTxn (alAccepted, alTx);
     pubAccountTransaction (alAccepted, alTx, true);
 }
 

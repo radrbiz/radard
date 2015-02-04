@@ -124,7 +124,10 @@ namespace SystemStats
     bool hasSSE2() noexcept; /**< Returns true if Intel SSE2 instructions are available. */
     bool hasSSE3() noexcept; /**< Returns true if Intel SSE2 instructions are available. */
     bool has3DNow() noexcept; /**< Returns true if AMD 3DNOW instructions are available. */
-
+    bool hasSSE4() noexcept; /**< Returns true if Intel SSE4 instructions are available. */
+    bool hasAVX() noexcept; /**< Returns true if Intel AVX instructions are available. */
+    bool hasAVX2() noexcept; /**< Returns true if Intel AVX2 instructions are available. */
+    
     //==============================================================================
     /** Finds out how much RAM is in the machine.
         @returns    the approximate number of megabytes of memory, or zero if

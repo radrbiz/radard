@@ -119,6 +119,7 @@ public:
     bool calcResultHash() override
     {
         Application& app = getApp();
+#ifdef RADAR_ASYNC_DIVIDEND
         SHAMap::pointer txMap = std::make_shared<SHAMap>(
                                         smtTRANSACTION,
                                         app.getFullBelowCache(),
@@ -151,6 +152,8 @@ public:
             }
         }
         m_resultHash = txMap->getHash();
+#endif // RADAR_ASYNC_DIVIDEND
+        
         return true;
     }
     uint256 getResultHash() override
@@ -219,11 +222,11 @@ public:
             SHAMapItem::pointer tItem = std::make_shared<SHAMapItem>(txID, s.peekData());
 
             if (!initialPosition->addGiveItem(tItem, true, false)) {
-                if (m_journal.warning)
+                if (m_journal.warning.active())
                     m_journal.warning << "Ledger already had dividend for " << std::get<0>(it);
             }
             else {
-                if (m_journal.trace)
+                if (m_journal.trace.active())
                     m_journal.trace << "dividend add TX " << txID << " for " << std::get<0>(it);
             }
         }
