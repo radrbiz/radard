@@ -29,6 +29,18 @@ Database::~Database ()
 {
 }
 
+//bool Database::executeSQLBatch(const std::vector<std::string>& sqlQueue)
+//{
+//    for (auto it = sqlQueue.begin(); it != sqlQueue.end(); ++it)
+//    {
+//        if (!executeSQL(it->c_str()))
+//        {
+//            return false;
+//        }
+//    }
+//    return true;
+//}
+
 bool Database::getNull (const char* colName)
 {
     int index;

@@ -54,6 +54,8 @@ SqliteDatabase::SqliteDatabase (const char* host)
     , mWalQ (nullptr)
     , walRunning (false)
 {
+    mDBType = Type::Sqlite;
+    
     startThread ();
 
     mConnection     = nullptr;
@@ -220,6 +222,17 @@ bool SqliteDatabase::getNextRow (bool finalize)
 
     return false;
 }
+    
+bool SqliteDatabase::beginTransaction()
+{
+    return executeSQL("BEGIN TRANSACTION;", false);
+}
+
+bool SqliteDatabase::endTransaction()
+{
+    return executeSQL("END TRANSACTION;", false);
+}
+
 
 bool SqliteDatabase::getNull (int colIndex)
 {

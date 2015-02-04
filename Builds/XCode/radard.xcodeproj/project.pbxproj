@@ -8,6 +8,44 @@
 
 /* Begin PBXBuildFile section */
 		3414533F1A19D8390005FD6D /* ripple.proto in Sources */ = {isa = PBXBuildFile; fileRef = 8424474F1A13B30200A37710 /* ripple.proto */; };
+		34373C561A7B767A00487CE0 /* ripple.proto in Sources */ = {isa = PBXBuildFile; fileRef = 8424474F1A13B30200A37710 /* ripple.proto */; };
+		34373C571A7B767A00487CE0 /* app.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 8424480E1A13B30300A37710 /* app.cpp */; };
+		34373C581A7B767A00487CE0 /* app1.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 842448101A13B30300A37710 /* app1.cpp */; };
+		34373C591A7B767A00487CE0 /* app2.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 842448111A13B30300A37710 /* app2.cpp */; };
+		34373C5A1A7B767A00487CE0 /* app3.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 842448121A13B30300A37710 /* app3.cpp */; };
+		34373C5B1A7B767A00487CE0 /* app4.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 842448131A13B30300A37710 /* app4.cpp */; };
+		34373C5C1A7B767A00487CE0 /* app5.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 842448141A13B30300A37710 /* app5.cpp */; };
+		34373C5D1A7B767A00487CE0 /* app6.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 842448151A13B30300A37710 /* app6.cpp */; };
+		34373C5E1A7B767A00487CE0 /* app7.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 842448161A13B30300A37710 /* app7.cpp */; };
+		34373C5F1A7B767A00487CE0 /* app8.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 842448171A13B30300A37710 /* app8.cpp */; };
+		34373C601A7B767A00487CE0 /* app9.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 842448181A13B30300A37710 /* app9.cpp */; };
+		34373C611A7B767A00487CE0 /* basics.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 842448191A13B30300A37710 /* basics.cpp */; };
+		34373C621A7B767A00487CE0 /* beast.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 8424481A1A13B30300A37710 /* beast.cpp */; };
+		34373C631A7B767A00487CE0 /* beastc.c in Sources */ = {isa = PBXBuildFile; fileRef = 8424481B1A13B30300A37710 /* beastc.c */; };
+		34373C641A7B767A00487CE0 /* beastobjc.mm in Sources */ = {isa = PBXBuildFile; fileRef = 8424481C1A13B30300A37710 /* beastobjc.mm */; settings = {COMPILER_FLAGS = "-DOBJC_OLD_DISPATCH_PROTOTYPES"; }; };
+		34373C651A7B767A00487CE0 /* common.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 8424481D1A13B30300A37710 /* common.cpp */; };
+		34373C661A7B767A00487CE0 /* core.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 8424481E1A13B30300A37710 /* core.cpp */; };
+		34373C671A7B767A00487CE0 /* data.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 8424481F1A13B30300A37710 /* data.cpp */; };
+		34373C681A7B767A00487CE0 /* http.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 842448211A13B30300A37710 /* http.cpp */; };
+		34373C691A7B767A00487CE0 /* hyperleveldb.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 842448231A13B30300A37710 /* hyperleveldb.cpp */; settings = {COMPILER_FLAGS = "-I../../src/hyperleveldb -I../../src/snappy/snappy -I../../src/snappy/config"; }; };
+		34373C6A1A7B767A00487CE0 /* json.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 842448251A13B30300A37710 /* json.cpp */; };
+		34373C6B1A7B767A00487CE0 /* leveldb.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 842448271A13B30300A37710 /* leveldb.cpp */; settings = {COMPILER_FLAGS = "-I../../src/leveldb -I../../src/leveldb/include -I../../src/snappy/snappy -I../../src/snappy/config"; }; };
+		34373C6C1A7B767A00487CE0 /* net.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 842448291A13B30300A37710 /* net.cpp */; };
+		34373C6D1A7B767A00487CE0 /* nodestore.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 8424482B1A13B30300A37710 /* nodestore.cpp */; settings = {COMPILER_FLAGS = "-I../../src/leveldb/include -I../../src/rocksdb2/include"; }; };
+		34373C6E1A7B767A00487CE0 /* overlay.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 8424482C1A13B30300A37710 /* overlay.cpp */; };
+		34373C6F1A7B767A00487CE0 /* peerfinder.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 8424482D1A13B30300A37710 /* peerfinder.cpp */; };
+		34373C701A7B767A00487CE0 /* protobuf.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 8424482E1A13B30300A37710 /* protobuf.cpp */; };
+		34373C711A7B767A00487CE0 /* resource.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 8424482F1A13B30300A37710 /* resource.cpp */; };
+		34373C721A7B767A00487CE0 /* ripple.proto.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 842448311A13B30300A37710 /* ripple.proto.cpp */; };
+		34373C731A7B767A00487CE0 /* rocksdb.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 842448321A13B30300A37710 /* rocksdb.cpp */; settings = {COMPILER_FLAGS = "-I../../src/rocksdb2 -I../../src/rocksdb2/include -I../../src/snappy/snappy -I../../src/snappy/config"; }; };
+		34373C741A7B767A00487CE0 /* rpcx.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 842448341A13B30300A37710 /* rpcx.cpp */; };
+		34373C751A7B767A00487CE0 /* sitefiles.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 842448361A13B30300A37710 /* sitefiles.cpp */; };
+		34373C761A7B767A00487CE0 /* snappy.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 842448371A13B30300A37710 /* snappy.cpp */; settings = {COMPILER_FLAGS = " -I../../src/snappy/snappy -I../../src/snappy/config"; }; };
+		34373C771A7B767A00487CE0 /* sslutil.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 842448381A13B30300A37710 /* sslutil.cpp */; };
+		34373C781A7B767A00487CE0 /* types.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 8424483A1A13B30300A37710 /* types.cpp */; };
+		34373C791A7B767A00487CE0 /* validators.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 8424483C1A13B30300A37710 /* validators.cpp */; };
+		34373C7A1A7B767A00487CE0 /* websocket.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 8424483D1A13B30300A37710 /* websocket.cpp */; };
+		34373C831A7B770400487CE0 /* libmysqlclient.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 34373C821A7B770400487CE0 /* libmysqlclient.a */; };
 		84244BB21A13B36C00A37710 /* app.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 8424480E1A13B30300A37710 /* app.cpp */; };
 		84244BB31A13B36C00A37710 /* app1.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 842448101A13B30300A37710 /* app1.cpp */; };
 		84244BB41A13B36C00A37710 /* app2.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 842448111A13B30300A37710 /* app2.cpp */; };
@@ -58,9 +96,29 @@
 			);
 			script = "PATH=${PATH}:/usr/local/bin\nprotoc -I${INPUT_FILE_DIR} ${INPUT_FILE_PATH} --cpp_out=${DERIVED_FILE_DIR}";
 		};
+		34373C7D1A7B767A00487CE0 /* PBXBuildRule */ = {
+			isa = PBXBuildRule;
+			compilerSpec = com.apple.compilers.proxy.script;
+			filePatterns = "*.proto";
+			fileType = pattern.proxy;
+			isEditable = 1;
+			outputFiles = (
+				"$(DERIVED_FILE_DIR)/$(INPUT_FILE_BASE).pb.h",
+			);
+			script = "PATH=${PATH}:/usr/local/bin\nprotoc -I${INPUT_FILE_DIR} ${INPUT_FILE_PATH} --cpp_out=${DERIVED_FILE_DIR}";
+		};
 /* End PBXBuildRule section */
 
 /* Begin PBXCopyFilesBuildPhase section */
+		34373C7C1A7B767A00487CE0 /* CopyFiles */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = /usr/share/man/man1/;
+			dstSubfolderSpec = 0;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 1;
+		};
 		842440521A13B2B900A37710 /* CopyFiles */ = {
 			isa = PBXCopyFilesBuildPhase;
 			buildActionMask = 2147483647;
@@ -73,6 +131,8 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		34373C811A7B767A00487CE0 /* radard-mysql */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = "radard-mysql"; sourceTree = BUILT_PRODUCTS_DIR; };
+		34373C821A7B770400487CE0 /* libmysqlclient.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libmysqlclient.a; path = ../../../../../../../../usr/local/lib/libmysqlclient.a; sourceTree = "<group>"; };
 		3493343D1A3FE05000418C3F /* beast */ = {isa = PBXFileReference; lastKnownFileType = folder; name = beast; path = ../../src/beast; sourceTree = "<group>"; };
 		3493343E1A3FE05000418C3F /* BeastConfig.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = BeastConfig.h; path = ../../src/BeastConfig.h; sourceTree = "<group>"; };
 		3493343F1A3FE05000418C3F /* ripple */ = {isa = PBXFileReference; lastKnownFileType = folder; name = ripple; path = ../../src/ripple; sourceTree = "<group>"; };
@@ -131,6 +191,14 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		34373C7B1A7B767A00487CE0 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				34373C831A7B770400487CE0 /* libmysqlclient.a in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		842440511A13B2B900A37710 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -153,6 +221,7 @@
 		8424404B1A13B2B900A37710 = {
 			isa = PBXGroup;
 			children = (
+				34373C821A7B770400487CE0 /* libmysqlclient.a */,
 				3493343C1A3FDFF900418C3F /* build */,
 				3493343D1A3FE05000418C3F /* beast */,
 				3493343E1A3FE05000418C3F /* BeastConfig.h */,
@@ -165,6 +234,7 @@
 			isa = PBXGroup;
 			children = (
 				842440541A13B2B900A37710 /* radard */,
+				34373C811A7B767A00487CE0 /* radard-mysql */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -239,6 +309,24 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		34373C541A7B767A00487CE0 /* radard-mysql */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 34373C7E1A7B767A00487CE0 /* Build configuration list for PBXNativeTarget "radard-mysql" */;
+			buildPhases = (
+				34373C551A7B767A00487CE0 /* Sources */,
+				34373C7B1A7B767A00487CE0 /* Frameworks */,
+				34373C7C1A7B767A00487CE0 /* CopyFiles */,
+			);
+			buildRules = (
+				34373C7D1A7B767A00487CE0 /* PBXBuildRule */,
+			);
+			dependencies = (
+			);
+			name = "radard-mysql";
+			productName = rippled;
+			productReference = 34373C811A7B767A00487CE0 /* radard-mysql */;
+			productType = "com.apple.product-type.tool";
+		};
 		842440531A13B2B900A37710 /* radard */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 8424405B1A13B2B900A37710 /* Build configuration list for PBXNativeTarget "radard" */;
@@ -284,11 +372,56 @@
 			projectRoot = "";
 			targets = (
 				842440531A13B2B900A37710 /* radard */,
+				34373C541A7B767A00487CE0 /* radard-mysql */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXSourcesBuildPhase section */
+		34373C551A7B767A00487CE0 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				34373C561A7B767A00487CE0 /* ripple.proto in Sources */,
+				34373C571A7B767A00487CE0 /* app.cpp in Sources */,
+				34373C581A7B767A00487CE0 /* app1.cpp in Sources */,
+				34373C591A7B767A00487CE0 /* app2.cpp in Sources */,
+				34373C5A1A7B767A00487CE0 /* app3.cpp in Sources */,
+				34373C5B1A7B767A00487CE0 /* app4.cpp in Sources */,
+				34373C5C1A7B767A00487CE0 /* app5.cpp in Sources */,
+				34373C5D1A7B767A00487CE0 /* app6.cpp in Sources */,
+				34373C5E1A7B767A00487CE0 /* app7.cpp in Sources */,
+				34373C5F1A7B767A00487CE0 /* app8.cpp in Sources */,
+				34373C601A7B767A00487CE0 /* app9.cpp in Sources */,
+				34373C611A7B767A00487CE0 /* basics.cpp in Sources */,
+				34373C621A7B767A00487CE0 /* beast.cpp in Sources */,
+				34373C631A7B767A00487CE0 /* beastc.c in Sources */,
+				34373C641A7B767A00487CE0 /* beastobjc.mm in Sources */,
+				34373C651A7B767A00487CE0 /* common.cpp in Sources */,
+				34373C661A7B767A00487CE0 /* core.cpp in Sources */,
+				34373C671A7B767A00487CE0 /* data.cpp in Sources */,
+				34373C681A7B767A00487CE0 /* http.cpp in Sources */,
+				34373C691A7B767A00487CE0 /* hyperleveldb.cpp in Sources */,
+				34373C6A1A7B767A00487CE0 /* json.cpp in Sources */,
+				34373C6B1A7B767A00487CE0 /* leveldb.cpp in Sources */,
+				34373C6C1A7B767A00487CE0 /* net.cpp in Sources */,
+				34373C6D1A7B767A00487CE0 /* nodestore.cpp in Sources */,
+				34373C6E1A7B767A00487CE0 /* overlay.cpp in Sources */,
+				34373C6F1A7B767A00487CE0 /* peerfinder.cpp in Sources */,
+				34373C701A7B767A00487CE0 /* protobuf.cpp in Sources */,
+				34373C711A7B767A00487CE0 /* resource.cpp in Sources */,
+				34373C721A7B767A00487CE0 /* ripple.proto.cpp in Sources */,
+				34373C731A7B767A00487CE0 /* rocksdb.cpp in Sources */,
+				34373C741A7B767A00487CE0 /* rpcx.cpp in Sources */,
+				34373C751A7B767A00487CE0 /* sitefiles.cpp in Sources */,
+				34373C761A7B767A00487CE0 /* snappy.cpp in Sources */,
+				34373C771A7B767A00487CE0 /* sslutil.cpp in Sources */,
+				34373C781A7B767A00487CE0 /* types.cpp in Sources */,
+				34373C791A7B767A00487CE0 /* validators.cpp in Sources */,
+				34373C7A1A7B767A00487CE0 /* websocket.cpp in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		842440501A13B2B900A37710 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -336,6 +469,146 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin XCBuildConfiguration section */
+		34373C7F1A7B767A00487CE0 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_CXX_LANGUAGE_STANDARD = "c++0x";
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"USE_MYSQL=1",
+					"${inherited}",
+				);
+				HEADER_SEARCH_PATHS = (
+					"$(inherited)",
+					/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/include,
+					/usr/local/Cellar/openssl/1.0.1j/include,
+					/usr/local/Cellar/boost/1.56.0/include,
+					/usr/local/include,
+					../../src,
+					../../src/beast,
+					../../build/proto,
+				);
+				LIBRARY_SEARCH_PATHS = (
+					/usr/local/Cellar/boost/1.56.0/lib,
+					/usr/local/Cellar/openssl/1.0.1j/lib,
+					/usr/local/lib,
+				);
+				OTHER_CPLUSPLUSFLAGS = (
+					"$(OTHER_CFLAGS)",
+					"-Wall",
+					"-frtti",
+					"-std=c++11",
+					"-Wno-invalid-offsetof",
+					"-Wno-mismatched-tags",
+					"-Wno-deprecated-register",
+					"-Wno-sign-compare",
+					"-Wno-char-subscripts",
+					"-Wno-format",
+					"-g",
+					"-Wno-redeclared-class-member",
+					"-Wno-deprecated",
+					"-Wno-deprecated-declarations",
+					"-Wno-unused-variable",
+					"-Wno-unused-function",
+					"-O3",
+					"-fno-strict-aliasing",
+					"-DOPENSSL_NO_SSL2",
+					"-DNDEBUG",
+					"-DBEAST_COMPILE_OBJECTIVE_CPP=1",
+					"-DRADAR_ASYNC_DIVIDEND",
+				);
+				OTHER_LDFLAGS = (
+					"-lboost_coroutine",
+					"-lboost_context",
+					"-lboost_date_time",
+					"-lboost_filesystem",
+					"-lboost_program_options",
+					"-lboost_regex",
+					"-lboost_system",
+					"-lboost_thread-mt",
+					"-ldl",
+					"-lcrypto",
+					"-lprotobuf",
+					"-lssl",
+					"-v",
+					"-framework",
+					AppKit,
+					"-framework",
+					Foundation,
+				);
+				PRODUCT_NAME = "radard-mysql";
+			};
+			name = Debug;
+		};
+		34373C801A7B767A00487CE0 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_CXX_LANGUAGE_STANDARD = "c++0x";
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"USE_MYSQL=1",
+					"${inherited}",
+				);
+				HEADER_SEARCH_PATHS = (
+					"$(inherited)",
+					/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/include,
+					/usr/local/Cellar/openssl/1.0.1j/include,
+					/usr/local/Cellar/boost/1.56.0/include,
+					/usr/local/include,
+					../../src,
+					../../src/beast,
+					../../build/proto,
+				);
+				LIBRARY_SEARCH_PATHS = (
+					/usr/local/Cellar/boost/1.56.0/lib,
+					/usr/local/Cellar/openssl/1.0.1j/lib,
+					/usr/local/lib,
+				);
+				OTHER_CPLUSPLUSFLAGS = (
+					"$(OTHER_CFLAGS)",
+					"-Wall",
+					"-frtti",
+					"-std=c++11",
+					"-Wno-invalid-offsetof",
+					"-Wno-mismatched-tags",
+					"-Wno-deprecated-register",
+					"-Wno-sign-compare",
+					"-Wno-char-subscripts",
+					"-Wno-format",
+					"-g",
+					"-Wno-redeclared-class-member",
+					"-Wno-deprecated",
+					"-Wno-deprecated-declarations",
+					"-Wno-unused-variable",
+					"-Wno-unused-function",
+					"-O3",
+					"-fno-strict-aliasing",
+					"-DOPENSSL_NO_SSL2",
+					"-DNDEBUG",
+					"-DBEAST_COMPILE_OBJECTIVE_CPP=1",
+					"-DRADAR_ASYNC_DIVIDEND",
+				);
+				OTHER_LDFLAGS = (
+					"-lboost_coroutine",
+					"-lboost_context",
+					"-lboost_date_time",
+					"-lboost_filesystem",
+					"-lboost_program_options",
+					"-lboost_regex",
+					"-lboost_system",
+					"-lboost_thread-mt",
+					"-ldl",
+					"-lcrypto",
+					"-lprotobuf",
+					"-lssl",
+					"-v",
+					"-framework",
+					AppKit,
+					"-framework",
+					Foundation,
+				);
+				PRODUCT_NAME = "radard-mysql";
+			};
+			name = Release;
+		};
 		842440591A13B2B900A37710 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -545,6 +818,15 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		34373C7E1A7B767A00487CE0 /* Build configuration list for PBXNativeTarget "radard-mysql" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				34373C7F1A7B767A00487CE0 /* Debug */,
+				34373C801A7B767A00487CE0 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		8424404F1A13B2B900A37710 /* Build configuration list for PBXProject "radard" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (

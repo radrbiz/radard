@@ -107,6 +107,10 @@ public:
         add (jtVALIDATION_t,  "trustedValidation",
             maxLimit, true,   false, 500,  1500);
 
+        // Process db batch commit
+        add (jtDB_BATCH,      "dbBatch",
+             maxLimit, false,  false, 0,     0);
+        
         // Write out hashed objects
         add (jtWRITE,         "writeObjects",
             maxLimit, false,  false, 1750,  2500);
@@ -122,7 +126,7 @@ public:
         // Process dividend
         add (jtDIVIDEND,      "dividend",
             1,        false,  false, 0,     0);
-        
+
         // Sweep for stale structures
         add (jtSWEEP,         "sweep",
             maxLimit, true,   false, 0,     0);

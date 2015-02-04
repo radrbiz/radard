@@ -264,6 +264,16 @@ public:
     */
     bool doImport;
     beast::StringPairArray importNodeDatabase;
+    
+    /** Parameters for the transaction database.
+     
+     This is 1 or more strings of the form <key>=<value>
+     The 'type' and 'path' keys are required, see rippled-example.cfg
+     
+     @see Database
+     */
+    beast::StringPairArray transactionDatabase;
+
 
     //
     //
@@ -298,7 +308,7 @@ public:
 
     // Database
     std::string                 DATABASE_PATH;
-
+    
     // Network parameters
     int                         TRANSACTION_FEE_BASE;   // The number of fee units a reference transaction costs
 

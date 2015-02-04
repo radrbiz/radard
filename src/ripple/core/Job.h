@@ -55,6 +55,7 @@ enum JobType
     jtTXN_DATA,      // Fetch a proposed set
     jtWAL,           // Write-ahead logging
     jtVALIDATION_t,  // A validation from a trusted source
+    jtDB_BATCH,      // Batch db update
     jtWRITE,         // Write out hashed objects
     jtACCEPT,        // Accept a consensus ledger
     jtPROPOSAL_t,    // A proposal from a trusted source

@@ -62,6 +62,42 @@ const char* TxnDBInit[] =
 };
 
 int TxnDBCount = std::extent<decltype(TxnDBInit)>::value;
+    
+// Mysql Init
+const char* TxnDBInitMySQL[] =
+{
+    "START TRANSACTION;",
+    
+    "CREATE TABLE IF NOT EXISTS Transactions (       \
+        TransID     CHARACTER(64) PRIMARY KEY,      \
+        TransType   CHARACTER(24),                  \
+        FromAcct    CHARACTER(35),                  \
+        FromSeq     BIGINT UNSIGNED,                \
+        LedgerSeq   BIGINT UNSIGNED,                \
+        Status      CHARACTER(1),                   \
+        RawTxn      BLOB,                           \
+        TxnMeta     BLOB                            \
+    );",
+    "CREATE INDEX TxLgrIndex ON                     \
+        Transactions(LedgerSeq);",
+    
+    "CREATE TABLE IF NOT EXISTS AccountTransactions (    \
+        TransID     CHARACTER(64),                      \
+        Account     CHARACTER(64),                      \
+        LedgerSeq   BIGINT UNSIGNED,                    \
+        TxnSeq      INTEGER                             \
+    );",
+    "CREATE INDEX AcctTxIDIndex ON              \
+        AccountTransactions(TransID);",
+    "CREATE INDEX AcctTxIndex ON                \
+        AccountTransactions(Account, LedgerSeq, TxnSeq, TransID);",
+    "CREATE INDEX AcctLgrIndex ON               \
+        AccountTransactions(LedgerSeq, Account, TransID);",
+    
+    "COMMIT;"
+};
+
+int TxnDBCountMySQL = std::extent<decltype(TxnDBInitMySQL)>::value;
 
 // Ledger database holds ledgers and ledger confirmations
 const char* LedgerDBInit[] =
