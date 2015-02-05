@@ -85,7 +85,7 @@ class MySQLDatabaseCon
     : public DatabaseCon
 {
 public:
-    DatabaseCon (beast::StringPairArray& mysqlParams, const char* initString[], int countInit);
+    MySQLDatabaseCon (beast::StringPairArray& mysqlParams, const char* initString[], int countInit);
 };
 
 } // ripple
