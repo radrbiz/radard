@@ -3,6 +3,7 @@
 
 #include <mysql.h>
 #include <boost/thread/tss.hpp>
+#include <beast/module/core/text/StringPairArray.h>
 
 namespace ripple {
 
@@ -78,6 +79,13 @@ public:
     std::vector <std::string> mColNameTable;
     MYSQL_RES *mResult;
     MYSQL_ROW mCurRow;
+};
+    
+class MySQLDatabaseCon
+    : public DatabaseCon
+{
+public:
+    DatabaseCon (beast::StringPairArray& mysqlParams, const char* initString[], int countInit);
 };
 
 } // ripple

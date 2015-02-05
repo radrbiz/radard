@@ -41,30 +41,6 @@ DatabaseCon::DatabaseCon (std::string const& strName, const char* initStrings[],
     for (int i = 0; i < initCount; ++i)
     mDatabase->executeSQL (initStrings[i], true);
 }
-    
-#ifdef USE_MYSQL
-DatabaseCon::DatabaseCon(beast::StringPairArray& params, const char* initStrings[], int initCount)
-{
-    assert(params[beast::String("type")] == "mysql"
-           && params[beast::String("host")] != beast::String::empty
-           && params[beast::String("port")] != beast::String::empty
-           && params[beast::String("username")] != beast::String::empty
-           && params[beast::String("password")] != beast::String::empty
-           && params[beast::String("database")] != beast::String::empty);
-    
-    std::string host = params[beast::String("host")].toStdString();
-    int port = boost::lexical_cast<int>(params[beast::String("port")].toStdString());
-    std::string username = params[beast::String("username")].toStdString();
-    std::string password = params[beast::String("password")].toStdString();
-    std::string database = params[beast::String("database")].toStdString();
-    
-    mDatabase = new MySQLDatabase(host.c_str(), port, username.c_str(), password.c_str(), database.c_str());
-    mDatabase->connect ();
-    
-    for (int i = 0; i < initCount; ++i)
-        mDatabase->executeSQL (initStrings[i], true);
-}
-#endif // USE_MYSQL
 
 DatabaseCon::~DatabaseCon ()
 {

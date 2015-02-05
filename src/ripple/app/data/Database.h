@@ -44,6 +44,7 @@ public:
     enum class Type {
         MySQL,
         Sqlite,
+        Null,
     };
     explicit Database (const char* host);
 
