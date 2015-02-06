@@ -14,7 +14,7 @@ class MySQLDatabase
     , private beast::LeakChecked <MySQLDatabase>
 {
 public:
-    explicit MySQLDatabase (char const* host, std::uint32_t port, char const* username, char const* password, char const* database);
+    explicit MySQLDatabase (char const* host, std::uint32_t port, char const* username, char const* password, char const* database, bool asyncBatch);
     ~MySQLDatabase ();
 
     void connect (){};
@@ -25,7 +25,7 @@ public:
     bool executeSQLBatch();
     
     bool batchStart() override;
-    bool batchCommit(bool async) override;
+    bool batchCommit() override;
 
     // tells you how many rows were changed by an update or insert
     std::uint64_t getNumRowsAffected ();
@@ -58,6 +58,7 @@ private:
     std::string mUsername;
     std::string mPassword;
     std::string mDatabase;
+    bool mAsyncBatch;
 
     boost::thread_specific_ptr<MySQLStatement> mStmt;
     

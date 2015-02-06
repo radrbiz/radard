@@ -19,7 +19,7 @@ public:
     bool executeSQLBatch();
     
     bool batchStart() override;
-    bool batchCommit(bool async) override;
+    bool batchCommit() override;
 
     // tells you how many rows were changed by an update or insert
     std::uint64_t getNumRowsAffected ();

@@ -3,12 +3,13 @@
 namespace ripple {
 MySQLDatabase::MySQLDatabase(char const* host, std::uint32_t port,
                              char const* username, char const* password,
-                             char const* database)
+                             char const* database, bool asyncBatch)
     : Database (host),
       mPort(port),
       mUsername(username),
       mPassword(password),
       mDatabase(database)
+    , mAsyncBatch(asyncBatch)
 {
     mDBType = Type::MySQL;
 }
@@ -67,7 +68,7 @@ bool MySQLDatabase::batchStart()
     return true;
 }
 
-bool MySQLDatabase::batchCommit(bool async)
+bool MySQLDatabase::batchCommit()
 {
     auto stmt = getStatement();
     if (!stmt->mInBatch)
@@ -75,7 +76,7 @@ bool MySQLDatabase::batchCommit(bool async)
         return false;
     }
     stmt->mInBatch = false;
-    if (async)
+    if (mAsyncBatch)
     {
         std::unique_lock <std::mutex> lock (mThreadBatchLock);
         std::move(stmt->mSqlQueue.begin(), stmt->mSqlQueue.end(), std::back_inserter(mSqlQueue));
@@ -332,8 +333,9 @@ MySQLDatabaseCon::MySQLDatabaseCon(beast::StringPairArray& params, const char* i
     std::string username = params[beast::String("username")].toStdString();
     std::string password = params[beast::String("password")].toStdString();
     std::string database = params[beast::String("database")].toStdString();
+    bool asyncBatch = getConfig().transactionDatabase[beast::String("async_batch")] == beast::String("true");
     
-    mDatabase = new MySQLDatabase(host.c_str(), port, username.c_str(), password.c_str(), database.c_str());
+    mDatabase = new MySQLDatabase(host.c_str(), port, username.c_str(), password.c_str(), database.c_str(), asyncBatch);
     mDatabase->connect ();
     
     for (int i = 0; i < initCount; ++i)

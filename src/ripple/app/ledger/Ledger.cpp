@@ -818,7 +818,7 @@ bool Ledger::saveValidatedLedger (bool current)
                     getLedgerSeq (), vt.second->getEscMeta ()) + ";");
         }
         db->endTransaction();
-        db->batchCommit(true);
+        db->batchCommit();
     }
 
     {

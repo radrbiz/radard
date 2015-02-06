@@ -20,7 +20,7 @@ bool NullDatabase::batchStart()
     return false;
 }
 
-bool NullDatabase::batchCommit(bool async)
+bool NullDatabase::batchCommit()
 {
     return false;
 }
