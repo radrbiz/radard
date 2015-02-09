@@ -589,7 +589,7 @@ public:
             return false;
 #endif  // USE_MYSQL
         }
-        else if (getConfig().transactionDatabase[beast::String("type")] == beast::String("null"))
+        else if (getConfig().transactionDatabase[beast::String("type")] == beast::String("none"))
         {
             mTxnDB = std::make_unique <NullDatabaseCon> ();
         }
