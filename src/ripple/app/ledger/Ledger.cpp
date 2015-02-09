@@ -722,7 +722,8 @@ bool Ledger::saveValidatedLedger (bool current)
     AcceptedLedger::pointer aLedger;
     try
     {
-        aLedger = AcceptedLedger::makeAcceptedLedger (shared_from_this ());
+        if (getApp().getTxnDB().getDB()->getDBType()!=Database::Type::Null)
+            aLedger = AcceptedLedger::makeAcceptedLedger (shared_from_this ());
     }
     catch (...)
     {
@@ -742,11 +743,13 @@ bool Ledger::saveValidatedLedger (bool current)
         getApp().getLedgerDB ().getDB ()->executeSQL (
             boost::str (deleteLedger % mLedgerSeq));
     }
-
+    
+    if (getApp().getTxnDB().getDB()->getDBType()!=Database::Type::Null)
     {
         auto db = getApp().getTxnDB ().getDB ();
         auto dbLock (getApp().getTxnDB ().lock ());
-        db->executeSQL ("BEGIN TRANSACTION;");
+        db->batchStart();
+        db->beginTransaction();
 
         db->executeSQL (boost::str (deleteTrans1 % getLedgerSeq ()));
         db->executeSQL (boost::str (deleteTrans2 % getLedgerSeq ()));
@@ -810,11 +813,12 @@ bool Ledger::saveValidatedLedger (bool current)
                     << " affects no accounts";
 
             db->executeSQL (
-                SerializedTransaction::getMetaSQLInsertReplaceHeader () +
+                SerializedTransaction::getMetaSQLInsertReplaceHeader (db->getDBType()) +
                 vt.second->getTxn ()->getMetaSQL (
                     getLedgerSeq (), vt.second->getEscMeta ()) + ";");
         }
-        db->executeSQL ("COMMIT TRANSACTION;");
+        db->endTransaction();
+        db->batchCommit();
     }
 
     {

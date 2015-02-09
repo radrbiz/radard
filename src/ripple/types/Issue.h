@@ -80,13 +80,8 @@ public:
 template <bool ByValue>
 bool isConsistent(IssueType<ByValue> const& ac)
 {
-    return isXRP (ac.currency) == isXRP (ac.account);
-}
-
-template <bool ByValue>
-bool isConsistentVBC(IssueType<ByValue> const& ac)
-{
-	return isVBC(ac.currency) == isVBC(ac.account);
+    return isXRP (ac.currency) == isXRP (ac.account)
+        || isVBC(ac.currency) == isVBC(ac.account);
 }
 
 template <bool ByValue>

@@ -126,6 +126,9 @@ void CPUInformation::initialise() noexcept
     hasSSE2 = flags.contains ("sse2");
     hasSSE3 = flags.contains ("sse3");
     has3DNow = flags.contains ("3dnow");
+    hasSSE4 = flags.contains ("sse4_1") || flags.contains ("sse4_2");
+    hasAVX = flags.contains ("avx");
+    hasAVX2 = flags.contains ("avx2");
 }
 
 //==============================================================================

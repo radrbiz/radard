@@ -540,6 +540,9 @@ void Config::load ()
 
             importNodeDatabase = parseKeyValueSection (
                 secConfig, ConfigSection::importNodeDatabase ());
+            
+            transactionDatabase = parseKeyValueSection (
+                secConfig, ConfigSection::transactionDatabase ());
 
             if (getSingleSection (secConfig, SECTION_PEER_PORT, strTemp))
                 peerListeningPort = beast::lexicalCastThrow <int> (strTemp);

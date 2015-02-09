@@ -436,7 +436,8 @@ private:
                     auto dbl (getApp().getLedgerDB ().lock ());
 
                     Serializer s (1024);
-                    db->executeSQL ("BEGIN TRANSACTION;");
+//                    db->executeSQL ("BEGIN TRANSACTION;");
+                    db->beginTransaction();
                     for (auto it: vector)
                     {
                         s.erase ();
@@ -446,7 +447,8 @@ private:
                             it->getSignerPublic ().humanNodePublic () %
                             it->getSignTime () % sqlEscape (s.peekData ())));
                     }
-                    db->executeSQL ("END TRANSACTION;");
+//                    db->executeSQL ("END TRANSACTION;");
+                    db->endTransaction();
                 }
             }
         }

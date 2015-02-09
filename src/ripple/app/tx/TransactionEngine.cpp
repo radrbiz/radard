@@ -78,7 +78,8 @@ TER TransactionEngine::applyTransaction (
     WriteLog (lsTRACE, TransactionEngine) << "applyTransaction>";
     didApply = false;
     assert (mLedger);
-    mNodes.init (mLedger, txn.getTransactionID (), mLedger->getLedgerSeq (), params);
+    uint256 const& txID = txn.getTransactionID ();
+    mNodes.init (mLedger, txID, mLedger->getLedgerSeq (), params);
 
 #ifdef BEAST_DEBUG
     if (1)
@@ -99,8 +100,6 @@ TER TransactionEngine::applyTransaction (
         }
     }
 #endif
-
-    uint256 const& txID = txn.getTransactionID ();
 
     if (!txID)
     {
