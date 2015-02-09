@@ -20,6 +20,10 @@
 #include <ripple/basics/Log.h>
 #include <beast/unit_test/suite.h>
 
+#ifdef USE_SHA512_ASM
+#include <beast/crypto/sha512asm.h>
+#endif
+
 namespace ripple {
 
 int Serializer::addZeros (size_t uBytes)
@@ -344,15 +348,24 @@ uint256 Serializer::getSHA512Half (int size) const
 uint256 Serializer::getSHA512Half (const_byte_view v)
 {
     uint256 j[2];
-    SHA512 (v.data(), v.size(),
-        reinterpret_cast<unsigned char*> (j));
+#ifndef USE_SHA512_ASM
+    SHA512(v.data(), v.size(),
+           reinterpret_cast<unsigned char*> (j));
+#else
+    SHA512ASM(v.data(), v.size(),
+            reinterpret_cast<unsigned char*> (j));
+#endif
     return j[0];
 }
 
 uint256 Serializer::getSHA512Half (const unsigned char* data, int len)
 {
     uint256 j[2];
+#ifndef USE_SHA512_ASM
     SHA512 (data, len, (unsigned char*) j);
+#else
+    SHA512ASM (data, len, (unsigned char*) j);
+#endif
     return j[0];
 }
 

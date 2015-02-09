@@ -27,18 +27,19 @@ DatabaseCon::DatabaseCon (std::string const& strName, const char* initStrings[],
     //
     auto const startUp = getConfig ().START_UP;
     auto const useTempFiles  // Use temporary files or regular DB files?
-        = getConfig ().RUN_STANDALONE &&
-          startUp != Config::LOAD &&
-          startUp != Config::LOAD_FILE &&
-          startUp != Config::REPLAY;
+    = getConfig ().RUN_STANDALONE &&
+    startUp != Config::LOAD &&
+    startUp != Config::LOAD_FILE &&
+    startUp != Config::REPLAY;
     boost::filesystem::path pPath = useTempFiles
-        ? "" : (getConfig ().DATA_DIR / strName);
-
+    ? "" : (getConfig ().DATA_DIR / strName);
+    
     mDatabase = new SqliteDatabase (pPath.string ().c_str ());
+    
     mDatabase->connect ();
-
+    
     for (int i = 0; i < initCount; ++i)
-        mDatabase->executeSQL (initStrings[i], true);
+    mDatabase->executeSQL (initStrings[i], true);
 }
 
 DatabaseCon::~DatabaseCon ()

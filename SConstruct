@@ -201,6 +201,8 @@ def config_base(env):
     env.Append(CPPDEFINES=['OPENSSL_NO_SSL2'])
     #use async dividend
     #env.Append(CPPDEFINES=['RADAR_ASYNC_DIVIDEND'])
+    if Beast.system.linux and ARGUMENTS.get('use-sha512-asm'):
+        env.Append(CPPDEFINES=['USE_SHA512_ASM'])
 
     try:
         BOOST_ROOT = os.path.normpath(os.environ['BOOST_ROOT'])
@@ -240,6 +242,11 @@ def config_base(env):
         env.Append(LIBPATH=[os.path.join(profile_jemalloc, 'lib')])
         env.Append(CPPPATH=[os.path.join(profile_jemalloc, 'include')])
         env.Append(LINKFLAGS=['-Wl,-rpath,' + os.path.join(profile_jemalloc, 'lib')])
+
+    profile_perf = ARGUMENTS.get('profile-perf')
+    if profile_perf:
+        env.Append(LINKFLAGS=['-Wl,-no-as-needed'])
+        env.Append(LIBS=['profiler'])
 
 # Set toolchain and variant specific construction variables
 def config_env(toolchain, variant, env):
@@ -313,6 +320,17 @@ def config_env(toolchain, variant, env):
         env.Append(LIBS=boost_libs)
         env.Append(LIBS=['dl'])
 
+        # If MySql is used.
+        if ARGUMENTS.get('use-mysql'):
+            env.Append(CPPDEFINES=['USE_MYSQL'])
+            env.Append(LIBS=['mysqlclient', 'z'])
+            if Beast.system.osx:
+                env.Append(LIBS=['boost_thread-mt'])
+            else:
+                env.Append(CPPPATH=['/usr/include/mysql'])
+                env.Append(LIBPATH=['/usr/lib/mysql'])
+                env.Append(LIBS=['boost_thread'])
+
         if Beast.system.osx:
             env.Append(LIBS=[
                 'crypto',
@@ -323,6 +341,9 @@ def config_env(toolchain, variant, env):
                 'AppKit',
                 'Foundation'
                 ])
+            # Try find in brew installed libraries.
+            env.Append(CPPPATH=['/usr/local/include'])
+            env.Append(LIBPATH=['/usr/local/lib'])
         else:
             env.Append(LIBS=['rt'])
 
@@ -474,7 +495,6 @@ def addSource(path, env, variant_dirs, CPPPATH=[]):
         env = env.Clone()
         env.Prepend(CPPPATH=CPPPATH)
     return env.Object(Beast.variantFile(path, variant_dirs))
-
 #-------------------------------------------------------------------------------
 
 # Configure the base construction environment
@@ -582,6 +602,13 @@ for toolchain in all_toolchains:
         objects.append(addSource('src/ripple/unity/types.cpp', env, variant_dirs))
         objects.append(addSource('src/ripple/unity/validators.cpp', env, variant_dirs))
         objects.append(addSource('src/ripple/unity/websocket.cpp', env, variant_dirs))
+        if Beast.system.linux and ARGUMENTS.get('use-sha512-asm'):
+            env.Replace(AS = "yasm")
+            env.Replace(ASFLAGS='-f elf64')
+            objects.append(addSource('src/beast/beast/crypto/sha512_sse4.asm', env, variant_dirs))
+            objects.append(addSource('src/beast/beast/crypto/sha512_avx.asm', env, variant_dirs))
+            objects.append(addSource('src/beast/beast/crypto/sha512_avx2_rorx.asm', env, variant_dirs))
+            objects.append(addSource('src/beast/beast/crypto/sha512asm.c', env, variant_dirs))
 
         objects.append(addSource('src/ripple/unity/nodestore.cpp', env, variant_dirs, [
             'src/leveldb/include',

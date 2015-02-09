@@ -28,6 +28,10 @@
 #include <sys/resource.h>
 #endif
 
+#ifdef USE_SHA512_ASM
+#include <beast/crypto/sha512asm.h>
+#endif //USE_SHA512_ASM
+
 namespace po = boost::program_options;
 
 namespace ripple {
@@ -160,6 +164,26 @@ int run (int argc, char** argv)
     version::checkLibraryVersions();
 
     FatalErrorReporter reporter;
+    
+#ifdef USE_SHA512_ASM
+    if (beast::SystemStats::hasAVX2())
+    {
+        Init_SHA512ASM_avx2();
+    }
+    else if (beast::SystemStats::hasAVX())
+    {
+        Init_SHA512ASM_avx();
+    }
+    else if (beast::SystemStats::hasSSE4())
+    {
+        Init_SHA512ASM_sse4();
+    }
+    else
+    {
+        assert(false);
+    }
+#endif //#ifdef USE_SHA512_ASM
+
 
     using namespace std;
 

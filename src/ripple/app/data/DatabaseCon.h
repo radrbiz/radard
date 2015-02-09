@@ -43,9 +43,12 @@ public:
     {
         return std::unique_lock<mutex>(mLock);
     }
+    
+protected:
+    DatabaseCon () {}
+    Database* mDatabase;
 
 private:
-    Database* mDatabase;
     mutex  mLock;
 };
 

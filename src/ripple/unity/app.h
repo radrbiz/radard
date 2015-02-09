@@ -61,6 +61,10 @@
 #include <ripple/app/data/Database.h>
 #include <ripple/app/data/DatabaseCon.h>
 #include <ripple/app/data/SqliteDatabase.h>
+#ifdef USE_MYSQL
+#include <ripple/app/data/MySQLDatabase.h>
+#endif
+#include <ripple/app/data/NullDatabase.h>
 #include <ripple/app/data/DBInit.h>
 #include <ripple/app/shamap/SHAMapItem.h>
 #include <ripple/app/shamap/SHAMapNodeID.h>

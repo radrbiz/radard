@@ -32,6 +32,7 @@
 #include <ripple/validators/Manager.h>
 #include <beast/asio/io_latency_probe.h>
 #include <beast/module/core/thread/DeadlineTimer.h>
+#include <beast/module/core/system/SystemStats.h>
 #include <fstream>
 
 namespace ripple {
@@ -354,8 +355,7 @@ public:
         , m_io_latency_sampler (m_collectorManager->collector()->make_event ("ios_latency"),
             m_logs.journal("Application"), std::chrono::milliseconds (100), m_mainIoPool.getService())
     {
-        add (m_resourceManager.get ());
-
+        add (m_resourceManager.get ());        
         //
         // VFALCO - READ THIS!
         //
@@ -575,9 +575,25 @@ public:
         assert (mTxnDB.get () == nullptr);
         assert (mLedgerDB.get () == nullptr);
         assert (mWalletDB.get () == nullptr);
+        
 
         mRpcDB = std::make_unique <DatabaseCon> ("rpc.db", RpcDBInit, RpcDBCount);
-        mTxnDB = std::make_unique <DatabaseCon> ("transaction.db", TxnDBInit, TxnDBCount);
+        if (getConfig().transactionDatabase[beast::String("type")] == beast::String::empty)
+            mTxnDB = std::make_unique <DatabaseCon> ("transaction.db", TxnDBInit, TxnDBCount);
+        else if (getConfig().transactionDatabase[beast::String("type")] == beast::String("mysql"))
+        {
+#ifdef  USE_MYSQL
+            mTxnDB = std::make_unique <MySQLDatabaseCon> (getConfig().transactionDatabase, TxnDBInitMySQL, TxnDBCountMySQL);
+#else   // USE_MYSQL
+            m_journal.fatal << "Mysql type used but not compiled in!";
+            return false;
+#endif  // USE_MYSQL
+        }
+        else if (getConfig().transactionDatabase[beast::String("type")] == beast::String("none"))
+        {
+            mTxnDB = std::make_unique <NullDatabaseCon> ();
+        }
+
         mLedgerDB = std::make_unique <DatabaseCon> ("ledger.db", LedgerDBInit, LedgerDBCount);
         mWalletDB = std::make_unique <DatabaseCon> ("wallet.db", WalletDBInit, WalletDBCount);
 
@@ -645,8 +661,11 @@ public:
 
         getApp().getLedgerDB ().getDB ()->executeSQL (boost::str (boost::format ("PRAGMA cache_size=-%d;") %
                 (getConfig ().getSize (siLgrDBCache) * 1024)));
-        getApp().getTxnDB ().getDB ()->executeSQL (boost::str (boost::format ("PRAGMA cache_size=-%d;") %
-                (getConfig ().getSize (siTxnDBCache) * 1024)));
+        if (getApp().getTxnDB ().getDB ()->getDBType() == Database::Type::Sqlite)
+        {
+            getApp().getTxnDB ().getDB ()->executeSQL (boost::str (boost::format ("PRAGMA cache_size=-%d;") %
+                                                (getConfig ().getSize (siTxnDBCache) * 1024)));
+        }
 
         mTxnDB->getDB ()->setupCheckpointing (m_jobQueue.get());
         mLedgerDB->getDB ()->setupCheckpointing (m_jobQueue.get());
@@ -1450,6 +1469,8 @@ static bool schemaHas (DatabaseCon& dbc, std::string const& dbName, int line, st
 
 static void addTxnSeqField ()
 {
+    //CARL seems initial db already has TxnSeq now
+    return;
     if (schemaHas (getApp().getTxnDB (), "AccountTransactions", 0, "TxnSeq"))
         return;
 
@@ -1500,7 +1521,8 @@ static void addTxnSeqField ()
 
     WriteLog (lsINFO, Application) << "All " << i << " transactions read";
 
-    db->executeSQL ("BEGIN TRANSACTION;");
+//    db->executeSQL ("BEGIN TRANSACTION;");
+    db->beginTransaction();
 
     WriteLog (lsINFO, Application) << "Dropping old index";
     db->executeSQL ("DROP INDEX AcctTxIndex;");
@@ -1522,7 +1544,8 @@ static void addTxnSeqField ()
 
     WriteLog (lsINFO, Application) << "Building new index";
     db->executeSQL ("CREATE INDEX AcctTxIndex ON AccountTransactions(Account, LedgerSeq, TxnSeq, TransID);");
-    db->executeSQL ("END TRANSACTION;");
+//    db->executeSQL ("END TRANSACTION;");
+    db->endTransaction();
 }
 
 void ApplicationImp::updateTables ()
@@ -1535,16 +1558,18 @@ void ApplicationImp::updateTables ()
     }
 
     // perform any needed table updates
-    assert (schemaHas (getApp().getTxnDB (), "AccountTransactions", 0, "TransID"));
-    assert (!schemaHas (getApp().getTxnDB (), "AccountTransactions", 0, "foobar"));
+    //assert (schemaHas (getApp().getTxnDB (), "AccountTransactions", 0, "TransID"));
+    //assert (!schemaHas (getApp().getTxnDB (), "AccountTransactions", 0, "foobar"));
     addTxnSeqField ();
 
+    /*
     if (schemaHas (getApp().getTxnDB (), "AccountTransactions", 0, "PRIMARY"))
     {
         WriteLog (lsFATAL, Application) << "AccountTransactions database should not have a primary key";
         StopSustain ();
         exit (1);
     }
+     */
 
     if (getConfig ().doImport)
     {

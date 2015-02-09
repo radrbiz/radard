@@ -74,13 +74,6 @@ bool isConsistent(BookType<ByValue> const& book)
 }
 
 template <bool ByValue>
-bool isConsistentVBC(BookType<ByValue> const& book)
-{
-	return isConsistentVBC(book.in) && isConsistentVBC(book.out)
-		&& book.in != book.out;
-}
-
-template <bool ByValue>
 std::string to_string (BookType<ByValue> const& book)
 {
     return to_string(book.in) + "->" + to_string(book.out);

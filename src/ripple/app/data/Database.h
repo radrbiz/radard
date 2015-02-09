@@ -41,6 +41,11 @@ class JobQueue;
 class Database
 {
 public:
+    enum class Type {
+        MySQL,
+        Sqlite,
+        Null,
+    };
     explicit Database (const char* host);
 
     virtual ~Database ();
@@ -56,6 +61,11 @@ public:
     {
         return executeSQL (strSql.c_str (), fail_okay);
     }
+    
+    //execute a batch of sql in one call (only sql without result can call this)
+//    virtual bool executeSQLBatch(const std::vector<std::string>& sqlQueue);
+    virtual bool batchStart(){return true;};
+    virtual bool batchCommit(){return true;};
 
     // returns false if there are no results
     virtual bool startIterRows (bool finalize = true) = 0;
@@ -64,6 +74,9 @@ public:
     // call this after you executeSQL
     // will return false if there are no more rows
     virtual bool getNextRow (bool finalize = true) = 0;
+    
+    virtual bool beginTransaction() = 0;
+    virtual bool endTransaction() = 0;
 
     // get Data from the current row
     bool getNull (const char* colName);
@@ -87,6 +100,11 @@ public:
     virtual int getBinary (int colIndex, unsigned char* buf, int maxSize) = 0;
     virtual std::uint64_t getBigInt (int colIndex) = 0;
     virtual Blob getBinary (int colIndex) = 0;
+    
+    const Type getDBType()
+    {
+        return mDBType;
+    }
 
     // int getSingleDBValueInt(const char* sql);
     // float getSingleDBValueFloat(const char* sql);
@@ -111,11 +129,12 @@ public:
     }
 
 protected:
-    bool getColNumber (const char* colName, int* retIndex);
+    virtual bool getColNumber (const char* colName, int* retIndex);
 
     int mNumCol;
     std::string mHost;
     std::vector <std::string> mColNameTable;
+    Type mDBType;
 };
 
 } // ripple
