@@ -119,10 +119,7 @@ TER PathState::pushImpliedNodes (
 
         // The offer's output is what is now wanted.
         // xrpAccount() is a placeholder for offers.
-		if (isXRP(currency))
-			resultCode = pushNode (type, xrpAccount(), currency, issuer);
-		if (isVBC(currency))
-			resultCode = pushNode(type, vbcAccount(), currency, issuer);
+        resultCode = pushNode (type, xrpAccount(), currency, issuer);
     }
 
 
