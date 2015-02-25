@@ -17,6 +17,11 @@
 */
 //==============================================================================
 
+#include <BeastConfig.h>
+#include <ripple/app/ledger/OrderBookDB.h>
+#include <ripple/app/misc/NetworkOPs.h>
+#include <ripple/json/to_string.h>
+
 namespace ripple {
 
 void BookListeners::addSubscriber (InfoSub::ref sub)
@@ -33,8 +38,7 @@ void BookListeners::removeSubscriber (std::uint64_t seq)
 
 void BookListeners::publish (Json::Value const& jvObj)
 {
-    Json::FastWriter jfwWriter;
-    std::string sObj = jfwWriter.write (jvObj);
+    std::string sObj = to_string (jvObj);
 
     ScopedLockType sl (mLock);
     NetworkOPs::SubMapType::const_iterator it = mListeners.begin ();

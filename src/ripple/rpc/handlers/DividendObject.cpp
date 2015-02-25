@@ -6,9 +6,9 @@ Json::Value doDividendObject (RPC::Context& context)
     SLE::pointer dividendSLE = nullptr;
     
     //time param specified, query from ledger before this time
-    if (context.params_.isMember ("until"))
+    if (context.params.isMember ("until"))
     {
-        auto time_value = context.params_["until"];
+        auto time_value = context.params["until"];
         if (!time_value.isNumeric() || time_value.asUInt() <= 0)
         {
             return ripple::RPC::make_error(rpcINVALID_PARAMS, "dividendObjectMalformed");

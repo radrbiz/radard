@@ -1,5 +1,5 @@
 Name:           radard
-Version:        1.0.1
+Version:        1.1.0
 Release:        1%{?dist}
 Summary:        Ripple peer-to-peer network daemon
 
@@ -50,4 +50,3 @@ rm -rf %{buildroot}
 /usr/bin/rippled
 /usr/share/rippled/LICENSE
 /etc/rippled/rippled-example.cfg
-

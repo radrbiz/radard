@@ -17,27 +17,30 @@
 */
 //==============================================================================
 
+#include <BeastConfig.h>
 #include <ripple/core/Config.h>
 #include <ripple/app/transactors/Transactor.h>
+#include <ripple/protocol/Indexes.h>
+#include <ripple/basics/Log.h>
 
 namespace ripple {
 
-TER transact_Payment (SerializedTransaction const& txn, TransactionEngineParams params, TransactionEngine* engine);
-TER transact_SetAccount (SerializedTransaction const& txn, TransactionEngineParams params, TransactionEngine* engine);
-TER transact_SetRegularKey (SerializedTransaction const& txn, TransactionEngineParams params, TransactionEngine* engine);
-TER transact_SetTrust (SerializedTransaction const& txn, TransactionEngineParams params, TransactionEngine* engine);
-TER transact_CreateOffer (SerializedTransaction const& txn, TransactionEngineParams params, TransactionEngine* engine);
-TER transact_CancelOffer (SerializedTransaction const& txn, TransactionEngineParams params, TransactionEngine* engine);
-TER transact_AddWallet (SerializedTransaction const& txn, TransactionEngineParams params, TransactionEngine* engine);
-TER transact_Change (SerializedTransaction const& txn, TransactionEngineParams params, TransactionEngine* engine);
-TER transact_Dividend (SerializedTransaction const& txn, TransactionEngineParams params, TransactionEngine* engine);
-TER transact_CreateTicket (SerializedTransaction const& txn, TransactionEngineParams params, TransactionEngine* engine);
-TER transact_CancelTicket (SerializedTransaction const& txn, TransactionEngineParams params, TransactionEngine* engine);
-TER transact_AddReferee(SerializedTransaction const& txn, TransactionEngineParams params, TransactionEngine* engine);
+TER transact_Payment (STTx const& txn, TransactionEngineParams params, TransactionEngine* engine);
+TER transact_SetAccount (STTx const& txn, TransactionEngineParams params, TransactionEngine* engine);
+TER transact_SetRegularKey (STTx const& txn, TransactionEngineParams params, TransactionEngine* engine);
+TER transact_SetTrust (STTx const& txn, TransactionEngineParams params, TransactionEngine* engine);
+TER transact_CreateOffer (STTx const& txn, TransactionEngineParams params, TransactionEngine* engine);
+TER transact_CancelOffer (STTx const& txn, TransactionEngineParams params, TransactionEngine* engine);
+TER transact_AddWallet (STTx const& txn, TransactionEngineParams params, TransactionEngine* engine);
+TER transact_Change (STTx const& txn, TransactionEngineParams params, TransactionEngine* engine);
+TER transact_Dividend (STTx const& txn, TransactionEngineParams params, TransactionEngine* engine);
+TER transact_CreateTicket (STTx const& txn, TransactionEngineParams params, TransactionEngine* engine);
+TER transact_CancelTicket (STTx const& txn, TransactionEngineParams params, TransactionEngine* engine);
+TER transact_AddReferee(STTx const& txn, TransactionEngineParams params, TransactionEngine* engine);
 
 TER
 Transactor::transact (
-    SerializedTransaction const& txn,
+    STTx const& txn,
     TransactionEngineParams params,
     TransactionEngine* engine)
 {
@@ -89,7 +92,7 @@ Transactor::transact (
 }
 
 Transactor::Transactor (
-    SerializedTransaction const& txn,
+    STTx const& txn,
     TransactionEngineParams params,
     TransactionEngine* engine,
     beast::Journal journal)
@@ -262,7 +265,7 @@ TER Transactor::preCheck ()
     if (!mTxn.isKnownGood ())
     {
         if (mTxn.isKnownBad () ||
-            (!(mParams & tapNO_CHECK_SIGN) && !mTxn.checkSign (mSigningPubKey)))
+            (!(mParams & tapNO_CHECK_SIGN) && !mTxn.checkSign()))
         {
             mTxn.setBad ();
             m_journal.warning << "apply: Invalid transaction (bad signature)";
@@ -285,7 +288,7 @@ TER Transactor::apply ()
     WriteLog(lsDEBUG, Transactor)
         << "Begin to apply";
     mTxnAccount = mEngine->entryCache (ltACCOUNT_ROOT,
-        Ledger::getAccountRootIndex (mTxnAccountID));
+        getAccountRootIndex (mTxnAccountID));
     calculateFee ();
 
     // Find source account

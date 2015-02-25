@@ -17,8 +17,12 @@
 */
 //==============================================================================
 
+#include <BeastConfig.h>
+#include <ripple/basics/seconds_clock.h>
+#include <ripple/resource/Manager.h>
 #include <beast/threads/Thread.h>
-
+#include <beast/cxx14/memory.h> // <memory>
+    
 namespace ripple {
 namespace Resource {
 

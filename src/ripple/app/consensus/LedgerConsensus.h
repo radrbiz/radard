@@ -20,6 +20,18 @@
 #ifndef RIPPLE_LEDGERCONSENSUS_H
 #define RIPPLE_LEDGERCONSENSUS_H
 
+#include <ripple/app/ledger/Ledger.h>
+#include <ripple/app/ledger/LedgerProposal.h>
+#include <ripple/app/misc/CanonicalTXSet.h>
+#include <ripple/app/misc/FeeVote.h>
+#include <ripple/app/tx/LocalTxs.h>
+#include <ripple/json/json_value.h>
+#include <ripple/overlay/Peer.h>
+#include <ripple/protocol/RippleLedgerHash.h>
+#include <beast/chrono/abstract_clock.h>
+#include <chrono>
+#include <ripple/app/misc/DividendVote.h>
+
 namespace ripple {
 
 /** Manager for achieving consensus on the next ledger.
@@ -30,7 +42,7 @@ namespace ripple {
 class LedgerConsensus
 {
 public:
-    typedef beast::abstract_clock <std::chrono::seconds> clock_type;
+    typedef beast::abstract_clock <std::chrono::steady_clock> clock_type;
 
     virtual ~LedgerConsensus() = 0;
 
@@ -84,6 +96,11 @@ std::shared_ptr <LedgerConsensus>
 make_LedgerConsensus (LedgerConsensus::clock_type& clock, LocalTxs& localtx,
     LedgerHash const & prevLCLHash, Ledger::ref previousLedger,
         std::uint32_t closeTime, FeeVote& feeVote, DividendVote& dividendVote);
+
+void
+applyTransactions(SHAMap::ref set, Ledger::ref applyLedger,
+                  Ledger::ref checkLedger,
+                  CanonicalTXSet& retriableTransactions, bool openLgr);
 
 } // ripple
 

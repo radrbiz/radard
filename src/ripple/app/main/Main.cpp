@@ -17,12 +17,31 @@
 */
 //==============================================================================
 
+#include <BeastConfig.h>
+#include <ripple/basics/Log.h>
+#include <ripple/app/main/Application.h>
 #include <ripple/basics/CheckLibraryVersions.h>
+#include <ripple/basics/StringUtilities.h>
 #include <ripple/basics/Sustain.h>
 #include <ripple/basics/ThreadName.h>
+#include <ripple/core/Config.h>
 #include <ripple/core/ConfigSections.h>
+#include <ripple/crypto/RandomNumbers.h>
+#include <ripple/json/to_string.h>
+#include <ripple/net/RPCCall.h>
+#include <ripple/resource/Fees.h>
+#include <ripple/rpc/RPCHandler.h>
+#include <ripple/server/Role.h>
+#include <ripple/protocol/BuildInfo.h>
+#include <beast/chrono/basic_seconds_clock.h>
 #include <beast/unit_test.h>
+#include <beast/utility/Debug.h>
 #include <beast/streams/debug_ostream.h>
+#include <beast/module/core/system/SystemStats.h>
+#include <google/protobuf/stubs/common.h>
+#include <boost/program_options.hpp>
+#include <cstdlib>
+#include <thread>
 
 #if defined(BEAST_LINUX) || defined(BEAST_MAC) || defined(BEAST_BSD)
 #include <sys/resource.h>
@@ -67,10 +86,12 @@ void startServer ()
             if (!getConfig ().QUIET)
                 std::cerr << "Startup RPC: " << jvCommand << std::endl;
 
-            RPCHandler  rhHandler (getApp().getOPs ());
-
             Resource::Charge loadType = Resource::feeReferenceRPC;
-            Json::Value jvResult    = rhHandler.doCommand (jvCommand, Config::ADMIN, loadType);
+            RPC::Context context {
+                jvCommand, loadType, getApp().getOPs (), Role::ADMIN};
+
+            Json::Value jvResult;
+            RPC::doCommand (context, jvResult);
 
             if (!getConfig ().QUIET)
                 std::cerr << "Result: " << jvResult << std::endl;
@@ -83,7 +104,7 @@ void startServer ()
 void printHelp (const po::options_description& desc)
 {
     std::cerr
-        << SYSTEM_NAME "d [options] <command> <params>\n"
+        << systemName () << "d [options] <command> <params>\n"
         << desc << std::endl
         << "Commands: \n"
            "     account_info <account>|<seed>|<pass_phrase>|<key> [<ledger>] [strict]\n"
@@ -91,6 +112,7 @@ void printHelp (const po::options_description& desc)
            "     account_offers <account>|<account_public_key> [<ledger>]\n"
            "     account_tx accountID [ledger_min [ledger_max [limit [offset]]]] [binary] [count] [descending]\n"
            "     book_offers <taker_pays> <taker_gets> [<taker [<ledger> [<limit> [<proof> [<marker>]]]]]\n"
+           "     can_delete [<ledgerid>|<ledgerhash>|now|always|never]\n"
            "     connect <ip> [<port>]\n"
            "     consensus_info\n"
            "     get_counts\n"
@@ -133,14 +155,40 @@ static
 void
 setupConfigForUnitTests (Config* config)
 {
-    config->nodeDatabase = parseDelimitedKeyValueString ("type=memory");
+    config->nodeDatabase = parseDelimitedKeyValueString ("type=memory|path=main");
     config->ephemeralNodeDatabase = beast::StringPairArray ();
     config->importNodeDatabase = beast::StringPairArray ();
 }
 
-static
-int
-runUnitTests (std::string pattern, std::string format)
+static int runShutdownTests ()
+{
+    // Shutdown tests can not be part of the normal unit tests in 'runUnitTests'
+    // because it needs to create and destroy an application object.
+    int const numShutdownIterations = 20;
+    // Give it enough time to sync and run a bit while synced.
+    std::chrono::seconds const serverUptimePerIteration (4 * 60);
+    for (int i = 0; i < numShutdownIterations; ++i)
+    {
+        std::cerr << "\n\nStarting server. Iteration: " << i << "\n"
+                  << std::endl;
+        std::unique_ptr<Application> app (make_Application (deprecatedLogs()));
+        auto shutdownApp = [&app](std::chrono::seconds sleepTime, int iteration)
+        {
+            std::this_thread::sleep_for (sleepTime);
+            std::cerr << "\n\nStopping server. Iteration: " << iteration << "\n"
+                      << std::endl;
+            app->signalStop();
+        };
+        std::thread shutdownThread (shutdownApp, serverUptimePerIteration, i);
+        setupServer();
+        startServer();
+        shutdownThread.join();
+    }
+    return EXIT_SUCCESS;
+}
+
+static int runUnitTests (std::string const& pattern,
+                         std::string const& argument)
 {
     // Config needs to be set up before creating Application
     setupConfigForUnitTests (&getConfig ());
@@ -149,6 +197,7 @@ runUnitTests (std::string pattern, std::string format)
     using namespace beast::unit_test;
     beast::debug_ostream stream;
     reporter r (stream);
+    r.arg(argument);
     bool const failed (r.run_each_if (
         global_suites(), match_auto (pattern)));
     if (failed)
@@ -163,8 +212,6 @@ int run (int argc, char** argv)
     // Make sure that we have the right OpenSSL and Boost libraries.
     version::checkLibraryVersions();
 
-    FatalErrorReporter reporter;
-    
 #ifdef USE_SHA512_ASM
     if (beast::SystemStats::hasAVX2())
     {
@@ -183,7 +230,6 @@ int run (int argc, char** argv)
         assert(false);
     }
 #endif //#ifdef USE_SHA512_ASM
-
 
     using namespace std;
 
@@ -213,8 +259,9 @@ int run (int argc, char** argv)
     ("rpc_ip", po::value <std::string> (), "Specify the IP address for RPC command. Format: <ip-address>[':'<port-number>]")
     ("rpc_port", po::value <int> (), "Specify the port number for RPC command.")
     ("standalone,a", "Run with no peers.")
+    ("shutdowntest", po::value <std::string> ()->implicit_value (""), "Perform shutdown tests.")
     ("unittest,u", po::value <std::string> ()->implicit_value (""), "Perform unit tests.")
-    ("unittest-format", po::value <std::string> ()->implicit_value ("text"), "Format unit test output. Choices are 'text', 'junit'")
+    ("unittest-arg", po::value <std::string> ()->implicit_value (""), "Supplies argument to unit tests.")
     ("parameters", po::value< vector<string> > (), "Specify comma separated parameters.")
     ("quiet,q", "Reduce diagnotics.")
     ("quorum", po::value <int> (), "Set the validation quorum.")
@@ -234,11 +281,8 @@ int run (int argc, char** argv)
     po::positional_options_description p;
     p.add ("parameters", -1);
 
-    if (! RandomNumbers::getInstance ().initialize ())
-    {
-        std::cerr << "Unable to add system entropy" << std::endl;
-        iResult = 2;
-    }
+    // Seed the RNG early
+    add_entropy ();
 
     if (!iResult)
     {
@@ -277,6 +321,7 @@ int run (int argc, char** argv)
         && !vm.count ("parameters")
         && !vm.count ("fg")
         && !vm.count ("standalone")
+        && !vm.count ("shutdowntest")
         && !vm.count ("unittest"))
     {
         std::string logMe = DoSustain (getConfig ().getDebugLogFile ().string());
@@ -303,12 +348,12 @@ int run (int argc, char** argv)
     //
     if (vm.count ("unittest"))
     {
-        std::string format;
+        std::string argument;
 
-        if (vm.count ("unittest-format"))
-            format = vm ["unittest-format"].as <std::string> ();
+        if (vm.count("unittest-arg"))
+            argument = vm["unittest-arg"].as<std::string>();
 
-        return runUnitTests (vm ["unittest"].as <std::string> (), format);
+        return runUnitTests(vm["unittest"].as<std::string>(), argument);
     }
 
     if (!iResult)
@@ -323,6 +368,7 @@ int run (int argc, char** argv)
         {
             getConfig ().RUN_STANDALONE = true;
             getConfig ().LEDGER_HISTORY = 0;
+            getConfig ().LEDGER_HISTORY_INDEX = 0;
         }
     }
 
@@ -368,8 +414,9 @@ int run (int argc, char** argv)
         //
         if (vm.count ("rpc_ip"))
         {
-            getConfig ().setRpcIpAndOptionalPort (vm ["rpc_ip"].as <std::string> ());
-            getConfig().overwrite("rpc", "ip", vm["rpc_ip"].as<std::string>());
+            // VFALCO TODO This is currently broken
+            //getConfig ().setRpcIpAndOptionalPort (vm ["rpc_ip"].as <std::string> ());
+            //getConfig().overwrite("rpc", "ip", vm["rpc_ip"].as<std::string>());
         }
 
         // Override the RPC destination port number
@@ -377,8 +424,9 @@ int run (int argc, char** argv)
         if (vm.count ("rpc_port"))
         {
             // VFALCO TODO This should be a short.
-            getConfig ().setRpcPort (vm ["rpc_port"].as <int> ());
-            getConfig().overwrite("rpc", "port", boost::lexical_cast<std::string>(vm["rpc_port"].as <int>()));
+            // VFALCO TODO This is currently broken
+            //getConfig ().setRpcPort (vm ["rpc_port"].as <int> ());
+            //getConfig().overwrite("rpc", "port", vm["rpc_port"].as<std::string>());
         }
 
         if (vm.count ("quorum"))
@@ -388,6 +436,11 @@ int run (int argc, char** argv)
             if (getConfig ().VALIDATION_QUORUM < 0)
                 iResult = 1;
         }
+    }
+
+    if (vm.count ("shutdowntest"))
+    {
+        return runShutdownTests ();
     }
 
     if (iResult == 0)
@@ -415,4 +468,55 @@ int run (int argc, char** argv)
     return iResult;
 }
 
+extern int run (int argc, char** argv);
+
+} // ripple
+
+// Must be outside the namespace for obvious reasons
+//
+int main (int argc, char** argv)
+{
+    // Workaround for Boost.Context / Boost.Coroutine
+    // https://svn.boost.org/trac/boost/ticket/10657
+    (void)beast::Time::currentTimeMillis();
+
+#if defined(__GNUC__) && !defined(__clang__)
+    auto constexpr gccver = (__GNUC__ * 100 * 100) +
+                            (__GNUC_MINOR__ * 100) +
+                            __GNUC_PATCHLEVEL__;
+
+    static_assert (gccver >= 40801,
+        "GCC version 4.8.1 or later is required to compile radard.");
+#endif
+
+    static_assert (BOOST_VERSION >= 105500,
+        "Boost version 1.55 or later is required to compile radard");
+
+    //
+    // These debug heap calls do nothing in release or non Visual Studio builds.
+    //
+
+    // Checks the heap at every allocation and deallocation (slow).
+    //
+    //beast::Debug::setAlwaysCheckHeap (false);
+
+    // Keeps freed memory blocks and fills them with a guard value.
+    //
+    //beast::Debug::setHeapDelayedFree (false);
+
+    // At exit, reports all memory blocks which have not been freed.
+    //
+#if RIPPLE_DUMP_LEAKS_ON_EXIT
+    beast::Debug::setHeapReportLeaks (true);
+#else
+    beast::Debug::setHeapReportLeaks (false);
+#endif
+
+    atexit(&google::protobuf::ShutdownProtobufLibrary);
+
+    auto const result (ripple::run (argc, argv));
+
+    beast::basic_seconds_clock_main_hook();
+
+    return result;
 }

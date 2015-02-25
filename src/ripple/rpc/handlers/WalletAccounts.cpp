@@ -17,6 +17,9 @@
 */
 //==============================================================================
 
+#include <BeastConfig.h>
+#include <ripple/rpc/impl/Accounts.h>
+#include <ripple/rpc/impl/GetMasterGenerator.h>
 
 namespace ripple {
 
@@ -29,15 +32,15 @@ Json::Value doWalletAccounts (RPC::Context& context)
 {
     Ledger::pointer ledger;
     Json::Value jvResult
-            = RPC::lookupLedger (context.params_, ledger, context.netOps_);
+            = RPC::lookupLedger (context.params, ledger, context.netOps);
 
     if (!ledger)
         return jvResult;
 
     RippleAddress   naSeed;
 
-    if (!context.params_.isMember ("seed")
-        || !naSeed.setSeedGeneric (context.params_["seed"].asString ()))
+    if (!context.params.isMember ("seed")
+        || !naSeed.setSeedGeneric (context.params["seed"].asString ()))
     {
         return rpcError (rpcBAD_SEED);
     }
@@ -47,29 +50,25 @@ Json::Value doWalletAccounts (RPC::Context& context)
             = RippleAddress::createGeneratorPublic (naSeed);
 
     Json::Value jsonAccounts
-            = RPC::accounts (ledger, naMasterGenerator, context.netOps_);
+            = RPC::accounts (ledger, naMasterGenerator, context.netOps);
 
     if (jsonAccounts.empty ())
     {
         // No account via seed as master, try seed a regular.
         Json::Value ret = RPC::getMasterGenerator (
-            ledger, naSeed, naMasterGenerator, context.netOps_);
+            ledger, naSeed, naMasterGenerator, context.netOps);
 
         if (!ret.empty ())
             return ret;
 
-        ret["accounts"]
-                = RPC::accounts (ledger, naMasterGenerator, context.netOps_);
+        ret[jss::accounts]
+                = RPC::accounts (ledger, naMasterGenerator, context.netOps);
         return ret;
     }
     else
     {
         // Had accounts via seed as master, return them.
-        Json::Value ret (Json::objectValue);
-
-        ret["accounts"] = jsonAccounts;
-
-        return ret;
+        return RPC::makeObjectValue (jsonAccounts, jss::accounts);
     }
 }
 

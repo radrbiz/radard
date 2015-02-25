@@ -20,6 +20,9 @@
 #ifndef RIPPLE_LEDGERHISTORY_H
 #define RIPPLE_LEDGERHISTORY_H
 
+#include <ripple/app/ledger/Ledger.h>
+#include <ripple/protocol/RippleLedgerHash.h>
+#include <beast/insight/Collector.h>
 #include <beast/insight/Event.h>
 
 namespace ripple {
@@ -27,7 +30,7 @@ namespace ripple {
 // VFALCO TODO Rename to OldLedgers ?
 
 /** Retains historical ledgers. */
-class LedgerHistory : beast::LeakChecked <LedgerHistory>
+class LedgerHistory
 {
 public:
     explicit
@@ -91,6 +94,8 @@ public:
         @return `true` if the mapping was repaired
     */
     bool fixIndex(LedgerIndex ledgerIndex, LedgerHash const& ledgerHash);
+
+    void clearLedgerCachePrior (LedgerIndex seq);
 
 private:
 

@@ -34,8 +34,6 @@
 #include <ripple/json/impl/json_batchallocator.h>
 #endif
 
-#include <ripple/unity/json.h>
-
 #define JSON_ASSERT_UNREACHABLE assert( false )
 #define JSON_ASSERT( condition ) assert( condition );  // @todo <= change this into an exception throw
 #define JSON_ASSERT_MESSAGE( condition, message ) if (!( condition )) throw std::runtime_error( message );
@@ -43,7 +41,7 @@
 #include <ripple/json/impl/json_reader.cpp>
 #include <ripple/json/impl/json_value.cpp>
 #include <ripple/json/impl/json_writer.cpp>
-
-#include <ripple/json/impl/Tests.cpp>
-
+#include <ripple/json/impl/to_string.cpp>
 #include <ripple/json/impl/JsonPropertyStream.cpp>
+
+#include <ripple/json/tests/JsonCpp.test.cpp>

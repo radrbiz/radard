@@ -17,13 +17,23 @@
 */
 //==============================================================================
 
-#include <ripple/basics/ArraySize.h>
-#include <ripple/rpc/ErrorCodes.h>
+#include <BeastConfig.h>
 #include <ripple/net/RPCCall.h>
 #include <ripple/net/RPCErr.h>
-#include <ripple/net/RPCUtil.h>
+#include <ripple/basics/Log.h>
+#include <ripple/core/Config.h>
+#include <ripple/json/json_reader.h>
+#include <ripple/json/to_string.h>
+#include <ripple/net/HTTPClient.h>
+#include <ripple/protocol/JsonFields.h>
+#include <ripple/protocol/ErrorCodes.h>
+#include <ripple/protocol/SystemParameters.h>
+#include <ripple/server/ServerHandler.h>
+#include <beast/module/core/text/LexicalCast.h>
+#include <boost/asio/streambuf.hpp>
 #include <boost/regex.hpp>
 #include <iostream>
+#include <type_traits>
 
 namespace ripple {
 
@@ -36,6 +46,42 @@ static inline bool isSwitchChar (char c)
 #else
     return c == '-';
 #endif
+}
+
+//
+// HTTP protocol
+//
+// This ain't Apache.  We're just using HTTP header for the length field
+// and to be compatible with other JSON-RPC implementations.
+//
+
+std::string createHTTPPost (
+    std::string const& strHost,
+    std::string const& strPath,
+    std::string const& strMsg,
+    std::map<std::string, std::string> const& mapRequestHeaders)
+{
+    std::ostringstream s;
+
+    // CHECKME this uses a different version than the replies below use. Is
+    //         this by design or an accident or should it be using
+    //         BuildInfo::getFullVersionString () as well?
+
+    s << "POST "
+      << (strPath.empty () ? "/" : strPath)
+      << " HTTP/1.0\r\n"
+      << "User-Agent: " << systemName () << "-json-rpc/v1\r\n"
+      << "Host: " << strHost << "\r\n"
+      << "Content-Type: application/json\r\n"
+      << "Content-Length: " << strMsg.size () << "\r\n"
+      << "Accept: application/json\r\n";
+
+    for (auto const& item : mapRequestHeaders)
+        s << item.first << ": " << item.second << "\r\n";
+
+    s << "\r\n" << strMsg;
+
+    return s.str ();
 }
 
 class RPCParser
@@ -326,6 +372,24 @@ private:
 
         if (jvParams.size () == 7)
             jvRequest["marker"] = jvParams[6u];
+
+        return jvRequest;
+    }
+
+    // can_delete [<ledgerid>|<ledgerhash>|now|always|never]
+    Json::Value parseCanDelete (Json::Value const& jvParams)
+    {
+        Json::Value     jvRequest (Json::objectValue);
+
+        if (!jvParams.size ())
+            return jvRequest;
+
+        std::string input = jvParams[0u].asString();
+        if (input.find_first_not_of("0123456789") ==
+                std::string::npos)
+            jvRequest["can_delete"] = jvParams[0u].asUInt();
+        else
+            jvRequest["can_delete"] = input;
 
         return jvRequest;
     }
@@ -826,17 +890,25 @@ public:
     // <-- { method: xyz, params: [... ] } or { error: ..., ... }
     Json::Value parseCommand (std::string strMethod, Json::Value jvParams, bool allowAnyCommand)
     {
-        WriteLog (lsTRACE, RPCParser) << "RPC method:" << strMethod;
-        WriteLog (lsTRACE, RPCParser) << "RPC params:" << jvParams;
+        if (ShouldLog (lsTRACE, RPCParser))
+        {
+            WriteLog (lsTRACE, RPCParser) << "RPC method:" << strMethod;
+            WriteLog (lsTRACE, RPCParser) << "RPC params:" << jvParams;
+        }
 
         struct Command
         {
-            const char*     pCommand;
-            parseFuncPtr    pfpFunc;
-            int             iMinParams;
-            int             iMaxParams;
+            const char*     name;
+            parseFuncPtr    parse;
+            int             minParams;
+            int             maxParams;
         };
-        static Command commandsA[] =
+
+        // FIXME: replace this with a function-static std::map and the lookup
+        // code with std::map::find when the problem with magic statics on
+        // Visual Studio is fixed.
+        static
+        Command const commands[] =
         {
             // Request-response methods
             // - Returns an error, or the request.
@@ -847,6 +919,7 @@ public:
             {   "account_offers",       &RPCParser::parseAccountItems,          1,  4   },
             {   "account_tx",           &RPCParser::parseAccountTransactions,   1,  8   },
             {   "book_offers",          &RPCParser::parseBookOffers,            2,  7   },
+            {   "can_delete",           &RPCParser::parseCanDelete,             0,  1   },
             {   "connect",              &RPCParser::parseConnect,               1,  2   },
             {   "consensus_info",       &RPCParser::parseAsIs,                  0,  0   },
             {   "feature",              &RPCParser::parseFeature,               0,  2   },
@@ -905,33 +978,55 @@ public:
             {   "unsubscribe",          &RPCParser::parseEvented,               -1, -1  },
         };
 
-        int i = RIPPLE_ARRAYSIZE (commandsA);
+        auto const count = jvParams.size ();
 
-        while (i-- && strMethod != commandsA[i].pCommand)
-            ;
-
-        if (i < 0)
+        for (auto const& command : commands)
         {
-            if (!allowAnyCommand)
-                return rpcError (rpcUNKNOWN_COMMAND);
+            if (strMethod == command.name)
+            {
+                if ((command.minParams >= 0 && count < command.minParams) ||
+                    (command.maxParams >= 0 && count > command.maxParams))
+                {
+                    WriteLog (lsDEBUG, RPCParser) <<
+                        "Wrong number of parameters for " << command.name <<
+                        " minimum=" << command.minParams <<
+                        " maximum=" << command.maxParams <<
+                        " actual=" << count;
 
-            return parseAsIs (jvParams);
+                    return rpcError (rpcBAD_SYNTAX);
+                }
+
+                return (this->* (command.parse)) (jvParams);
+            }
         }
-        else if ((commandsA[i].iMinParams >= 0 && jvParams.size () < commandsA[i].iMinParams)
-                 || (commandsA[i].iMaxParams >= 0 && jvParams.size () > commandsA[i].iMaxParams))
-        {
-            WriteLog (lsWARNING, RPCParser) << "Wrong number of parameters: minimum=" << commandsA[i].iMinParams
-                                            << " maximum=" << commandsA[i].iMaxParams
-                                            << " actual=" << jvParams.size ();
 
-            return rpcError (rpcBAD_SYNTAX);
-        }
+        // The command could not be found
+        if (!allowAnyCommand)
+            return rpcError (rpcUNKNOWN_COMMAND);
 
-        return (this->* (commandsA[i].pfpFunc)) (jvParams);
+        return parseAsIs (jvParams);
     }
 };
 
 //------------------------------------------------------------------------------
+
+//
+// JSON-RPC protocol.  Bitcoin speaks version 1.0 for maximum compatibility,
+// but uses JSON-RPC 1.1/2.0 standards for parts of the 1.0 standard that were
+// unspecified (HTTP errors and contents of 'error').
+//
+// 1.0 spec: http://json-rpc.org/wiki/specification
+// 1.2 spec: http://groups.google.com/group/json-rpc/web/json-rpc-over-http
+//
+
+std::string JSONRPCRequest (std::string const& strMethod, Json::Value const& params, Json::Value const& id)
+{
+    Json::Value request;
+    request[jss::method] = strMethod;
+    request[jss::params] = params;
+    request[jss::id] = id;
+    return to_string (request) + "\n";
+}
 
 struct RPCCallImp
 {
@@ -955,7 +1050,7 @@ struct RPCCallImp
             if (iStatus == 401)
                 throw std::runtime_error ("incorrect rpcuser or rpcpassword (authorization failed)");
             else if ((iStatus >= 400) && (iStatus != 400) && (iStatus != 404) && (iStatus != 500)) // ?
-                throw std::runtime_error (std::string ("server returned HTTP error %d") + std::to_string (iStatus));
+                throw std::runtime_error (std::string ("server returned HTTP error ") + std::to_string (iStatus));
             else if (strData.empty ())
                 throw std::runtime_error ("no response from server");
 
@@ -989,7 +1084,6 @@ struct RPCCallImp
         WriteLog (lsDEBUG, RPCParser) << "requestRPC: strPath='" << strPath << "'";
 
         std::ostream    osRequest (&sb);
-
         osRequest <<
                   createHTTPPost (
                       strHost,
@@ -1033,35 +1127,35 @@ int RPCCall::fromCommandLine (const std::vector<std::string>& vCmd)
         }
         else
         {
-            auto setup = setup_RPC (getConfig()["rpc"]);
+            auto const setup = setup_ServerHandler(getConfig(), std::cerr);
 
             Json::Value jvParams (Json::arrayValue);
 
+            if (!setup.client.admin_user.empty ())
+                jvRequest["admin_user"] = setup.client.admin_user;
+
+            if (!setup.client.admin_password.empty ())
+                jvRequest["admin_password"] = setup.client.admin_password;
+
             jvParams.append (jvRequest);
 
-            if (!setup.admin_user.empty ())
-                jvRequest["admin_user"] = setup.admin_user;
-
-            if (!setup.admin_password.empty ())
-                jvRequest["admin_password"] = setup.admin_password;
-
-            boost::asio::io_service isService;
-
-            fromNetwork (
-                isService,
-                setup.ip,
-                setup.port,
-                setup.admin_user,
-                setup.admin_password,
-                "",
-                jvRequest.isMember ("method")           // Allow parser to rewrite method.
-                    ? jvRequest["method"].asString () : vCmd[0],
-                jvParams,                               // Parsed, execute.
-                setup.secure != 0,                      // Use SSL
-                std::bind (RPCCallImp::callRPCHandler, &jvOutput,
-                           std::placeholders::_1));
-
-            isService.run (); // This blocks until there is no more outstanding async calls.
+            {
+                boost::asio::io_service isService;
+                fromNetwork (
+                    isService,
+                    setup.client.ip,
+                    setup.client.port,
+                    setup.client.user,
+                    setup.client.password,
+                    "",
+                    jvRequest.isMember ("method")           // Allow parser to rewrite method.
+                        ? jvRequest["method"].asString () : vCmd[0],
+                    jvParams,                               // Parsed, execute.
+                    setup.client.secure != 0,                // Use SSL
+                    std::bind (RPCCallImp::callRPCHandler, &jvOutput,
+                               std::placeholders::_1));
+                isService.run(); // This blocks until there is no more outstanding async calls.
+            }
 
             if (jvOutput.isMember ("result"))
             {

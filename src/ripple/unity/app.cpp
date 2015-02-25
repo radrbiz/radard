@@ -18,92 +18,16 @@
 //==============================================================================
 
 #include <BeastConfig.h>
-
-#include <ripple/unity/app.h>
-#include <ripple/unity/net.h>
-#include <ripple/unity/rpcx.h>
+#include <ripple/rpc/Manager.h>
 #include <ripple/unity/websocket.h>
-#include <ripple/unity/resource.h>
-#include <ripple/unity/sitefiles.h>
-
-#include <ripple/http/Server.h>
-
+#include <ripple/app/impl/BasicApp.cpp>
 #include <ripple/app/main/CollectorManager.cpp>
 #include <ripple/app/main/NodeStoreScheduler.cpp>
-#include <ripple/app/main/IoServicePool.cpp>
-#include <ripple/app/main/FatalErrorReporter.cpp>
-#include <ripple/app/main/RPCHTTPServer.cpp>
-#include <ripple/app/tx/TxQueueEntry.h>
-#include <ripple/app/tx/TxQueueEntry.cpp>
-#include <ripple/app/tx/TxQueue.cpp>
 #include <ripple/app/websocket/WSServerHandler.cpp>
 #include <ripple/app/websocket/WSConnection.cpp>
 #include <ripple/app/websocket/WSDoor.cpp>
 #include <ripple/app/node/SqliteFactory.cpp>
 #include <ripple/app/main/Application.cpp>
 #include <ripple/app/main/Main.cpp>
-
+#include <ripple/resource/Manager.h>
 #include <beast/module/core/time/Time.h>
-
-//------------------------------------------------------------------------------
-
-namespace ripple {
-int run (int argc, char** argv);
-}
-
-struct ProtobufLibrary
-{
-    ~ProtobufLibrary ()
-    {
-        google::protobuf::ShutdownProtobufLibrary();
-    }
-};
-
-// Must be outside the namespace for obvious reasons
-//
-int main (int argc, char** argv)
-{
-    // Workaround for Boost.Context / Boost.Coroutine
-    // https://svn.boost.org/trac/boost/ticket/10657
-    (void)beast::Time::currentTimeMillis();
-
-#if defined(__GNUC__) && !defined(__clang__)
-    auto constexpr gccver = (__GNUC__ * 100 * 100) +
-                            (__GNUC_MINOR__ * 100) +
-                            __GNUC_PATCHLEVEL__;
-
-    static_assert (gccver >= 40801,
-        "GCC version 4.8.1 or later is required to compile radard.");
-#endif
-
-    static_assert (BOOST_VERSION >= 105500,
-        "Boost version 1.55 or later is required to compile radard");
-
-    //
-    // These debug heap calls do nothing in release or non Visual Studio builds.
-    //
-
-    // Checks the heap at every allocation and deallocation (slow).
-    //
-    //beast::Debug::setAlwaysCheckHeap (false);
-
-    // Keeps freed memory blocks and fills them with a guard value.
-    //
-    //beast::Debug::setHeapDelayedFree (false);
-
-    // At exit, reports all memory blocks which have not been freed.
-    //
-#if RIPPLE_DUMP_LEAKS_ON_EXIT
-    beast::Debug::setHeapReportLeaks (true);
-#else
-    beast::Debug::setHeapReportLeaks (false);
-#endif
-
-    beast::SharedSingleton <ProtobufLibrary>::get ();
-
-    auto const result (ripple::run (argc, argv));
-
-    beast::basic_seconds_clock_main_hook();
-
-    return result;
-}

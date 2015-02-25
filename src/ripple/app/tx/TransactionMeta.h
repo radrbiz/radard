@@ -20,6 +20,9 @@
 #ifndef RIPPLE_TRANSACTIONMETA_H
 #define RIPPLE_TRANSACTIONMETA_H
 
+#include <ripple/protocol/STLedgerEntry.h>
+#include <ripple/protocol/STArray.h>
+#include <ripple/protocol/TER.h>
 #include <boost/optional.hpp>
 
 namespace ripple {

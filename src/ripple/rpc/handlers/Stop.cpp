@@ -17,6 +17,7 @@
 */
 //==============================================================================
 
+#include <BeastConfig.h>
 
 namespace ripple {
 
@@ -25,7 +26,7 @@ Json::Value doStop (RPC::Context& context)
     auto lock = getApp().masterLock();
     getApp().signalStop ();
 
-    return SYSTEM_NAME " server stopping";
+    return RPC::makeObjectValue (systemName () + " server stopping");
 }
 
 } // ripple

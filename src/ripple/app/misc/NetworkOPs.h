@@ -20,10 +20,18 @@
 #ifndef RIPPLE_NETWORKOPS_H
 #define RIPPLE_NETWORKOPS_H
 
+#include <ripple/core/JobQueue.h>
+#include <ripple/protocol/STValidation.h>
+#include <ripple/app/ledger/Ledger.h>
+#include <ripple/app/ledger/LedgerProposal.h>
 #include <ripple/net/InfoSub.h>
 #include <beast/cxx14/memory.h> // <memory>
 #include <beast/threads/Stoppable.h>
+#include <boost/date_time/posix_time/posix_time.hpp>
 #include <tuple>
+#include <ripple/app/misc/DividendMaster.h>
+
+#include "ripple.pb.h"
 
 namespace ripple {
 
@@ -32,6 +40,7 @@ namespace ripple {
 
 class Peer;
 class LedgerConsensus;
+class LedgerMaster;
 
 // This is the primary interface into the "client" portion of the program.
 // Code that wants to do normal operations on the network such as
@@ -63,7 +72,7 @@ protected:
     explicit NetworkOPs (Stoppable& parent);
 
 public:
-    typedef beast::abstract_clock <std::chrono::seconds> clock_type;
+    typedef beast::abstract_clock <std::chrono::steady_clock> clock_type;
 
     enum Fault
     {
@@ -101,7 +110,7 @@ public:
     // Use *only* to timestamp our own validation
     virtual std::uint32_t getValidationTimeNC () = 0;
     virtual void closeTimeOffset (int) = 0;
-    virtual boost::posix_time::ptime getNetworkTimePT () const = 0;
+    virtual boost::posix_time::ptime getNetworkTimePT (int& offset) const = 0;
     virtual std::uint32_t getLedgerID (uint256 const& hash) = 0;
     virtual std::uint32_t getCurrentLedgerID () = 0;
 
@@ -127,8 +136,8 @@ public:
     virtual bool getValidatedRange (std::uint32_t& minVal, std::uint32_t& maxVal) = 0;
     virtual bool getFullValidatedRange (std::uint32_t& minVal, std::uint32_t& maxVal) = 0;
 
-    virtual SerializedValidation::ref getLastValidation () = 0;
-    virtual void setLastValidation (SerializedValidation::ref v) = 0;
+    virtual STValidation::ref getLastValidation () = 0;
+    virtual void setLastValidation (STValidation::ref v) = 0;
     virtual SLE::pointer getSLE (Ledger::pointer lpLedger, uint256 const& uHash) = 0;
     virtual SLE::pointer getSLEi (Ledger::pointer lpLedger, uint256 const& uHash) = 0;
 
@@ -140,11 +149,10 @@ public:
     // must complete immediately
     // VFALCO TODO Make this a TxCallback structure
     typedef std::function<void (Transaction::pointer, TER)> stCallback;
-    virtual void submitTransaction (Job&, SerializedTransaction::pointer,
+    virtual void submitTransaction (Job&, STTx::pointer,
         stCallback callback = stCallback ()) = 0;
     virtual Transaction::pointer submitTransactionSync (Transaction::ref tpTrans,
         bool bAdmin, bool bLocal, bool bFailHard, bool bSubmit) = 0;
-    virtual void runTransactionQueue () = 0;
     virtual Transaction::pointer processTransactionCb (Transaction::pointer,
         bool bAdmin, bool bLocal, bool bFailHard, stCallback) = 0;
     virtual Transaction::pointer processTransaction (Transaction::pointer transaction,
@@ -187,6 +195,7 @@ public:
     //
 
     virtual void getBookPage (
+        bool bAdmin,
         Ledger::pointer lpLedger,
         Book const& book,
         Account const& uTakerID,
@@ -206,7 +215,7 @@ public:
         uint256 const& hash, const std::list<SHAMapNodeID>& nodeIDs,
         const std::list< Blob >& nodeData) = 0;
 
-    virtual bool recvValidation (SerializedValidation::ref val,
+    virtual bool recvValidation (STValidation::ref val,
         std::string const& source) = 0;
 
     virtual void takePosition (int seq, SHAMap::ref position) = 0;
@@ -273,7 +282,7 @@ public:
     virtual void reportFeeChange () = 0;
 
     virtual void updateLocalTx (Ledger::ref newValidLedger) = 0;
-    virtual void addLocalTx (Ledger::ref openLedger, SerializedTransaction::ref txn) = 0;
+    virtual void addLocalTx (Ledger::ref openLedger, STTx::ref txn) = 0;
     virtual std::size_t getLocalTxCount () = 0;
 
     //Helper function to generate SQL query to get transactions
@@ -320,7 +329,7 @@ public:
     //
     virtual void pubLedger (Ledger::ref lpAccepted) = 0;
     virtual void pubProposedTransaction (Ledger::ref lpCurrent,
-        SerializedTransaction::ref stTxn, TER terResult) = 0;
+        STTx::ref stTxn, TER terResult) = 0;
 
     virtual DividendMaster::pointer getDividendMaster() = 0;
 };
@@ -331,7 +340,7 @@ make_NetworkOPs (NetworkOPs::clock_type& clock, bool standalone,
     beast::Stoppable& parent, beast::Journal journal);
 
 Json::Value NetworkOPs_transJson (
-    const SerializedTransaction& stTxn, TER terResult, bool bValidated,
+    const STTx& stTxn, TER terResult, bool bValidated,
     Ledger::ref lpCurrent);
 } // ripple
 

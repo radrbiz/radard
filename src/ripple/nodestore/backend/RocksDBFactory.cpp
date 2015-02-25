@@ -17,11 +17,21 @@
 */
 //==============================================================================
 
+#include <BeastConfig.h>
+
+#include <ripple/unity/rocksdb.h>
+
 #if RIPPLE_ROCKSDB_AVAILABLE
 
-#include <ripple/core/Config.h>
+#include <ripple/core/Config.h> // VFALCO Bad dependency
+#include <ripple/nodestore/Factory.h>
+#include <ripple/nodestore/Manager.h>
+#include <ripple/nodestore/impl/BatchWriter.h>
+#include <ripple/nodestore/impl/DecodedBlob.h>
+#include <ripple/nodestore/impl/EncodedBlob.h>
 #include <beast/threads/Thread.h>
 #include <atomic>
+#include <beast/cxx14/memory.h> // <memory>
 
 namespace ripple {
 namespace NodeStore {
@@ -77,8 +87,10 @@ public:
 class RocksDBBackend
     : public Backend
     , public BatchWriter::Callback
-    , public beast::LeakChecked <RocksDBBackend>
 {
+private:
+    std::atomic <bool> m_deletePath;
+
 public:
     beast::Journal m_journal;
     size_t const m_keyBytes;
@@ -89,7 +101,8 @@ public:
 
     RocksDBBackend (int keyBytes, Parameters const& keyValues,
         Scheduler& scheduler, beast::Journal journal, RocksDBEnv* env)
-        : m_journal (journal)
+        : m_deletePath (false)
+        , m_journal (journal)
         , m_keyBytes (keyBytes)
         , m_scheduler (scheduler)
         , m_batch (*this, scheduler)
@@ -192,6 +205,21 @@ public:
 
     ~RocksDBBackend ()
     {
+        close();
+    }
+
+    void
+    close() override
+    {
+        if (m_db)
+        {
+            m_db.reset();
+            if (m_deletePath)
+            {
+                boost::filesystem::path dir = m_name;
+                boost::filesystem::remove_all (dir);
+            }
+        }
     }
 
     std::string
@@ -326,12 +354,23 @@ public:
         return m_batch.getWriteLoad ();
     }
 
+    void
+    setDeletePath() override
+    {
+        m_deletePath = true;
+    }
+
     //--------------------------------------------------------------------------
 
     void
     writeBatch (Batch const& batch)
     {
         storeBatch (batch);
+    }
+
+    void
+    verify() override
+    {
     }
 };
 
@@ -340,21 +379,16 @@ public:
 class RocksDBFactory : public Factory
 {
 public:
-    std::shared_ptr <rocksdb::Cache> m_lruCache;
     RocksDBEnv m_env;
 
     RocksDBFactory ()
     {
-        rocksdb::BlockBasedTableOptions table_options;
-
-        table_options.block_cache = rocksdb::NewLRUCache (
-            getConfig ().getSize (siHashNodeDBCache) * 1024 * 1024);
-
-        m_lruCache = table_options.block_cache;
+        Manager::instance().insert(*this);
     }
 
     ~RocksDBFactory ()
     {
+        Manager::instance().erase(*this);
     }
 
     std::string
@@ -375,13 +409,7 @@ public:
     }
 };
 
-//------------------------------------------------------------------------------
-
-std::unique_ptr <Factory>
-make_RocksDBFactory ()
-{
-    return std::make_unique <RocksDBFactory> ();
-}
+static RocksDBFactory rocksDBFactory;
 
 }
 }

@@ -20,6 +20,10 @@
 #ifndef RIPPLE_HASHROUTER_H_INCLUDED
 #define RIPPLE_HASHROUTER_H_INCLUDED
 
+#include <ripple/basics/base_uint.h>
+#include <cstdint>
+#include <set>
+
 namespace ripple {
 
 // VFALCO NOTE Are these the flags?? Why aren't we using a packed struct?
@@ -41,7 +45,7 @@ namespace ripple {
 class IHashRouter
 {
 public:
-    // The type here *MUST* match the type of Peer::ShortId
+    // The type here *MUST* match the type of Peer::id_t
     typedef std::uint32_t PeerShortID;
 
     // VFALCO NOTE this preferred alternative to default parameters makes

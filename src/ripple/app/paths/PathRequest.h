@@ -20,6 +20,10 @@
 #ifndef RIPPLE_PATHREQUEST_H
 #define RIPPLE_PATHREQUEST_H
 
+#include <ripple/app/paths/RippleLineCache.h>
+#include <ripple/json/json_value.h>
+#include <ripple/net/InfoSub.h>
+
 namespace ripple {
 
 // A pathfinding request submitted by a client
@@ -45,13 +49,13 @@ public:
     typedef const pointer&                  ref;
     typedef const wptr&                     wref;
 
-    // TODO(tom): Use Issue instead!
-    typedef std::pair<Currency, Account> CurrencyIssuer;
-
 public:
     // VFALCO TODO Break the cyclic dependency on InfoSub
-    PathRequest (std::shared_ptr <InfoSub> const& subscriber,
-        int id, PathRequests&, beast::Journal journal);
+    PathRequest (
+        std::shared_ptr <InfoSub> const& subscriber,
+        int id,
+        PathRequests&,
+        beast::Journal journal);
 
     ~PathRequest ();
 
@@ -97,8 +101,8 @@ private:
     RippleAddress raDstAccount;
     STAmount saDstAmount;
 
-    std::set<CurrencyIssuer> sciSourceCurrencies;
-    std::map<CurrencyIssuer, STPathSet> mContext;
+    std::set<Issue> sciSourceCurrencies;
+    std::map<Issue, STPathSet> mContext;
 
     bool bValid;
 

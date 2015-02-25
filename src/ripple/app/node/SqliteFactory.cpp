@@ -17,10 +17,17 @@
 */
 //==============================================================================
 
-#include <ripple/basics/ArraySize.h>
+#include <BeastConfig.h>
 #include <ripple/app/node/SqliteFactory.h>
+#include <ripple/app/data/DatabaseCon.h>
+#include <ripple/app/data/SqliteDatabase.h>
+#include <ripple/core/Config.h>
+#include <type_traits>
+#include <beast/cxx14/memory.h> // <memory>
 
 namespace ripple {
+
+// VFALCO NOTE LedgerIndex in CommittedObjects is obsolete
 
 static const char* s_nodeStoreDBInit [] =
 {
@@ -44,8 +51,6 @@ static const char* s_nodeStoreDBInit [] =
     "END TRANSACTION;"
 };
 
-static int s_nodeStoreDBCount = RIPPLE_ARRAYSIZE (s_nodeStoreDBInit);
-
 //------------------------------------------------------------------------------
 
 class SqliteBackend : public NodeStore::Backend
@@ -53,7 +58,8 @@ class SqliteBackend : public NodeStore::Backend
 public:
     explicit SqliteBackend (std::string const& path, int hashnode_cache_size)
         : m_name (path)
-        , m_db (new DatabaseCon(path, s_nodeStoreDBInit, s_nodeStoreDBCount))
+        , m_db (new DatabaseCon(setup_DatabaseCon (getConfig()), path,
+            s_nodeStoreDBInit, std::extent<decltype(s_nodeStoreDBInit)>::value))
     {
         std::string s ("PRAGMA cache_size=-");
         s += std::to_string (hashnode_cache_size);
@@ -67,6 +73,13 @@ public:
     std::string getName()
     {
         return m_name;
+    }
+
+    void
+    close() override
+    {
+        // VFALCO how do we do this?
+        assert(false);
     }
 
     //--------------------------------------------------------------------------
@@ -83,7 +96,7 @@ public:
             uint256 const hash (uint256::fromVoid (key));
 
             static SqliteStatement pSt (m_db->getDB()->getSqliteDB(),
-                "SELECT ObjType,LedgerIndex,Object FROM CommittedObjects WHERE Hash = ?;");
+                "SELECT ObjType,Object FROM CommittedObjects WHERE Hash = ?;");
 
             pSt.bind (1, to_string (hash));
 
@@ -91,10 +104,9 @@ public:
             {
                 // VFALCO NOTE This is unfortunately needed,
                 //             the DatabaseCon creates the blob?
-                Blob data (pSt.getBlob (2));
+                Blob data (pSt.getBlob(1));
                 *pObject = NodeObject::createObject (
                     getTypeFromString (pSt.peekString (0)),
-                    pSt.getUInt32 (1),
                     std::move(data),
                     hash);
             }
@@ -120,20 +132,18 @@ public:
 
     void storeBatch (NodeStore::Batch const& batch)
     {
-        // VFALCO TODO Rewrite this to use Beast::db
-
         auto sl (m_db->lock());
 
         static SqliteStatement pStB (m_db->getDB()->getSqliteDB(), "BEGIN TRANSACTION;");
         static SqliteStatement pStE (m_db->getDB()->getSqliteDB(), "END TRANSACTION;");
         static SqliteStatement pSt (m_db->getDB()->getSqliteDB(),
             "INSERT OR IGNORE INTO CommittedObjects "
-                "(Hash,ObjType,LedgerIndex,Object) VALUES (?, ?, ?, ?);");
+                "(Hash,ObjType,Object) VALUES (?, ?, ?, ?);");
 
         pStB.step();
         pStB.reset();
 
-        BOOST_FOREACH (NodeObject::Ptr const& object, batch)
+        for (NodeObject::Ptr const& object : batch)
         {
             doBind (pSt, object);
 
@@ -152,7 +162,7 @@ public:
         uint256 hash;
 
         static SqliteStatement pSt(m_db->getDB()->getSqliteDB(),
-            "SELECT ObjType,LedgerIndex,Object,Hash FROM CommittedObjects;");
+            "SELECT ObjType,Object,Hash FROM CommittedObjects;");
 
         while (pSt.isRow (pSt.step()))
         {
@@ -160,10 +170,9 @@ public:
 
             // VFALCO NOTE This is unfortunately needed,
             //             the DatabaseCon creates the blob?
-            Blob data (pSt.getBlob (2));
+            Blob data (pSt.getBlob (1));
             NodeObject::Ptr const object (NodeObject::createObject (
                 getTypeFromString (pSt.peekString (0)),
-                pSt.getUInt32 (1),
                 std::move(data),
                 hash));
 
@@ -177,6 +186,8 @@ public:
     {
         return 0;
     }
+
+    void setDeletePath() override {}
 
     //--------------------------------------------------------------------------
 
@@ -194,8 +205,7 @@ public:
 
         statement.bind(1, to_string (object->getHash()));
         statement.bind(2, type);
-        statement.bind(3, object->getLedgerIndex());
-        statement.bindStatic(4, object->getData());
+        statement.bindStatic(3, object->getData());
     }
 
     NodeObjectType getTypeFromString (std::string const& s)
@@ -215,6 +225,11 @@ public:
         return type;
     }
 
+    void
+    verify() override
+    {
+    }
+
 private:
     std::string const m_name;
     std::unique_ptr <DatabaseCon> m_db;
@@ -224,13 +239,8 @@ private:
 
 class SqliteFactory : public NodeStore::Factory
 {
-    int hashnode_cache_size_;
-
 public:
-    SqliteFactory (int hashnode_cache_size)
-        : hashnode_cache_size_ (hashnode_cache_size)
-    {
-    }
+    SqliteFactory() = default;
 
     std::string
     getName () const
@@ -243,15 +253,11 @@ public:
             NodeStore::Scheduler&, beast::Journal)
     {
         return std::make_unique <SqliteBackend> (
-            keyValues ["path"].toStdString (), hashnode_cache_size_);
+            keyValues ["path"].toStdString (),
+                getConfig ().getSize(siHashNodeDBCache) * 1024);
     }
 };
 
-//------------------------------------------------------------------------------
-
-std::unique_ptr <NodeStore::Factory> make_SqliteFactory (int hashnode_cache_size)
-{
-    return std::make_unique <SqliteFactory> (hashnode_cache_size);
-}
+static SqliteFactory sqliteFactory;
 
 }

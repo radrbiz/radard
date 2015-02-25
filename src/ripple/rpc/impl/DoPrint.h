@@ -20,6 +20,9 @@
 #ifndef RIPPLE_RPC_PRINT_H_INCLUDED
 #define RIPPLE_RPC_PRINT_H_INCLUDED
 
+#include <ripple/app/main/Application.h>
+#include <ripple/json/JsonPropertyStream.h>
+
 namespace ripple {
 namespace RPC {
 

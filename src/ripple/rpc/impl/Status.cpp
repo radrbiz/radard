@@ -17,11 +17,11 @@
 */
 //==============================================================================
 
+#include <BeastConfig.h>
 #include <ripple/rpc/Status.h>
 
 namespace ripple {
 namespace RPC {
-namespace New {
 
 std::string Status::codeString () const
 {
@@ -72,6 +72,23 @@ void Status::fillJson (Json::Value& value)
     }
 }
 
-} // namespace New
+std::string Status::message() const {
+    std::string result;
+    for (auto& m: messages_)
+    {
+        if (!result.empty())
+            result += '/';
+        result += m;
+    }
+
+    return result;
+}
+
+std::string Status::toString() const {
+    if (*this)
+        return codeString() + ":" + message();
+    return "";
+}
+
 } // namespace RPC
 } // ripple

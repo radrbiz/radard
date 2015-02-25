@@ -22,7 +22,7 @@
 
 #include <ripple/app/book/Quality.h>
 #include <ripple/app/book/Types.h>
-
+#include <ripple/protocol/Indexes.h>
 #include <beast/utility/noexcept.h>
 
 #include <functional>
@@ -70,7 +70,7 @@ public:
     Quality const
     quality() const noexcept
     {
-        return Quality (Ledger::getQuality (m_dir));
+        return Quality (getQuality (m_dir));
     }
 
     SLE::pointer const&

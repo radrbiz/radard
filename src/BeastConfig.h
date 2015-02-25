@@ -57,18 +57,6 @@
 //#define BEAST_FORCE_DEBUG 1
 #endif
 
-/** Config: BEAST_LOG_ASSERTIONS
-    If this flag is enabled, the the bassert and bassertfalse macros will always
-    use Logger::writeToLog() to write a message when an assertion happens.
-    Enabling it will also leave this turned on in release builds. When it's
-    disabled, however, the bassert and bassertfalse macros will not be compiled
-    in a release build.
-    @see bassert, bassertfalse, Logger
-*/
-#ifndef   BEAST_LOG_ASSERTIONS
-//#define BEAST_LOG_ASSERTIONS 1
-#endif
-
 /** Config: BEAST_CHECK_MEMORY_LEAKS
     Enables a memory-leak check for certain objects when the app terminates.
     See the LeakChecked class for more details about enabling leak checking for
@@ -76,17 +64,6 @@
 */
 #ifndef   BEAST_CHECK_MEMORY_LEAKS
 //#define BEAST_CHECK_MEMORY_LEAKS 0
-#endif
-
-/** Config: BEAST_COMPILER_CHECKS_SOCKET_OVERRIDES
-    Setting this option makes Socket-derived classes generate compile errors
-    if they forget any of the virtual overrides As some Socket-derived classes
-    intentionally omit member functions that are not applicable, this macro
-    should only be enabled temporarily when writing your own Socket-derived
-    class, to make sure that the function signatures match as expected.
-*/
-#ifndef   BEAST_COMPILER_CHECKS_SOCKET_OVERRIDES
-//#define BEAST_COMPILER_CHECKS_SOCKET_OVERRIDES 1
 #endif
 
 //------------------------------------------------------------------------------
@@ -220,23 +197,18 @@
 #define RIPPLE_SINGLE_IO_SERVICE_THREAD 0
 #endif
 
-/** Config: RIPPLE_STRUCTURED_OVERLAY_CLIENT
-            RIPPLE_STRUCTURED_OVERLAY_SERVER
-    Enables Structured Overlay support for the client or server roles.
-    This feature is currently in development:
-        https://ripplelabs.atlassian.net/browse/RIPD-157
+/** Config: RIPPLE_HOOK_VALIDATORS
+    Activates code for handling validations and validators (work in progress).
 */
-#ifndef RIPPLE_STRUCTURED_OVERLAY_CLIENT
-#define RIPPLE_STRUCTURED_OVERLAY_CLIENT 0
-#endif
-#ifndef RIPPLE_STRUCTURED_OVERLAY_SERVER
-#define RIPPLE_STRUCTURED_OVERLAY_SERVER 1
+#ifndef RIPPLE_HOOK_VALIDATORS
+#define RIPPLE_HOOK_VALIDATORS 0
 #endif
 
-/** Config: RIPPLE_ASYNC_RPC_HANDLER
+/** Config: RIPPLE_ENABLE_TICKETS
+    Enables processing of ticket transactions
 */
-#ifndef RIPPLE_ASYNC_RPC_HANDLER
-#define RIPPLE_ASYNC_RPC_HANDLER 1
+#ifndef RIPPLE_ENABLE_TICKETS
+#define RIPPLE_ENABLE_TICKETS 0
 #endif
 
 #endif

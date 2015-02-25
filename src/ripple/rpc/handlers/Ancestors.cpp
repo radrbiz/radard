@@ -3,12 +3,12 @@ namespace ripple {
 // ancestors [account]
 Json::Value doAncestors (RPC::Context& context)
 {
-    if (!context.params_.isMember ("account"))
+    if (!context.params.isMember ("account"))
     {
         return RPC::missing_field_error ("account");
     }
     Json::Value result;
-    auto account = context.params_["account"].asString();
+    auto account = context.params["account"].asString();
     RippleAddress accountID;
     if (!accountID.setAccountID (account))
     {
@@ -19,7 +19,7 @@ Json::Value doAncestors (RPC::Context& context)
     int counter = 2000;
     while (counter-- > 0)
     {
-        SLE::pointer sle = ledger->getSLEi (Ledger::getAccountRootIndex (curAccountID));
+        SLE::pointer sle = ledger->getSLEi (getAccountRootIndex (curAccountID));
         if (!sle)
             break;
         Json::Value record;

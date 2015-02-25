@@ -20,12 +20,14 @@
 #ifndef BEAST_HTTP_RFC2616_H_INCLUDED
 #define BEAST_HTTP_RFC2616_H_INCLUDED
 
+#include <boost/regex.hpp>
 #include <algorithm>
 #include <string>
+#include <iterator>
 #include <utility>
+#include <vector>
 
 namespace beast {
-namespace http {
 
 /** Routines for performing RFC2616 compliance.
     RFC2616:
@@ -129,8 +131,8 @@ trim (String const& s)
 {
     using std::begin;
     using std::end;
-    auto first (begin(s));
-    auto last (end(s));
+    auto first = begin(s);
+    auto last = end(s);
     std::tie (first, last) = trim (first, last);
     return { first, last };
 }
@@ -154,21 +156,25 @@ trim (std::string const& s)
     return trim <std::string> (s);
 }
 
-/** Call a functor for each comma delimited element.
-    Quotes and escape sequences will be parsed and converted appropriately.
-    Excess white space, commas, double quotes, and empty elements are not
-    passed to func.
+/** Parse a character sequence of values separated by commas.
+    Double quotes and escape sequences will be converted.  Excess white
+    space, commas, double quotes, and empty elements are not copied.
     Format:
        #(token|quoted-string)
     Reference:
         http://www.w3.org/Protocols/rfc2616/rfc2616-sec2.html#sec2
 */
-template <class FwdIter, class Function>
-void
-for_each_element (FwdIter first, FwdIter last, Function func)
+template <class FwdIt,
+    class Result = std::vector<
+        std::basic_string<typename FwdIt::value_type>>,
+            class Char>
+Result
+split(FwdIt first, FwdIt last, Char delim)
 {
-    FwdIter iter (first);
-    std::string e;
+    Result result;
+    using string = typename Result::value_type;
+    FwdIt iter = first;
+    string e;
     while (iter != last)
     {
         if (*iter == '"')
@@ -198,16 +204,16 @@ for_each_element (FwdIter first, FwdIter last, Function func)
             }
             if (! e.empty())
             {
-                func (e);
+                result.emplace_back(std::move(e));
                 e.clear();
             }
         }
-        else if (*iter == ',')
+        else if (*iter == delim)
         {
             e = trim_right (e);
             if (! e.empty())
             {
-                func (e);
+                result.emplace_back(std::move(e));
                 e.clear();
             }
             ++iter;
@@ -226,13 +232,29 @@ for_each_element (FwdIter first, FwdIter last, Function func)
     {
         e = trim_right (e);
         if (! e.empty())
-            func (e);
+            result.emplace_back(std::move(e));
     }
+    return result;
+}
+
+template <class FwdIt,
+    class Result = std::vector<
+        std::basic_string<typename FwdIt::value_type>>>
+Result
+split_commas(FwdIt first, FwdIt last)
+{
+    return split(first, last, ',');
+}
+
+template <class Result = std::vector<std::string>>
+Result
+split_commas(std::string const& s)
+{
+    return split_commas(s.begin(), s.end());
 }
 
 } // rfc2616
 
-} // http
 } // beast
 
 #endif

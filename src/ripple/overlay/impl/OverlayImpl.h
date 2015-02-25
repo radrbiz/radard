@@ -21,111 +21,157 @@
 #define RIPPLE_OVERLAY_OVERLAYIMPL_H_INCLUDED
 
 #include <ripple/overlay/Overlay.h>
-
-#include <ripple/common/Resolver.h>
-#include <ripple/common/seconds_clock.h>
-#include <ripple/common/UnorderedContainers.h>
+#include <ripple/server/Handoff.h>
+#include <ripple/server/ServerHandler.h>
+#include <ripple/basics/Resolver.h>
+#include <ripple/basics/seconds_clock.h>
+#include <ripple/basics/UnorderedContainers.h>
 #include <ripple/peerfinder/Manager.h>
-#include <ripple/resource/api/Manager.h>
+#include <ripple/resource/Manager.h>
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/asio/ssl/context.hpp>
+#include <boost/asio/strand.hpp>
 #include <boost/asio/basic_waitable_timer.hpp>
-#include <boost/asio/spawn.hpp>
-#include <beast/cxx14/memory.h> // <memory>
+#include <boost/container/flat_map.hpp>
 #include <atomic>
 #include <cassert>
 #include <chrono>
 #include <condition_variable>
+#include <beast/cxx14/memory.h> // <memory>
 #include <mutex>
 #include <unordered_map>
 
 namespace ripple {
 
-class PeerDoor;
 class PeerImp;
 
 class OverlayImpl : public Overlay
 {
+public:
+    class Child
+    {
+    protected:
+        OverlayImpl& overlay_;
+
+        explicit
+        Child (OverlayImpl& overlay);
+
+        virtual ~Child();
+
+    public:
+        virtual void stop() = 0;
+    };
+
 private:
     using clock_type = std::chrono::steady_clock;
     using socket_type = boost::asio::ip::tcp::socket;
+    using address_type = boost::asio::ip::address;
+    using endpoint_type = boost::asio::ip::tcp::endpoint;
     using error_code = boost::system::error_code;
-    using yield_context = boost::asio::yield_context;
 
-    typedef hash_map <PeerFinder::Slot::ptr,
-                      std::weak_ptr <PeerImp>> PeersBySlot;
+    struct Timer
+        : Child
+        , std::enable_shared_from_this<Timer>
+    {
+        boost::asio::basic_waitable_timer <clock_type> timer_;
 
-    typedef hash_map <RippleAddress, Peer::ptr> PeerByPublicKey;
+        explicit
+        Timer (OverlayImpl& overlay);
 
-    typedef hash_map <Peer::ShortId, Peer::ptr> PeerByShortId;
+        void
+        stop() override;
 
-    // VFALCO TODO Change to regular mutex and eliminate re-entrancy
-    std::recursive_mutex m_mutex;
+        void
+        run();
 
-    // Blocks us until dependent objects have been destroyed
-    std::condition_variable_any m_cond;
+        void
+        on_timer (error_code ec);
+    };
 
-    // Number of dependencies that must be destroyed before we can stop
-    std::size_t m_child_count;
+    boost::asio::io_service& io_service_;
+    boost::optional<boost::asio::io_service::work> work_;
+    boost::asio::io_service::strand strand_;
 
-    beast::Journal m_journal;
+    std::recursive_mutex mutex_; // VFALCO use std::mutex
+    std::condition_variable_any cond_;
+    std::weak_ptr<Timer> timer_;
+    boost::container::flat_map<
+        Child*, std::weak_ptr<Child>> list_;
+
+    Setup setup_;
+    beast::Journal journal_;
+    ServerHandler& serverHandler_;
+
     Resource::Manager& m_resourceManager;
 
     std::unique_ptr <PeerFinder::Manager> m_peerFinder;
 
-    boost::asio::io_service& m_io_service;
-    boost::asio::ssl::context& m_ssl_context;
-    boost::asio::basic_waitable_timer <clock_type> timer_;
+    hash_map <PeerFinder::Slot::ptr,
+        std::weak_ptr <PeerImp>> m_peers;
 
-    /** Associates slots to peers. */
-    PeersBySlot m_peers;
+    hash_map<RippleAddress, std::weak_ptr<PeerImp>> m_publicKeyMap;
 
-    /** Tracks peers by their public key */
-    PeerByPublicKey m_publicKeyMap;
+    hash_map<Peer::id_t, std::weak_ptr<PeerImp>> m_shortIdMap;
 
-    /** Tracks peers by their session ID */
-    PeerByShortId m_shortIdMap;
-
-    /** The peer door for regular SSL connections */
-    std::unique_ptr <PeerDoor> m_doorDirect;
-
-    /** The peer door for proxy connections */
-    std::unique_ptr <PeerDoor> m_doorProxy;
-
-    /** The resolver we use for peer hostnames */
     Resolver& m_resolver;
 
-    /** Monotically increasing identifiers for peers */
-    std::atomic <Peer::ShortId> m_nextShortId;
+    std::atomic <Peer::id_t> next_id_;
 
     //--------------------------------------------------------------------------
 
 public:
-    OverlayImpl (Stoppable& parent,
-        Resource::Manager& resourceManager,
-        SiteFiles::Manager& siteFiles,
-        beast::File const& pathToDbFileOrDirectory,
-        Resolver& resolver,
-        boost::asio::io_service& io_service,
-        boost::asio::ssl::context& ssl_context);
+    OverlayImpl (Setup const& setup, Stoppable& parent,
+        ServerHandler& serverHandler, Resource::Manager& resourceManager,
+            beast::File const& pathToDbFileOrDirectory,
+                Resolver& resolver, boost::asio::io_service& io_service);
 
-    ~OverlayImpl ();
+    ~OverlayImpl();
+
+    OverlayImpl (OverlayImpl const&) = delete;
+    OverlayImpl& operator= (OverlayImpl const&) = delete;
+
+    PeerFinder::Manager&
+    peerFinder()
+    {
+        return *m_peerFinder;
+    }
+
+    Resource::Manager&
+    resourceManager()
+    {
+        return m_resourceManager;
+    }
+
+    ServerHandler&
+    serverHandler()
+    {
+        return serverHandler_;
+    }
+
+    Setup const&
+    setup() const
+    {
+        return setup_;
+    }
+
+    void
+    onLegacyPeerHello (std::unique_ptr<beast::asio::ssl_bundle>&& ssl_bundle,
+        boost::asio::const_buffer buffer,
+            endpoint_type remote_endpoint) override;
+
+    Handoff
+    onHandoff (std::unique_ptr <beast::asio::ssl_bundle>&& bundle,
+        beast::http::message&& request,
+            endpoint_type remote_endpoint) override;
 
     PeerSequence
-    getActivePeers () override;
+    getActivePeers() override;
 
     Peer::ptr
-    findPeerByShortID (Peer::ShortId const& id) override;
+    findPeerByShortID (Peer::id_t const& id) override;
 
-    /** Process an incoming connection using the Peer protocol.
-        The caller transfers ownership of the socket via rvalue move.
-        @param socket A socket in the accepted state.
-    */
     void
-    accept (socket_type&& socket);
-
-    Peer::ShortId
-    next_id();
+    add_active (std::shared_ptr<PeerImp> const& peer);
 
     void
     remove (PeerFinder::Slot::ptr const& slot);
@@ -136,19 +182,24 @@ public:
         are known.
     */
     void
-    activate (Peer::ptr const& peer);
+    activate (std::shared_ptr<PeerImp> const& peer);
 
-    /** A peer is being disconnected
-        This is called during the disconnection of a known, activated peer. It
-        will not be called for outbound peer connections that don't succeed or
-        for connections of peers that are dropped prior to being activated.
-    */
+    /** Called when an active peer is destroyed. */
     void
-    onPeerDisconnect (Peer::ptr const& peer);
+    onPeerDeactivate (Peer::id_t id, RippleAddress const& publicKey);
+
+    static
+    bool
+    isPeerUpgrade (beast::http::message const& request);
+
+    static
+    std::string
+    makePrefix (std::uint32_t id);
 
 private:
-    OverlayImpl (OverlayImpl const&) = delete;
-    OverlayImpl& operator= (OverlayImpl const&) = delete;
+    std::shared_ptr<HTTP::Writer>
+    makeRedirectResponse (PeerFinder::Slot::ptr const& slot,
+        beast::http::message const& request, address_type remote_address);
 
     void
     connect (beast::IP::Endpoint const& remote_endpoint) override;
@@ -157,36 +208,35 @@ private:
     size() override;
 
     Json::Value
+    crawl() override;
+
+    Json::Value
     json() override;
 
-    //--------------------------------------------------------------------------
+    bool
+    processRequest (beast::http::message const& req,
+        Handoff& handoff);
 
-    void
-    check_stopped ();
+    //--------------------------------------------------------------------------
 
     //
     // Stoppable
     //
 
     void
-    onPrepare () override;
+    checkStopped();
 
     void
-    onStart () override;
-
-    /** Close all peer connections.
-        If `graceful` is true then active
-        Requirements:
-            Caller must hold the mutex.
-    */
-    void
-    close_all (bool graceful);
+    onPrepare() override;
 
     void
-    onStop () override;
+    onStart() override;
 
     void
-    onChildrenStopped () override;
+    onStop() override;
+
+    void
+    onChildrenStopped() override;
 
     //
     // PropertyStream
@@ -198,16 +248,19 @@ private:
     //--------------------------------------------------------------------------
 
     void
-    release();
+    add (std::shared_ptr<PeerImp> const& peer);
 
     void
-    sendpeers();
+    remove (Child& child);
 
     void
-    autoconnect();
+    stop();
 
     void
-    do_timer (yield_context yield);
+    autoConnect();
+
+    void
+    sendEndpoints();
 };
 
 } // ripple

@@ -20,15 +20,19 @@
 #ifndef RIPPLE_OVERLAY_OVERLAY_H_INCLUDED
 #define RIPPLE_OVERLAY_OVERLAY_H_INCLUDED
 
+#include <ripple/json/json_value.h>
 #include <ripple/overlay/Peer.h>
-
-// VFALCO TODO Remove this include dependency it shouldn't be needed
-#include <ripple/peerfinder/Slot.h>
-
+#include <ripple/server/Handoff.h>
+#include <beast/asio/ssl_bundle.h>
+#include <beast/http/message.h>
 #include <beast/threads/Stoppable.h>
 #include <beast/utility/PropertyStream.h>
-
+#include <memory>
 #include <beast/cxx14/type_traits.h> // <type_traits>
+#include <boost/asio/buffer.hpp>
+#include <boost/asio/ip/tcp.hpp>
+
+namespace boost { namespace asio { namespace ssl { class context; } } }
 
 namespace ripple {
 
@@ -46,14 +50,41 @@ protected:
         : Stoppable ("Overlay", parent)
         , beast::PropertyStream::Source ("peers")
     {
-
     }
 
 public:
+    enum class Promote
+    {
+        automatic,
+        never,
+        always
+    };
+
+    struct Setup
+    {
+        bool auto_connect = true;
+        bool http_handshake = false;
+        Promote promote = Promote::automatic;
+        std::shared_ptr<boost::asio::ssl::context> context;
+    };
+
     typedef std::vector <Peer::ptr> PeerSequence;
 
+    virtual ~Overlay() = default;
+
+    /** Accept a legacy protocol handshake connection. */
     virtual
-    ~Overlay () = default;
+    void
+    onLegacyPeerHello (std::unique_ptr<beast::asio::ssl_bundle>&& ssl_bundle,
+        boost::asio::const_buffer buffer,
+            boost::asio::ip::tcp::endpoint remote_address) = 0;
+
+    /** Conditionally accept an incoming HTTP request. */
+    virtual
+    Handoff
+    onHandoff (std::unique_ptr <beast::asio::ssl_bundle>&& bundle,
+        beast::http::message&& request,
+            boost::asio::ip::tcp::endpoint remote_address) = 0;
 
     /** Establish a peer connection to the specified endpoint.
         The call returns immediately, the connection attempt is
@@ -70,6 +101,11 @@ public:
     virtual
     std::size_t
     size () = 0;
+
+    /** Returns information reported to the crawl cgi command. */
+    virtual
+    Json::Value
+    crawl() = 0;
 
     /** Return diagnostics on the status of all peers.
         @deprecated This is superceded by PropertyStream
@@ -88,7 +124,7 @@ public:
     /** Returns the peer with the matching short id, or null. */
     virtual
     Peer::ptr
-    findPeerByShortID (Peer::ShortId const& id) = 0;
+    findPeerByShortID (Peer::id_t const& id) = 0;
 
     /** Visit every active peer and return a value
         The functor must:

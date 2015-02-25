@@ -17,6 +17,7 @@
 */
 //==============================================================================
 
+#include <BeastConfig.h>
 #include <ripple/rpc/impl/Tuning.h>
 
 namespace ripple {
@@ -31,28 +32,29 @@ namespace ripple {
 // }
 Json::Value doAccountOffers (RPC::Context& context)
 {
-    auto const& params (context.params_);
-
-    Ledger::pointer ledger;
-    Json::Value result (RPC::lookupLedger (params, ledger, context.netOps_));
-
-    if (! ledger)
-        return result;
-
+    auto const& params (context.params);
     if (! params.isMember (jss::account))
         return RPC::missing_field_error ("account");
+
+    Ledger::pointer ledger;
+    Json::Value result (RPC::lookupLedger (params, ledger, context.netOps));
+    if (! ledger)
+        return result;
 
     std::string strIdent (params[jss::account].asString ());
     bool bIndex (params.isMember (jss::account_index));
     int const iIndex (bIndex ? params[jss::account_index].asUInt () : 0);
-
     RippleAddress rippleAddress;
 
-    result = RPC::accountFromString (ledger, rippleAddress, bIndex, strIdent,
-        iIndex, false, context.netOps_);
+    Json::Value const jv (RPC::accountFromString (ledger, rippleAddress, bIndex,
+        strIdent, iIndex, false, context.netOps));
+    if (! jv.empty ())
+    {
+        for (Json::Value::const_iterator it (jv.begin ()); it != jv.end (); ++it)
+            result[it.memberName ()] = it.key ();
 
-    if (! result.empty ())
         return result;
+    }
 
     // Get info on account.
     result[jss::account] = rippleAddress.humanAccountID ();
@@ -66,9 +68,18 @@ Json::Value doAccountOffers (RPC::Context& context)
     unsigned int limit;
     if (params.isMember (jss::limit))
     {
-        limit = std::max (RPC::Tuning::minOffersPerRequest,
-            std::min (params[jss::limit].asUInt (),
-            RPC::Tuning::maxOffersPerRequest));
+        auto const& jvLimit (params[jss::limit]);
+        if (! jvLimit.isIntegral ())
+            return RPC::expected_field_error ("limit", "unsigned integer");
+
+        limit = jvLimit.isUInt () ? jvLimit.asUInt () :
+            std::max (0, jvLimit.asInt ());
+
+        if (context.role != Role::ADMIN)
+        {
+            limit = std::max (RPC::Tuning::minOffersPerRequest,
+                std::min (limit, RPC::Tuning::maxOffersPerRequest));
+        }
     }
     else
     {
@@ -89,7 +100,7 @@ Json::Value doAccountOffers (RPC::Context& context)
         Json::Value const& marker (params[jss::marker]);
 
         if (! marker.isString ())
-            return rpcError (rpcACT_MALFORMED);
+            return RPC::expected_field_error ("marker", "string");
 
         startAfter.SetHex (marker.asString ());
         SLE::pointer sleOffer (ledger->getSLEi (startAfter));
@@ -151,7 +162,7 @@ Json::Value doAccountOffers (RPC::Context& context)
         obj[jss::flags] = offer->getFieldU32 (sfFlags);
     }
 
-    context.loadType_ = Resource::feeMediumBurdenRPC;
+    context.loadType = Resource::feeMediumBurdenRPC;
     return result;
 }
 

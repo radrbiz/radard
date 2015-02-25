@@ -3,6 +3,7 @@
 //
 
 var path        = require("path");
+var extend      = require('extend');
 var testconfig  = require("./testconfig.js");
 
 exports.accounts = testconfig.accounts;
@@ -19,28 +20,51 @@ exports.default_server_config = {
 //
 // For testing, you might choose to target a persistent server at alternate ports.
 //
+
+var lines = function() {return Array.prototype.slice.call(arguments).join('\n')}
+
 exports.servers = {
   // A local test server.
   "alpha" : {
-    //'trace': true,
+
+    // ripple-lib.Remote
+    'local_fee' : true,
+    'local_sequence' : true,
+    'local_signing' : false,
+    'trace' : false,
+    'trusted' : true,
+
     'websocket_ip': "127.0.0.1",
     'websocket_port': 5006,
     'websocket_ssl': false,
-    'trusted' : true,
-    // "peer_ip" : "127.0.0.1",
-    // "peer_port" : 51235,
+
+    // json rpc test
     'rpc_ip' : "127.0.0.1",
     'rpc_port' : 5005,
-    'local_sequence' : true,
-    'trace' : false,
-    // 'trace' : true,
-    'local_fee' : true,
-    // 'validation_seed' : "shhDFVsmS2GSu5vUyZSPXYfj1r79h",
-    // 'validators' : "n9L8LZZCwsdXzKUN9zoVxs4YznYXZ9hEhsQZY7aVpxtFaSceiyDZ beta",
-    'local_signing' : false,
-    'node_db': 'type=memory'
+
+    // rippled.cfg
+    'server' : lines('port_admin_http',
+                     'port_admin_ws'),
+
+    'port_admin_http': lines('port = 5005',
+                             'ip = 127.0.0.1',
+                             'admin = allow',
+                             'protocol = http'),
+
+    'port_admin_ws': lines('port = 5006',
+                           'ip = 127.0.0.1',
+                           'admin = allow',
+                           'protocol = ws'),
+
+    'node_db': lines('type=memory',
+                     'path=integration')
   }
 };
+
+exports.servers.debug = extend({
+  no_server: true,
+  debug_logfile: "debug.log"
+}, exports.servers.alpha);
 
 exports.http_servers = {
   // A local test server

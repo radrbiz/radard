@@ -17,14 +17,45 @@
 */
 //==============================================================================
 
+#include <BeastConfig.h>
 #include <ripple/app/book/Quality.h>
+#include <ripple/app/consensus/LedgerConsensus.h>
+#include <ripple/app/data/DatabaseCon.h>
+#include <ripple/app/main/Application.h>
 #include <ripple/app/misc/FeeVote.h>
+#include <ripple/app/ledger/AcceptedLedger.h>
+#include <ripple/app/ledger/InboundLedger.h>
+#include <ripple/app/ledger/InboundLedgers.h>
+#include <ripple/app/ledger/LedgerMaster.h>
+#include <ripple/app/ledger/LedgerTiming.h>
+#include <ripple/app/ledger/LedgerToJson.h>
+#include <ripple/app/ledger/OrderBookDB.h>
+#include <ripple/app/main/LoadManager.h>
+#include <ripple/app/main/LocalCredentials.h>
+#include <ripple/app/misc/IHashRouter.h>
+#include <ripple/app/misc/NetworkOPs.h>
+#include <ripple/app/misc/Validations.h>
+#include <ripple/app/peers/ClusterNodeStatus.h>
+#include <ripple/app/peers/UniqueNodeList.h>
+#include <ripple/app/tx/TransactionMaster.h>
+#include <ripple/basics/Log.h>
 #include <ripple/basics/Time.h>
 #include <ripple/basics/StringUtilities.h>
-#include <ripple/common/jsonrpc_fields.h>
+#include <ripple/basics/UptimeTimer.h>
+#include <ripple/protocol/JsonFields.h>
 #include <ripple/core/Config.h>
 #include <ripple/core/LoadFeeTrack.h>
+#include <ripple/crypto/RandomNumbers.h>
+#include <ripple/crypto/RFC1751.h>
+#include <ripple/json/to_string.h>
+#include <ripple/overlay/Overlay.h>
 #include <ripple/overlay/predicates.h>
+#include <ripple/protocol/BuildInfo.h>
+#include <ripple/protocol/HashPrefix.h>
+#include <ripple/protocol/Indexes.h>
+#include <ripple/resource/Fees.h>
+#include <ripple/resource/Gossip.h>
+#include <ripple/resource/Manager.h>
 #include <beast/module/core/thread/DeadlineTimer.h>
 #include <beast/module/core/system/SystemStats.h>
 #include <beast/cxx14/memory.h> // <memory>
@@ -85,7 +116,7 @@ public:
         m_dividendMaster = make_DividendMaster(deprecatedLogs().journal("DividendMaster"));
     }
 
-    ~NetworkOPsImp ()
+    ~NetworkOPsImp()
     {
     }
 
@@ -95,11 +126,15 @@ public:
 
     // Our best estimate of current ledger close time
     std::uint32_t getCloseTimeNC () const;
+    std::uint32_t getCloseTimeNC (int& offset) const;
 
     // Use *only* to timestamp our own validation
     std::uint32_t getValidationTimeNC ();
     void closeTimeOffset (int);
-    boost::posix_time::ptime getNetworkTimePT () const;
+
+    /** On return the offset param holds the System time offset in seconds.
+    */
+    boost::posix_time::ptime getNetworkTimePT(int& offset) const;
     std::uint32_t getLedgerID (uint256 const& hash);
     std::uint32_t getCurrentLedgerID ();
     OperatingMode getOperatingMode () const
@@ -155,11 +190,11 @@ public:
         return m_ledgerMaster.getFullValidatedRange (minVal, maxVal);
     }
 
-    SerializedValidation::ref getLastValidation ()
+    STValidation::ref getLastValidation ()
     {
         return mLastValidation;
     }
-    void setLastValidation (SerializedValidation::ref v)
+    void setLastValidation (STValidation::ref v)
     {
         mLastValidation = v;
     }
@@ -180,14 +215,13 @@ public:
     // must complete immediately
     typedef std::function<void (Transaction::pointer, TER)> stCallback;
     void submitTransaction (
-        Job&, SerializedTransaction::pointer,
+        Job&, STTx::pointer,
         stCallback callback = stCallback ());
 
     Transaction::pointer submitTransactionSync (
         Transaction::ref tpTrans,
         bool bAdmin, bool bLocal, bool bFailHard, bool bSubmit);
 
-    void runTransactionQueue ();
     Transaction::pointer processTransactionCb (
         Transaction::pointer,
         bool bAdmin, bool bLocal, bool bFailHard, stCallback);
@@ -245,13 +279,9 @@ public:
     // Book functions
     //
 
-    void getBookPage (Ledger::pointer lpLedger,
-                      Book const&,
-                      Account const& uTakerID,
-                      const bool bProof,
-                      const unsigned int iLimit,
-                      Json::Value const& jvMarker,
-                      Json::Value& jvResult);
+    void getBookPage (bool bAdmin, Ledger::pointer lpLedger, Book const&,
+        Account const& uTakerID, const bool bProof, const unsigned int iLimit,
+            Json::Value const& jvMarker, Json::Value& jvResult);
 
     // ledger proposal/close functions
     void processTrustedProposal (
@@ -265,7 +295,7 @@ public:
         const std::list< Blob >& nodeData);
 
     bool recvValidation (
-        SerializedValidation::ref val, std::string const& source);
+        STValidation::ref val, std::string const& source);
     void takePosition (int seq, SHAMap::ref position);
     SHAMap::pointer getTXMap (uint256 const& hash);
     bool hasTXSet (
@@ -381,7 +411,7 @@ public:
         m_localTX->sweep (newValidLedger);
     }
     void addLocalTx (
-        Ledger::ref openLedger, SerializedTransaction::ref txn) override
+        Ledger::ref openLedger, STTx::ref txn) override
     {
         m_localTX->push_back (openLedger->getLedgerSeq(), txn);
     }
@@ -436,7 +466,7 @@ public:
     //
     void pubLedger (Ledger::ref lpAccepted);
     void pubProposedTransaction (
-        Ledger::ref lpCurrent, SerializedTransaction::ref stTxn, TER terResult);
+        Ledger::ref lpCurrent, STTx::ref stTxn, TER terResult);
 
     //--------------------------------------------------------------------------
     //
@@ -474,6 +504,7 @@ public:
 
     void onStop ()
     {
+        mAcquiringLedger.reset();
         m_heartbeatTimer.cancel();
         m_clusterTimer.cancel();
 
@@ -490,7 +521,7 @@ private:
     void setMode (OperatingMode);
 
     Json::Value transJson (
-        const SerializedTransaction& stTxn, TER terResult, bool bValidated,
+        const STTx& stTxn, TER terResult, bool bValidated,
         Ledger::ref lpCurrent){
         return NetworkOPs_transJson(stTxn, terResult, bValidated, lpCurrent);
     }
@@ -506,6 +537,8 @@ private:
         bool isAccepted);
 
     void pubServer ();
+
+    std::string getHostId (bool forAdmin);
 
 private:
     clock_type& m_clock;
@@ -553,7 +586,7 @@ private:
 
     std::uint32_t mLastCloseTime;
     std::uint32_t mLastValidationTime;
-    SerializedValidation::pointer       mLastValidation;
+    STValidation::pointer       mLastValidation;
 
     // Recent positions taken
     std::map<uint256, std::pair<int, SHAMap::pointer> > mRecentPositions;
@@ -584,6 +617,19 @@ private:
 };
 
 //------------------------------------------------------------------------------
+std::string
+NetworkOPsImp::getHostId (bool forAdmin)
+{
+    if (forAdmin)
+        return beast::SystemStats::getComputerName ();
+
+    // For non-admin uses we hash the node ID into a single RFC1751 word:
+    // (this could be cached instead of recalculated every time)
+    Blob const& addr (getApp ().getLocalCredentials ().getNodePublic ().
+            getNodePublic ());
+
+    return RFC1751::getWordFromBlob (addr.data (), addr.size ());
+}
 
 void NetworkOPsImp::setStateTimer ()
 {
@@ -730,11 +776,13 @@ std::string NetworkOPsImp::strOperatingMode () const
     return paStatusToken[mMode];
 }
 
-boost::posix_time::ptime NetworkOPsImp::getNetworkTimePT () const
+boost::posix_time::ptime NetworkOPsImp::getNetworkTimePT (int& offset) const
 {
-    int offset = 0;
-
+    offset = 0;
     getApp().getSystemTimeOffset (offset);
+
+    if (std::abs (offset) >= 60)
+        m_journal.warning << "Large system time offset (" << offset << ").";
 
     // VFALCO TODO Replace this with a beast call
     return boost::posix_time::microsec_clock::universal_time () +
@@ -743,12 +791,20 @@ boost::posix_time::ptime NetworkOPsImp::getNetworkTimePT () const
 
 std::uint32_t NetworkOPsImp::getNetworkTimeNC () const
 {
-    return iToSeconds (getNetworkTimePT ());
+    int offset;
+    return iToSeconds (getNetworkTimePT (offset));
 }
 
 std::uint32_t NetworkOPsImp::getCloseTimeNC () const
 {
-    return iToSeconds (getNetworkTimePT () +
+    int offset;
+    return iToSeconds (getNetworkTimePT (offset) +
+                       boost::posix_time::seconds (mCloseTimeOffset));
+}
+
+std::uint32_t NetworkOPsImp::getCloseTimeNC (int& offset) const
+{
+    return iToSeconds (getNetworkTimePT (offset) +
                        boost::posix_time::seconds (mCloseTimeOffset));
 }
 
@@ -774,7 +830,12 @@ void NetworkOPsImp::closeTimeOffset (int offset)
         mCloseTimeOffset = (mCloseTimeOffset * 3) / 4;
 
     if (mCloseTimeOffset != 0)
+    {
         m_journal.info << "Close time offset now " << mCloseTimeOffset;
+
+        if (std::abs (mCloseTimeOffset) >= 60)
+            m_journal.warning << "Large close time offset (" << mCloseTimeOffset << ").";
+    }
 }
 
 std::uint32_t NetworkOPsImp::getLedgerID (uint256 const& hash)
@@ -825,14 +886,20 @@ bool NetworkOPsImp::isValidated (std::uint32_t seq)
 }
 
 void NetworkOPsImp::submitTransaction (
-    Job&, SerializedTransaction::pointer iTrans, stCallback callback)
+    Job&, STTx::pointer iTrans, stCallback callback)
 {
+    if (isNeedNetworkLedger ())
+    {
+        // Nothing we can do if we've never been in sync
+        return;
+    }
+
     // this is an asynchronous interface
     Serializer s;
     iTrans->add (s);
 
     SerializerIterator sit (s);
-    auto trans = std::make_shared<SerializedTransaction> (std::ref (sit));
+    auto trans = std::make_shared<STTx> (std::ref (sit));
 
     uint256 suppress = trans->getTransactionID ();
     int flags;
@@ -916,103 +983,6 @@ Transaction::pointer NetworkOPsImp::submitTransactionSync (
     }
 
     return tpTransNew;
-}
-
-void NetworkOPsImp::runTransactionQueue ()
-{
-    TxQueueEntry::pointer txn;
-
-    for (int i = 0; i < 10; ++i)
-    {
-        getApp().getTxQueue ().getJob (txn);
-
-        if (!txn)
-            return;
-
-        {
-            auto ev = m_job_queue.getLoadEventAP (
-                jtTXN_PROC, "runTxnQ");
-
-            {
-                auto lock = getApp().masterLock();
-
-                auto dbtx = getApp().getMasterTransaction ().fetch (
-                    txn->getID (), true);
-                assert (dbtx);
-
-                bool didApply;
-                TER r = m_ledgerMaster.doTransaction (
-                    dbtx->getSTransaction (), tapOPEN_LEDGER | tapNO_CHECK_SIGN,
-                    didApply);
-                dbtx->setResult (r);
-
-                if (isTemMalformed (r)) // malformed, cache bad
-                    getApp().getHashRouter ().setFlag (txn->getID (), SF_BAD);
-
-
-                if (isTerRetry (r))
-                {
-                    // transaction should be held
-                    m_journal.debug << "QTransaction should be held: " << r;
-                    dbtx->setStatus (HELD);
-                    getApp().getMasterTransaction ().canonicalize (&dbtx);
-                    m_ledgerMaster.addHeldTransaction (dbtx);
-                }
-                else if (r == tefPAST_SEQ)
-                {
-                    // duplicate or conflict
-                    m_journal.info << "QTransaction is obsolete";
-                    dbtx->setStatus (OBSOLETE);
-                }
-                else if (r == tesSUCCESS)
-                {
-                    m_journal.info
-                        << "QTransaction is now included in open ledger";
-                    dbtx->setStatus (INCLUDED);
-                    getApp().getMasterTransaction ().canonicalize (&dbtx);
-                }
-                else
-                {
-                    m_journal.debug << "QStatus other than success " << r;
-                    dbtx->setStatus (INVALID);
-                }
-
-                if (didApply /*|| (mMode != omFULL)*/ )
-                {
-                    std::set <Peer::ShortId> peers;
-
-                    if (getApp().getHashRouter ().swapSet (
-                            txn->getID (), peers, SF_RELAYED))
-                    {
-                        m_journal.debug << "relaying";
-                        protocol::TMTransaction tx;
-                        Serializer s;
-                        dbtx->getSTransaction ()->add (s);
-                        tx.set_rawtransaction (
-                            &s.getData ().front (), s.getLength ());
-                        tx.set_status (protocol::tsCURRENT);
-                        tx.set_receivetimestamp (getNetworkTimeNC ());
-                        // FIXME: This should be when we received it
-
-                        getApp ().overlay ().foreach (send_if_not (
-                            std::make_shared<Message> (
-                                tx, protocol::mtTRANSACTION),
-                            peer_in_set(peers)));
-                    }
-                    else
-                        m_journal.debug << "recently relayed";
-                }
-
-                txn->doCallbacks (r);
-            }
-        }
-    }
-
-    if (getApp().getTxQueue ().stopProcessing (txn))
-    {
-        getApp().getIOService ().post (std::bind (
-            &NetworkOPsImp::runTransactionQueue, this));
-    }
 }
 
 Transaction::pointer NetworkOPsImp::processTransactionCb (
@@ -1119,7 +1089,7 @@ Transaction::pointer NetworkOPsImp::processTransactionCb (
 
         if (didApply || ((mMode != omFULL) && !bFailHard && bLocal))
         {
-            std::set<Peer::ShortId> peers;
+            std::set<Peer::id_t> peers;
 
             if (getApp().getHashRouter ().swapSet (
                     trans->getID (), peers, SF_RELAYED))
@@ -1231,7 +1201,7 @@ Json::Value NetworkOPsImp::getOwnerInfo (
     Ledger::pointer lpLedger, RippleAddress const& naAccount)
 {
     Json::Value jvObjects (Json::objectValue);
-    auto uRootIndex = lpLedger->getOwnerDirIndex (naAccount.getAccountID ());
+    auto uRootIndex = getOwnerDirIndex (naAccount.getAccountID ());
     auto sleNode = lpLedger->getDirNode (uRootIndex);
 
     if (sleNode)
@@ -1277,7 +1247,7 @@ Json::Value NetworkOPsImp::getOwnerInfo (
             if (uNodeDir)
             {
                 sleNode = lpLedger->getDirNode (
-                    Ledger::getDirNodeIndex (uRootIndex, uNodeDir));
+                    getDirNodeIndex (uRootIndex, uNodeDir));
                 assert (sleNode);
             }
         }
@@ -1496,7 +1466,7 @@ bool NetworkOPsImp::checkLastClosedLedger (
     }
 
     m_journal.warning << "We are not running on the consensus ledger";
-    m_journal.info << "Our LCL: " << ourClosed->getJson (0);
+    m_journal.info << "Our LCL: " << getJson (*ourClosed);
     m_journal.info << "Net LCL " << closedLedger;
 
     if ((mMode == omTRACKING) || (mMode == omFULL))
@@ -1681,7 +1651,7 @@ void NetworkOPsImp::processTrustedProposal (
 
         if (relay)
         {
-            std::set<Peer::ShortId> peers;
+            std::set<Peer::id_t> peers;
             if (getApp().getHashRouter ().swapSet (
                 proposal->getSuppressionID (), peers, SF_RELAYED))
             {
@@ -1817,8 +1787,7 @@ void NetworkOPsImp::pubServer ()
         jvObj [jss::load_factor]   =
                 (mLastLoadFactor = getApp().getFeeTrack ().getLoadFactor ());
 
-        Json::FastWriter w;
-        std::string sObj = w.write (jvObj);
+        std::string sObj = to_string (jvObj);
 
 
         for (auto i = mSubServer.begin (); i != mSubServer.end (); )
@@ -2003,7 +1972,7 @@ NetworkOPs::AccountTxs NetworkOPsImp::getAccountTxs (
                     ledger->pendSaveValidated(false, false);
             }
 
-            // drop bad dividend before 3501
+            // drop useless dividend before 3501
             if (txn->getLedger() > 3501 || txn->getSTransaction()->getTxnType() != ttDIVIDEND)
             ret.emplace_back (txn, std::make_shared<TransactionMetaSet> (
                 txn->getID (), txn->getLedger (), rawMeta.getData ()));
@@ -2184,7 +2153,7 @@ NetworkOPsImp::AccountTxs NetworkOPsImp::getTxsAccount (
 
                 --numberOfResults;
 
-                // drop bad dividend before 3501
+                // drop useless dividend before 3501
                 if (txn->getLedger() > 3501 || txn->getSTransaction()->getTxnType() != ttDIVIDEND)
                 ret.emplace_back (std::move (txn),
                     std::make_shared<TransactionMetaSet> (
@@ -2346,7 +2315,7 @@ NetworkOPsImp::getLedgerAffectedAccounts (std::uint32_t ledgerSeq)
 }
 
 bool NetworkOPsImp::recvValidation (
-    SerializedValidation::ref val, std::string const& source)
+    STValidation::ref val, std::string const& source)
 {
     m_journal.debug << "recvValidation " << val->getLedgerHash ()
                     << " from " << source;
@@ -2370,22 +2339,7 @@ Json::Value NetworkOPsImp::getServerInfo (bool human, bool admin)
 
     // hostid: unique string describing the machine
     if (human)
-    {
-        if (! admin)
-        {
-            // For a non admin connection, hash the node ID into a single
-            // RFC1751 word.
-            Blob const& addr (getApp().getLocalCredentials ().getNodePublic ().
-                              getNodePublic ());
-            info [jss::hostid] = RFC1751::getWordFromBlob (
-                addr.data (), addr.size ());
-        }
-        else
-        {
-            // Only admins get the hostname for security reasons
-            info [jss::hostid] = beast::SystemStats::getComputerName();
-        }
-    }
+        info [jss::hostid] = getHostId (admin);
 
     info [jss::build_version] = BuildInfo::getVersionString ();
 
@@ -2517,8 +2471,14 @@ Json::Value NetworkOPsImp::getServerInfo (bool human, bool admin)
                     lpClosed->getReserveInc () * baseFee / baseRef))
                     / SYSTEM_CURRENCY_PARTS;
 
-            std::uint32_t closeTime = getCloseTimeNC ();
-            std::uint32_t lCloseTime = lpClosed->getCloseTimeNC ();
+            int offset;
+            std::uint32_t closeTime (getCloseTimeNC (offset));
+            if (std::abs (offset) >= 60)
+                l[jss::system_time_offset] = offset;
+
+            std::uint32_t lCloseTime (lpClosed->getCloseTimeNC ());
+            if (std::abs (mCloseTimeOffset) >= 60)
+                l[jss::close_time_offset] = mCloseTimeOffset;
 
             if (lCloseTime <= closeTime)
             {
@@ -2575,7 +2535,7 @@ Json::Value NetworkOPsImp::pubBootstrapAccountInfo (
 }
 
 void NetworkOPsImp::pubProposedTransaction (
-    Ledger::ref lpCurrent, SerializedTransaction::ref stTxn, TER terResult)
+    Ledger::ref lpCurrent, STTx::ref stTxn, TER terResult)
 {
     Json::Value jvObj   = transJson (*stTxn, terResult, false, lpCurrent);
 
@@ -2679,7 +2639,7 @@ void NetworkOPsImp::reportFeeChange ()
 // This routine should only be used to publish accepted or validated
 // transactions.
 Json::Value NetworkOPs_transJson(
-    const SerializedTransaction& stTxn, TER terResult, bool bValidated,
+    const STTx& stTxn, TER terResult, bool bValidated,
     Ledger::ref lpCurrent)
 {
     Json::Value jvObj (Json::objectValue);
@@ -2751,8 +2711,7 @@ void NetworkOPsImp::pubValidatedTransaction (
                 if (!bSobjInitialized) {
                     jvObj = transJson (*alTx.getTxn (), alTx.getResult (), true, alAccepted);
                     jvObj[jss::meta] = alTx.getMeta ()->getJson (0);
-                    Json::FastWriter w;
-                    sObj = w.write (jvObj);
+                    sObj = to_string (jvObj);
                     bSobjInitialized = true;
                 }
                 p->send (jvObj, sObj, true);
@@ -2773,8 +2732,7 @@ void NetworkOPsImp::pubValidatedTransaction (
                 if (!bSobjInitialized) {
                     jvObj = transJson (*alTx.getTxn (), alTx.getResult (), true, alAccepted);
                     jvObj[jss::meta] = alTx.getMeta ()->getJson (0);
-                    Json::FastWriter w;
-                    sObj = w.write (jvObj);
+                    sObj = to_string (jvObj);
                     bSobjInitialized = true;
                 }
                 p->send (jvObj, sObj, true);
@@ -2862,8 +2820,7 @@ void NetworkOPsImp::pubAccountTransaction (
         if (alTx.isApplied ())
             jvObj[jss::meta] = alTx.getMeta ()->getJson (0);
 
-        Json::FastWriter w;
-        std::string sObj = w.write (jvObj);
+        std::string sObj = to_string (jvObj);
 
         BOOST_FOREACH (InfoSub::ref isrListener, notify)
         {
@@ -3037,28 +2994,16 @@ bool NetworkOPsImp::subServer (InfoSub::ref isrListener, Json::Value& jvResult,
     if (m_standalone)
         jvResult[jss::stand_alone] = m_standalone;
 
-    RandomNumbers::getInstance ().fillBytes (uRandom.begin (), uRandom.size ());
+    // CHECKME: is it necessary to provide a random number here?
+    random_fill (uRandom.begin (), uRandom.size ());
 
     jvResult[jss::random]          = to_string (uRandom);
     jvResult[jss::server_status]   = strOperatingMode ();
     jvResult[jss::load_base]       = getApp().getFeeTrack ().getLoadBase ();
     jvResult[jss::load_factor]     = getApp().getFeeTrack ().getLoadFactor ();
+    jvResult [jss::hostid]         = getHostId (admin);
     jvResult[jss::pubkey_node]     = getApp ().getLocalCredentials ().
         getNodePublic ().humanNodePublic ();
-
-    if (! admin)
-    {
-        // For a non admin connection, hash the node ID into a single RFC1751 word
-        Blob const& addr (getApp ().getLocalCredentials ().getNodePublic ().
-            getNodePublic ());
-        jvResult[jss::hostid] = RFC1751::getWordFromBlob (addr.data (),
-            addr.size ());
-    }
-    else
-    {
-        // Only admins get the hostname for security reasons
-        jvResult[jss::hostid] = beast::SystemStats::getComputerName ();
-    }
 
     ScopedLockType sl (mLock);
     return mSubServer.emplace (isrListener->getSeq (), isrListener).second;
@@ -3130,6 +3075,7 @@ InfoSub::pointer NetworkOPsImp::addRpcSub (
 //
 // FIXME : support iLimit.
 void NetworkOPsImp::getBookPage (
+    bool bAdmin,
     Ledger::pointer lpLedger,
     Book const& book,
     Account const& uTakerID,
@@ -3142,8 +3088,8 @@ void NetworkOPsImp::getBookPage (
             (jvResult[jss::offers] = Json::Value (Json::arrayValue));
 
     std::map<Account, STAmount> umBalance;
-    const uint256   uBookBase   = Ledger::getBookBase (book);
-    const uint256   uBookEnd    = Ledger::getQualityNext (uBookBase);
+    const uint256   uBookBase   = getBookBase (book);
+    const uint256   uBookEnd    = getQualityNext (uBookBase);
     uint256         uTipIndex   = uBookBase;
 
     if (m_journal.trace)
@@ -3167,14 +3113,13 @@ void NetworkOPsImp::getBookPage (
     unsigned int    uBookEntry;
     STAmount        saDirRate;
 
-    unsigned int    iLeft           = iLimit;
-
-    if (iLeft == 0 || iLeft > 300)
-        iLeft = 300;
-
     auto uTransferRate = rippleTransferRate (lesActive, book.out.account);
 
-    while (! bDone && iLeft-- > 0)
+    unsigned int left (iLimit == 0 ? 300 : iLimit);
+    if (! bAdmin && left > 300)
+        left = 300;
+
+    while (!bDone && left-- > 0)
     {
         if (bDirectAdvance)
         {
@@ -3193,7 +3138,7 @@ void NetworkOPsImp::getBookPage (
             else
             {
                 uTipIndex = sleOfferDir->getIndex ();
-                saDirRate = amountFromQuality (Ledger::getQuality (uTipIndex));
+                saDirRate = amountFromQuality (getQuality (uTipIndex));
 
                 lesActive.dirFirst (
                     uTipIndex, sleOfferDir, uBookEntry, offerIndex);
@@ -3348,6 +3293,7 @@ void NetworkOPsImp::getBookPage (
 
 // FIXME : support iLimit.
 void NetworkOPsImp::getBookPage (
+    bool bAdmin,
     Ledger::pointer lpLedger,
     Book const& book,
     Account const& uTakerID,
@@ -3363,18 +3309,16 @@ void NetworkOPsImp::getBookPage (
     LedgerEntrySet  lesActive (lpLedger, tapNONE, true);
     OrderBookIterator obIterator (lesActive, book);
 
-    unsigned int iLeft = iLimit;
-
-    if (iLeft == 0 || iLeft > 300)
-        iLeft = 300;
-
     auto uTransferRate = rippleTransferRate (lesActive, book.out.account);
 
     const bool bGlobalFreeze = lesActive.isGlobalFrozen (book.out.account) ||
                                lesActive.isGlobalFrozen (book.in.account);
 
+    unsigned int left (iLimit == 0 ? 300 : iLimit);
+    if (! bAdmin && left > 300)
+        left = 300;
 
-    while (iLeft-- > 0 && obIterator.nextOffer ())
+    while (left-- > 0 && obIterator.nextOffer ())
     {
 
         SLE::pointer    sleOffer        = obIterator.getCurrentOffer();

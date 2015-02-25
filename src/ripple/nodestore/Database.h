@@ -21,6 +21,8 @@
 #define RIPPLE_NODESTORE_DATABASE_H_INCLUDED
 
 #include <ripple/nodestore/NodeObject.h>
+#include <ripple/nodestore/Backend.h>
+#include <ripple/basics/TaggedCache.h>
 
 namespace ripple {
 namespace NodeStore {
@@ -45,13 +47,18 @@ public:
         All pending operations are completed, pending writes flushed,
         and files closed before this returns.
     */
-    virtual ~Database () = 0 ;
+    virtual ~Database() = default;
 
     /** Retrieve the name associated with this backend.
         This is used for diagnostics and may not reflect the actual path
         or paths used by the underlying backend.
     */
     virtual std::string getName () const = 0;
+    
+    /** Close the database.
+        This allows the caller to catch exceptions.
+    */
+    virtual void close() = 0;
 
     /** Fetch an object.
         If the object is known to be not in the database, isn't found in the
@@ -99,7 +106,6 @@ public:
         @return `true` if the object was stored?
     */
     virtual void store (NodeObjectType type,
-                        std::uint32_t ledgerIndex,
                         Blob&& data,
                         uint256 const& hash) = 0;
 
@@ -118,7 +124,7 @@ public:
     /** Retrieve the estimated number of pending write operations.
         This is used for diagnostics.
     */
-    virtual int getWriteLoad () = 0;
+    virtual std::int32_t getWriteLoad() const = 0;
 
     /** Get the positive cache hits to total attempts ratio. */
     virtual float getCacheHitRate () = 0;

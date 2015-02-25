@@ -21,14 +21,16 @@
 #define RIPPLE_PEERFINDER_MANAGER_H_INCLUDED
 
 #include <ripple/peerfinder/Slot.h>
-#include <ripple/sitefiles/api/Manager.h>
 #include <beast/chrono/abstract_clock.h>
 #include <beast/module/core/files/File.h>
+#include <beast/threads/Stoppable.h>
+#include <beast/utility/PropertyStream.h>
+#include <boost/asio/ip/tcp.hpp>
 
 namespace ripple {
 namespace PeerFinder {
 
-typedef beast::abstract_clock <std::chrono::seconds> clock_type;
+typedef beast::abstract_clock <std::chrono::steady_clock> clock_type;
 
 /** Represents a set of addresses. */
 typedef std::vector <beast::IP::Endpoint> IPAddresses;
@@ -55,6 +57,9 @@ struct Config
             connections.
     */
     double outPeers;
+
+    /** `true` if we want our IP address kept private. */
+    bool peerPrivate = true;
 
     /** `true` if we want to accept incoming connections. */
     bool wantIncoming;
@@ -120,11 +125,6 @@ protected:
     explicit Manager (Stoppable& parent);
 
 public:
-    /** Create a new Manager. */
-    static Manager* New (Stoppable& parent,
-        beast::File const& pathToDbFileOrDirectory,
-            clock_type& clock, beast::Journal journal);
-
     /** Destroy the object.
         Any pending source fetch operations are aborted.
         There may be some listener calls made before the
@@ -138,6 +138,11 @@ public:
             Can be called from any threads at any time.
     */
     virtual void setConfig (Config const& config) = 0;
+
+    /** Returns the configuration for the manager. */
+    virtual
+    Config
+    config() = 0;
 
     /** Add a peer that should always be connected.
         This is useful for maintaining a private cluster of peers.
@@ -191,6 +196,12 @@ public:
     */
     virtual void on_closed (Slot::ptr const& slot) = 0;
 
+    /** Called when we received redirect IPs from a busy peer. */
+    virtual
+    void
+    onRedirects (boost::asio::ip::tcp::endpoint const& remote_address,
+        std::vector<boost::asio::ip::tcp::endpoint> const& eps) = 0;
+
     //--------------------------------------------------------------------------
 
     /** Called when an outbound connection attempt succeeds.
@@ -202,7 +213,7 @@ public:
     */
     virtual
     bool
-    connected (Slot::ptr const& slot,
+    onConnected (Slot::ptr const& slot,
         beast::IP::Endpoint const& local_endpoint) = 0;
 
     /** Request an active slot type. */
@@ -223,7 +234,7 @@ public:
 
     virtual
     std::vector<std::pair<Slot::ptr, std::vector<Endpoint>>>
-    sendpeers() = 0;
+    buildEndpointsForPeers() = 0;
 
     /** Perform periodic activity.
         This should be called once per second.

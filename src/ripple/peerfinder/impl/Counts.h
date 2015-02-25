@@ -22,6 +22,8 @@
 
 #include <ripple/peerfinder/Manager.h>
 #include <ripple/peerfinder/Slot.h>
+#include <ripple/peerfinder/impl/Tuning.h>
+#include <random>
 
 namespace ripple {
 namespace PeerFinder {

@@ -1,4 +1,8 @@
 #include <mysql.h>
+#include <ripple/app/data/MySQLDatabase.h>
+#include <ripple/app/main/Application.h>
+#include <ripple/core/JobQueue.h>
+#include <ripple/basics/Log.h>
 
 namespace ripple {
 MySQLDatabase::MySQLDatabase(char const* host, std::uint32_t port,

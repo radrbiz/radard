@@ -1,3 +1,10 @@
+#include <BeastConfig.h>
+#include <ripple/app/transactors/Transactor.h>
+#include <ripple/app/misc/DividendMaster.h>
+#include <ripple/basics/Log.h>
+#include <ripple/protocol/Indexes.h>
+#include <ripple/protocol/TxFlags.h>
+
 namespace ripple {
 
     class Dividend
@@ -5,7 +12,7 @@ namespace ripple {
     {
     public:
         Dividend(
-            SerializedTransaction const& txn,
+            STTx const& txn,
             TransactionEngineParams params,
             TransactionEngine* engine)
             : Transactor(
@@ -157,7 +164,7 @@ namespace ripple {
                 dividendObject = mEngine->entryCreate(ltDIVIDEND, Ledger::getLedgerDividendIndex());
             }
 
-            m_journal.info << "Previous dividend object: " << dividendObject->getJson(0);
+            m_journal.info << "Previous dividend object: " << dividendObject->getText();
 
             uint32_t dividendLedger = mTxn.getFieldU32(sfDividendLedger);
             uint64_t dividendCoins = mTxn.getFieldU64(sfDividendCoins);
@@ -170,7 +177,7 @@ namespace ripple {
 
             mEngine->entryModify(dividendObject);
 
-            m_journal.info << "Current dividend object: " << dividendObject->getJson(0);
+            m_journal.info << "Current dividend object: " << dividendObject->getText();
 
             return tesSUCCESS;
         }
@@ -195,7 +202,7 @@ namespace ripple {
                 return tesSUCCESS;
             
             SLE::pointer sleAccoutModified = mEngine->entryCache(
-                ltACCOUNT_ROOT, Ledger::getAccountRootIndex(account));
+                ltACCOUNT_ROOT, getAccountRootIndex(account));
 
             if (sleAccoutModified)
             {
@@ -214,7 +221,7 @@ namespace ripple {
                 }
                 
                 if (m_journal.trace.active()) {
-                    m_journal.trace << "Dividend Applied:" << sleAccoutModified->getJson(0);
+                    m_journal.trace << "Dividend Applied:" << sleAccoutModified->getText();
                 }
             }
             else {
@@ -238,7 +245,7 @@ namespace ripple {
                 dividendObject = mEngine->entryCreate(ltDIVIDEND, Ledger::getLedgerDividendIndex());
             }
 
-            m_journal.info << "Previous dividend object: " << dividendObject->getJson(0);
+            m_journal.info << "Previous dividend object: " << dividendObject->getText();
 
             uint32_t dividendLedger = mTxn.getFieldU32(sfDividendLedger);
             uint64_t dividendCoins = mTxn.getFieldU64(sfDividendCoins);
@@ -254,7 +261,7 @@ namespace ripple {
 
             mEngine->entryModify(dividendObject);
 
-            m_journal.info << "Current dividend object: " << dividendObject->getJson(0);
+            m_journal.info << "Current dividend object: " << dividendObject->getText();
 
             return tesSUCCESS;
         }
@@ -286,7 +293,7 @@ namespace ripple {
 
     TER
     transact_Dividend(
-        SerializedTransaction const& txn,
+        STTx const& txn,
         TransactionEngineParams params,
         TransactionEngine* engine)
     {

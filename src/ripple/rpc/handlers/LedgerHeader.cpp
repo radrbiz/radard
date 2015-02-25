@@ -17,6 +17,8 @@
 */
 //==============================================================================
 
+#include <BeastConfig.h>
+#include <ripple/app/ledger/LedgerToJson.h>
 
 namespace ripple {
 
@@ -28,7 +30,7 @@ Json::Value doLedgerHeader (RPC::Context& context)
 {
     Ledger::pointer lpLedger;
     Json::Value jvResult = RPC::lookupLedger (
-        context.params_, lpLedger, context.netOps_);
+        context.params, lpLedger, context.netOps);
 
     if (!lpLedger)
         return jvResult;
@@ -41,7 +43,7 @@ Json::Value doLedgerHeader (RPC::Context& context)
 
     // This information isn't verified: they should only use it if they trust
     // us.
-    lpLedger->addJson (jvResult, 0);
+    addJson (jvResult, {*lpLedger, 0});
 
     return jvResult;
 }

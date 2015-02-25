@@ -17,7 +17,11 @@
 */
 //==============================================================================
 
+#include <BeastConfig.h>
 #include <ripple/basics/UptimeTimer.h>
+#include <beast/threads/Thread.h>
+
+#include <atomic>
 
 namespace ripple {
 
@@ -38,7 +42,7 @@ int UptimeTimer::getElapsedSeconds () const
 
     if (m_isUpdatingManually)
     {
-        beast::memoryBarrier();
+        std::atomic_thread_fence (std::memory_order_seq_cst);
         result = m_elapsedTime;
     }
     else

@@ -17,12 +17,11 @@
 */
 //==============================================================================
 
+#include <BeastConfig.h>
 #include <ripple/rpc/impl/JsonObject.h>
-#include <ripple/rpc/impl/JsonWriter.h>
 
 namespace ripple {
 namespace RPC {
-namespace New {
 
 Collection::Collection (Collection* parent, Writer* writer)
         : parent_ (parent), writer_ (writer), enabled_ (true)
@@ -71,31 +70,9 @@ void Collection::checkWritable (std::string const& label)
 
 //------------------------------------------------------------------------------
 
-template <typename Scalar>
-Array& Array::append (Scalar value)
-{
-    checkWritable ("append");
-    if (writer_)
-        writer_->append (value);
-    return *this;
-}
-
-//------------------------------------------------------------------------------
-
 Object::Root::Root (Writer& w) : Object (nullptr, &w)
 {
-    writer_->startRoot (Writer::object);  // writer_ can't be null.
-}
-
-//------------------------------------------------------------------------------
-
-template <typename Scalar>
-Object& Object::set (std::string const& key, Scalar value)
-{
-    checkWritable ("set");
-    if (writer_)
-        writer_->set (key, value);
-    return *this;
+    writer_->startRoot (Writer::object);
 }
 
 Object Object::makeObject (std::string const& key)
@@ -112,6 +89,8 @@ Array Object::makeArray (std::string const& key) {
         writer_->startSet (Writer::array, key);
     return Array (this, writer_);
 }
+
+//------------------------------------------------------------------------------
 
 Object Array::makeObject ()
 {
@@ -139,9 +118,44 @@ Object::Proxy::Proxy (Object& object, std::string const& key)
 
 Object::Proxy Object::operator[] (std::string const& key)
 {
-    return {*this, key};
+    return Proxy (*this, key);
 }
 
-} // New
+Object::Proxy Object::operator[] (Json::StaticString const& key)
+{
+    return Proxy (*this, std::string (key));
+}
+
+namespace {
+
+template <class Object>
+void doCopyFrom (Object& to, Json::Value const& from)
+{
+    auto members = from.getMemberNames();
+    for (auto& m: members)
+        to[m] = from[m];
+}
+
+}
+
+void copyFrom (Json::Value& to, Json::Value const& from)
+{
+    if (to.empty())  // Short circuit this very common case.
+        to = from;
+    else
+        doCopyFrom (to, from);
+}
+
+void copyFrom (Object& to, Json::Value const& from)
+{
+    doCopyFrom (to, from);
+}
+
+
+WriterObject stringWriterObject (std::string& s)
+{
+    return WriterObject (stringOutput (s));
+}
+
 } // RPC
 } // ripple

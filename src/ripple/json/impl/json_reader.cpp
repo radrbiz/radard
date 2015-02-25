@@ -17,6 +17,10 @@
 */
 //==============================================================================
 
+#include <BeastConfig.h>
+#include <ripple/json/json_reader.h>
+#include <string>
+
 namespace Json
 {
 

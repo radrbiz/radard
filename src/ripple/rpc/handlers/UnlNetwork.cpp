@@ -17,6 +17,7 @@
 */
 //==============================================================================
 
+#include <BeastConfig.h>
 
 namespace ripple {
 
@@ -26,7 +27,7 @@ Json::Value doUnlNetwork (RPC::Context& context)
     auto lock = getApp().masterLock();
     getApp().getUNL ().nodeNetwork ();
 
-    return "fetching";
+    return RPC::makeObjectValue ("fetching");
 }
 
 } // ripple

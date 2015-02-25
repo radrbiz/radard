@@ -20,6 +20,8 @@
 #ifndef RIPPLE_TX_TRANSACTOR_H_INCLUDED
 #define RIPPLE_TX_TRANSACTOR_H_INCLUDED
 
+#include <ripple/app/tx/TransactionEngine.h>
+
 namespace ripple {
 
 class Transactor
@@ -28,7 +30,7 @@ public:
     static
     TER
     transact (
-        SerializedTransaction const& txn,
+        STTx const& txn,
         TransactionEngineParams params,
         TransactionEngine* engine);
 
@@ -36,7 +38,7 @@ public:
     apply ();
 
 protected:
-    SerializedTransaction const&    mTxn;
+    STTx const&    mTxn;
     TransactionEngine*              mEngine;
     TransactionEngineParams         mParams;
 
@@ -64,7 +66,7 @@ protected:
     virtual TER doApply () = 0;
 
     Transactor (
-        const SerializedTransaction& txn,
+        const STTx& txn,
         TransactionEngineParams params,
         TransactionEngine* engine,
         beast::Journal journal = beast::Journal ());

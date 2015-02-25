@@ -17,18 +17,20 @@
 */
 //==============================================================================
 
+#include <BeastConfig.h>
+#include <ripple/net/HTTPClient.h>
 
 namespace ripple {
 
 Json::Value doSMS (RPC::Context& context)
 {
-    if (!context.params_.isMember ("text"))
+    if (!context.params.isMember ("text"))
         return rpcError (rpcINVALID_PARAMS);
 
     HTTPClient::sendSMS (
-        getApp().getIOService (), context.params_["text"].asString ());
+        getApp().getIOService (), context.params["text"].asString ());
 
-    return "sms dispatched";
+    return RPC::makeObjectValue ("sms dispatched");
 }
 
 } // ripple

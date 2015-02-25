@@ -17,8 +17,10 @@
 */
 //==============================================================================
 
+#include <BeastConfig.h>
 #include <ripple/app/book/Quality.h>
 #include <ripple/app/paths/cursor/RippleLiquidity.h>
+#include <ripple/basics/Log.h>
 
 namespace ripple {
 namespace path {
@@ -375,7 +377,7 @@ TER PathCursor::forwardLiquidityForAccount () const
             {
                 resultCode   = tecPATH_DRY;
             }
-			else if (!isXRP(node().issue_) && !isVBC(node().issue_))
+            else if (!isNative(node().issue_))
             {
                 // Non-XRP & Non-VBC, current node is the issuer.
                 // We could be delivering to multiple accounts, so we don't know
@@ -391,26 +393,13 @@ TER PathCursor::forwardLiquidityForAccount () const
             }
             else
             {
-				if (isXRP(node().issue_))
-				{
-					WriteLog(lsTRACE, RippleCalc)
-						<< "forwardLiquidityForAccount: ^ --> "
-						<< "ACCOUNT -- XRP --> offer";
+                WriteLog (lsTRACE, RippleCalc)
+                    << "forwardLiquidityForAccount: ^ --> "
+                    << "ACCOUNT -- XRP --> offer";
 
-					// Deliver XRP to limbo.
-					resultCode = ledger().accountSend(
-						node().account_, xrpAccount(), node().saFwdDeliver);
-				}
-				else
-				{
-					WriteLog(lsTRACE, RippleCalc)
-						<< "forwardLiquidityForAccount: ^ --> "
-						<< "ACCOUNT -- VBC --> offer";
-
-					// Deliver VBC to limbo.
-					resultCode = ledger().accountSend(
-						node().account_, vbcAccount(), node().saFwdDeliver);
-				}
+                // Deliver XRP to limbo.
+                resultCode = ledger().accountSend (
+                      node().account_, isXRP(node().issue_)?xrpAccount():vbcAccount(), node().saFwdDeliver);
             }
         }
     }

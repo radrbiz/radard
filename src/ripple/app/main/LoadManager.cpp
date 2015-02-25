@@ -17,7 +17,17 @@
 */
 //==============================================================================
 
+#include <BeastConfig.h>
+#include <ripple/app/main/LoadManager.h>
+#include <ripple/app/main/Application.h>
+#include <ripple/app/misc/NetworkOPs.h>
+#include <ripple/basics/UptimeTimer.h>
+#include <ripple/core/JobQueue.h>
 #include <ripple/core/LoadFeeTrack.h>
+#include <ripple/json/to_string.h>
+#include <beast/threads/Thread.h>
+#include <beast/cxx14/memory.h> // <memory>
+#include <mutex>
 
 namespace ripple {
 
@@ -26,64 +36,16 @@ class LoadManagerImp
     , public beast::Thread
 {
 public:
-    /*  Entry mapping utilization to cost.
-
-        The cost is expressed as a unitless relative quantity. These
-        mappings are statically loaded at startup with heuristic values.
-    */
-    class Cost
-    {
-    public:
-        // VFALCO TODO Eliminate this default ctor somehow
-        Cost ()
-            : m_loadType ()
-            , m_cost (0)
-            , m_resourceFlags (0)
-        {
-        }
-
-        Cost (LoadType loadType, int cost, int resourceFlags)
-            : m_loadType (loadType)
-            , m_cost (cost)
-            , m_resourceFlags (resourceFlags)
-        {
-        }
-
-        LoadType getLoadType () const
-        {
-            return m_loadType;
-        }
-
-        int getCost () const
-        {
-            return m_cost;
-        }
-
-        int getResourceFlags () const
-        {
-            return m_resourceFlags;
-        }
-
-    public:
-        // VFALCO TODO Make these private and const
-        LoadType    m_loadType;
-        int         m_cost;
-        int         m_resourceFlags;
-    };
-
     //--------------------------------------------------------------------------
 
     beast::Journal m_journal;
-    typedef RippleMutex LockType;
+    using LockType = std::mutex;
     typedef std::lock_guard <LockType> ScopedLockType;
     LockType mLock;
 
     bool mArmed;
 
     int mDeadLock;              // Detect server deadlocks
-
-    std::vector <Cost> mCosts;
-
     //--------------------------------------------------------------------------
 
     LoadManagerImp (Stoppable& parent, beast::Journal journal)
@@ -92,7 +54,6 @@ public:
         , m_journal (journal)
         , mArmed (false)
         , mDeadLock (0)
-        , mCosts (LT_MAX)
     {
         UptimeTimer::getInstance ().beginManualUpdates ();
     }
@@ -206,7 +167,8 @@ public:
             //             Another option is using an observer pattern to invert the dependency.
             if (getApp().getJobQueue ().isOverloaded ())
             {
-                m_journal.info << getApp().getJobQueue ().getJson (0);
+                if (m_journal.info)
+                    m_journal.info << getApp().getJobQueue ().getJson (0);
                 change = getApp().getFeeTrack ().raiseLocalFee ();
             }
             else
@@ -247,9 +209,10 @@ LoadManager::LoadManager (Stoppable& parent)
 
 //------------------------------------------------------------------------------
 
-LoadManager* LoadManager::New (Stoppable& parent, beast::Journal journal)
+std::unique_ptr<LoadManager>
+make_LoadManager (beast::Stoppable& parent, beast::Journal journal)
 {
-    return new LoadManagerImp (parent, journal);
+    return std::make_unique <LoadManagerImp> (parent, journal);
 }
 
 } // ripple

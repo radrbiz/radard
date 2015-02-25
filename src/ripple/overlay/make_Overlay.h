@@ -20,42 +20,30 @@
 #ifndef RIPPLE_OVERLAY_MAKE_OVERLAY_H_INCLUDED
 #define RIPPLE_OVERLAY_MAKE_OVERLAY_H_INCLUDED
 
+#include <ripple/server/ServerHandler.h>
 #include <ripple/overlay/Overlay.h>
-
-#include <ripple/resource/api/Manager.h>
-#include <ripple/sitefiles/api/Manager.h>
-#include <ripple/common/Resolver.h>
-
+#include <ripple/resource/Manager.h>
+#include <ripple/basics/Resolver.h>
 #include <beast/threads/Stoppable.h>
 #include <beast/module/core/files/File.h>
-
 #include <boost/asio/io_service.hpp>
 #include <boost/asio/ssl/context.hpp>
 
 namespace ripple {
 
-// VFALCO This is separated so that users of the Overlay interface do not need
-//        to know about creation details such as asio or ssl.
+Overlay::Setup
+setup_Overlay (BasicConfig const& config);
 
-/** Creates the implementation of Overlay.
-
-    @param parent
-    @param resourceManager
-    @param siteFiles
-    @param pathToDbFileOrDirectory
-    @param resolver
-    @param io_service
-    @param context
-*/
+/** Creates the implementation of Overlay. */
 std::unique_ptr <Overlay>
 make_Overlay (
+    Overlay::Setup const& setup,
     beast::Stoppable& parent,
+    ServerHandler& serverHandler,
     Resource::Manager& resourceManager,
-    SiteFiles::Manager& siteFiles,
     beast::File const& pathToDbFileOrDirectory,
     Resolver& resolver,
-    boost::asio::io_service& io_service,
-    boost::asio::ssl::context& ssl_context);
+    boost::asio::io_service& io_service);
 
 } // ripple
 

@@ -30,11 +30,14 @@
 
 #include <beast/ByteOrder.h>
 #include <beast/Memory.h>
-#include <beast/StaticAssert.h>
 #include <beast/Arithmetic.h>
 #include <beast/HeapBlock.h>
 
 #include <stdarg.h>
+
+#include <algorithm>
+#include <atomic>
+#include <cstring>
 
 namespace beast {
 
@@ -55,6 +58,21 @@ static inline CharPointer_wchar_t castToCharPointer_wchar_t (const void* t) noex
 }
 
 //==============================================================================
+// Let me know if any of these assertions fail on your system!
+#if BEAST_NATIVE_WCHAR_IS_UTF8
+static_assert (sizeof (wchar_t) == 1,
+    "The size of a wchar_t should be exactly 1 byte for UTF-8");
+#elif BEAST_NATIVE_WCHAR_IS_UTF16
+static_assert (sizeof (wchar_t) == 2,
+    "The size of a wchar_t should be exactly 2 bytes for UTF-16");
+#elif BEAST_NATIVE_WCHAR_IS_UTF32
+static_assert (sizeof (wchar_t) == 4,
+    "The size of a wchar_t should be exactly 4 bytes for UTF-32");
+#else
+#error "The size of a wchar_t is not known!"
+#endif
+
+//==============================================================================
 class StringHolder
 {
 public:
@@ -70,8 +88,9 @@ public:
     //==============================================================================
     static CharPointerType createUninitialisedBytes (const size_t numBytes)
     {
-        StringHolder* const s = reinterpret_cast <StringHolder*> (new char [sizeof (StringHolder) - sizeof (CharType) + numBytes]);
-        s->refCount.value = 0;
+        StringHolder* const s = reinterpret_cast <StringHolder*> (
+            new char [sizeof (StringHolder) - sizeof (CharType) + numBytes]);
+        s->refCount.store (0);
         s->allocatedNumBytes = numBytes;
         return CharPointerType (s->text);
     }
@@ -182,7 +201,7 @@ public:
     {
         StringHolder* const b = bufferFromText (text);
 
-        if (b->refCount.get() <= 0)
+        if (b->refCount.load() <= 0)
             return text;
 
         CharPointerType newText (createUninitialisedBytes (b->allocatedNumBytes));
@@ -196,10 +215,10 @@ public:
     {
         StringHolder* const b = bufferFromText (text);
 
-        if (b->refCount.get() <= 0 && b->allocatedNumBytes >= numBytes)
+        if (b->refCount.load() <= 0 && b->allocatedNumBytes >= numBytes)
             return text;
 
-        CharPointerType newText (createUninitialisedBytes (bmax (b->allocatedNumBytes, numBytes)));
+        CharPointerType newText (createUninitialisedBytes (std::max (b->allocatedNumBytes, numBytes)));
         memcpy (newText.getAddress(), text.getAddress(), b->allocatedNumBytes);
         release (b);
 
@@ -212,7 +231,7 @@ public:
     }
 
     //==============================================================================
-    Atomic<int> refCount;
+    std::atomic<int> refCount;
     size_t allocatedNumBytes;
     CharType text[1];
 
@@ -222,22 +241,9 @@ private:
     static inline StringHolder* bufferFromText (const CharPointerType text) noexcept
     {
         // (Can't use offsetof() here because of warnings about this not being a POD)
-        return reinterpret_cast <StringHolder*> (reinterpret_cast <char*> (text.getAddress())
-                    - (reinterpret_cast <size_t> (reinterpret_cast <StringHolder*> (1)->text) - 1));
-    }
-
-    void compileTimeChecks()
-    {
-        // Let me know if any of these assertions fail on your system!
-       #if BEAST_NATIVE_WCHAR_IS_UTF8
-        static_bassert (sizeof (wchar_t) == 1);
-       #elif BEAST_NATIVE_WCHAR_IS_UTF16
-        static_bassert (sizeof (wchar_t) == 2);
-       #elif BEAST_NATIVE_WCHAR_IS_UTF32
-        static_bassert (sizeof (wchar_t) == 4);
-       #else
-        #error "native wchar_t size is unknown"
-       #endif
+        auto const text_offset = reinterpret_cast<char*>(empty.text) - reinterpret_cast<char*>(&empty);
+        auto const tmp = reinterpret_cast<char*>(text.getAddress()) - text_offset;
+        return static_cast<StringHolder*>(std::memmove(tmp, tmp, 0));
     }
 };
 
@@ -1126,7 +1132,7 @@ public:
 
         if (bytesWritten > allocatedBytes)
         {
-            allocatedBytes += bmax ((size_t) 8, allocatedBytes / 16);
+            allocatedBytes += std::max ((size_t) 8, allocatedBytes / 16);
             const size_t destOffset = (size_t) (((char*) dest.getAddress()) - (char*) result.getCharPointer().getAddress());
             result.preallocateBytes (allocatedBytes);
             dest = addBytesToPointer (result.getCharPointer().getAddress(), (int) destOffset);
@@ -1349,12 +1355,12 @@ String String::substring (int start) const
 
 String String::dropLastCharacters (const int numberToDrop) const
 {
-    return String (text, (size_t) bmax (0, length() - numberToDrop));
+    return String (text, (size_t) std::max (0, length() - numberToDrop));
 }
 
 String String::getLastCharacters (const int numCharacters) const
 {
-    return String (text + bmax (0, length() - bmax (0, numCharacters)));
+    return String (text + std::max (0, length() - std::max (0, numCharacters)));
 }
 
 String String::fromFirstOccurrenceOf (const String& sub,
@@ -1882,7 +1888,7 @@ struct StringEncodingConverter
         const CharPointerType_Dest extraSpace (static_cast <DestChar*> (newSpace));
 
        #if BEAST_DEBUG // (This just avoids spurious warnings from valgrind about the uninitialised bytes at the end of the buffer..)
-        const size_t bytesToClear = (size_t) bmin ((int) extraBytesNeeded, 4);
+        const size_t bytesToClear = (size_t) std::min ((int) extraBytesNeeded, 4);
         zeromem (addBytesToPointer (newSpace, extraBytesNeeded - bytesToClear), bytesToClear);
        #endif
 

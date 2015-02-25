@@ -20,8 +20,9 @@
 #ifndef RIPPLE_APP_FEEVOTE_H_INCLUDED
 #define RIPPLE_APP_FEEVOTE_H_INCLUDED
 
+#include <ripple/app/ledger/Ledger.h>
 #include <ripple/basics/BasicConfig.h>
-#include <ripple/core/SystemParameters.h>
+#include <ripple/protocol/SystemParameters.h>
 
 namespace ripple {
 

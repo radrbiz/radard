@@ -1,6 +1,9 @@
 #ifndef RIPPLE_NULLDATABASE_H_INCLUDED
 #define RIPPLE_NULLDATABASE_H_INCLUDED
 
+#include <beast/utility/LeakChecked.h>
+#include <ripple/app/data/DatabaseCon.h>
+
 namespace ripple {
 
 class NullDatabase

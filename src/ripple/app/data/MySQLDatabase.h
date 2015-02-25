@@ -4,6 +4,8 @@
 #include <mysql.h>
 #include <boost/thread/tss.hpp>
 #include <beast/module/core/text/StringPairArray.h>
+#include <beast/utility/LeakChecked.h>
+#include <ripple/app/data/DatabaseCon.h>
 
 namespace ripple {
 

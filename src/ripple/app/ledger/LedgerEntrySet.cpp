@@ -17,9 +17,13 @@
 */
 //==============================================================================
 
+#include <BeastConfig.h>
 #include <ripple/app/book/Quality.h>
+#include <ripple/app/ledger/LedgerEntrySet.h>
 #include <ripple/basics/Log.h>
 #include <ripple/basics/StringUtilities.h>
+#include <ripple/json/to_string.h>
+#include <ripple/protocol/Indexes.h>
 
 namespace ripple {
 
@@ -75,7 +79,7 @@ SLE::pointer LedgerEntrySet::getEntry (uint256 const& index, LedgerEntryAction& 
     if (it->second.mSeq != mSeq)
     {
         assert (it->second.mSeq < mSeq);
-        it->second.mEntry = std::make_shared<SerializedLedgerEntry> (*it->second.mEntry);
+        it->second.mEntry = std::make_shared<STLedgerEntry> (*it->second.mEntry);
         it->second.mSeq = mSeq;
     }
 
@@ -357,7 +361,7 @@ SLE::pointer LedgerEntrySet::getForMod (uint256 const& node, Ledger::ref ledger,
 
         if (it->second.mSeq != mSeq)
         {
-            it->second.mEntry = std::make_shared<SerializedLedgerEntry> (*it->second.mEntry);
+            it->second.mEntry = std::make_shared<STLedgerEntry> (*it->second.mEntry);
             it->second.mSeq = mSeq;
         }
 
@@ -384,7 +388,7 @@ bool LedgerEntrySet::threadTx (RippleAddress const& threadTo, Ledger::ref ledger
                                NodeToLedgerEntry& newMods)
 {
     SLE::pointer sle = getForMod (
-        Ledger::getAccountRootIndex (threadTo.getAccountID ()), ledger, newMods);
+        getAccountRootIndex (threadTo.getAccountID ()), ledger, newMods);
 
 #ifdef META_DEBUG
     WriteLog (lsTRACE, LedgerEntrySet) << "Thread to " << threadTo.getAccountID ();
@@ -591,7 +595,7 @@ TER LedgerEntrySet::dirCount (uint256 const& uRootIndex, std::uint32_t& uCount)
 
     do
     {
-        SLE::pointer    sleNode = entryCache (ltDIR_NODE, Ledger::getDirNodeIndex (uRootIndex, uNodeDir));
+        SLE::pointer    sleNode = entryCache (ltDIR_NODE, getDirNodeIndex (uRootIndex, uNodeDir));
 
         if (sleNode)
         {
@@ -617,7 +621,7 @@ bool LedgerEntrySet::dirIsEmpty (uint256 const& uRootIndex)
 {
     std::uint64_t  uNodeDir = 0;
 
-    SLE::pointer sleNode = entryCache (ltDIR_NODE, Ledger::getDirNodeIndex (uRootIndex, uNodeDir));
+    SLE::pointer sleNode = entryCache (ltDIR_NODE, getDirNodeIndex (uRootIndex, uNodeDir));
 
     if (!sleNode)
         return true;
@@ -665,7 +669,7 @@ TER LedgerEntrySet::dirAdd (
         if (uNodeDir)
         {
             // Try adding to last node.
-            sleNode     = entryCache (ltDIR_NODE, Ledger::getDirNodeIndex (uRootIndex, uNodeDir));
+            sleNode     = entryCache (ltDIR_NODE, getDirNodeIndex (uRootIndex, uNodeDir));
 
             assert (sleNode);
         }
@@ -698,7 +702,7 @@ TER LedgerEntrySet::dirAdd (
             entryModify (sleRoot);
 
             // Create the new node.
-            sleNode     = entryCreate (ltDIR_NODE, Ledger::getDirNodeIndex (uRootIndex, uNodeDir));
+            sleNode     = entryCreate (ltDIR_NODE, getDirNodeIndex (uRootIndex, uNodeDir));
             sleNode->setFieldH256 (sfRootIndex, uRootIndex);
 
             if (uNodeDir != 1)
@@ -734,7 +738,7 @@ TER LedgerEntrySet::dirDelete (
     const bool                      bSoft)          // --> True, uNodeDir is not hard and fast (pass uNodeDir=0).
 {
     std::uint64_t       uNodeCur    = uNodeDir;
-    SLE::pointer        sleNode     = entryCache (ltDIR_NODE, Ledger::getDirNodeIndex (uRootIndex, uNodeCur));
+    SLE::pointer        sleNode     = entryCache (ltDIR_NODE, getDirNodeIndex (uRootIndex, uNodeCur));
 
     if (!sleNode)
     {
@@ -836,7 +840,7 @@ TER LedgerEntrySet::dirDelete (
             else
             {
                 // Have only a root node and a last node.
-                SLE::pointer        sleLast = entryCache (ltDIR_NODE, Ledger::getDirNodeIndex (uRootIndex, uNodeNext));
+                SLE::pointer        sleLast = entryCache (ltDIR_NODE, getDirNodeIndex (uRootIndex, uNodeNext));
 
                 assert (sleLast);
 
@@ -858,11 +862,11 @@ TER LedgerEntrySet::dirDelete (
         {
             // Not root and not last node. Can delete node.
 
-            SLE::pointer        slePrevious = entryCache (ltDIR_NODE, Ledger::getDirNodeIndex (uRootIndex, uNodePrevious));
+            SLE::pointer        slePrevious = entryCache (ltDIR_NODE, getDirNodeIndex (uRootIndex, uNodePrevious));
 
             assert (slePrevious);
 
-            SLE::pointer        sleNext     = entryCache (ltDIR_NODE, Ledger::getDirNodeIndex (uRootIndex, uNodeNext));
+            SLE::pointer        sleNext     = entryCache (ltDIR_NODE, getDirNodeIndex (uRootIndex, uNodeNext));
 
             assert (slePrevious);
             assert (sleNext);
@@ -962,7 +966,7 @@ bool LedgerEntrySet::dirNext (
         }
         else
         {
-            SLE::pointer sleNext = entryCache (ltDIR_NODE, Ledger::getDirNodeIndex (uRootIndex, uNodeNext));
+            SLE::pointer sleNext = entryCache (ltDIR_NODE, getDirNodeIndex (uRootIndex, uNodeNext));
             uDirEntry   = 0;
 
             if (!sleNext)
@@ -1046,7 +1050,7 @@ void LedgerEntrySet::incrementOwnerCount (SLE::ref sleAccount)
 void LedgerEntrySet::incrementOwnerCount (Account const& owner)
 {
     incrementOwnerCount(entryCache (ltACCOUNT_ROOT,
-        Ledger::getAccountRootIndex (owner)));
+        getAccountRootIndex (owner)));
 }
 
 void LedgerEntrySet::decrementOwnerCount (SLE::ref sleAccount)
@@ -1070,7 +1074,7 @@ void LedgerEntrySet::decrementOwnerCount (SLE::ref sleAccount)
 void LedgerEntrySet::decrementOwnerCount (Account const& owner)
 {
     decrementOwnerCount(entryCache (ltACCOUNT_ROOT,
-        Ledger::getAccountRootIndex (owner)));
+        getAccountRootIndex (owner)));
 }
 
 TER LedgerEntrySet::offerDelete (SLE::pointer sleOffer)
@@ -1089,7 +1093,7 @@ TER LedgerEntrySet::offerDelete (SLE::pointer sleOffer)
 
     TER terResult  = dirDelete (
         false, uOwnerNode,
-        Ledger::getOwnerDirIndex (owner), offerIndex, false, !bOwnerNode);
+        getOwnerDirIndex (owner), offerIndex, false, !bOwnerNode);
     TER terResult2 = dirDelete (
         false, uBookNode, uDirectory, offerIndex, true, false);
 
@@ -1112,7 +1116,7 @@ STAmount LedgerEntrySet::rippleHolds (
 {
     STAmount saBalance;
     SLE::pointer sleRippleState = entryCache (ltRIPPLE_STATE,
-        Ledger::getRippleStateIndex (account, issuer, currency));
+        getRippleStateIndex (account, issuer, currency));
 
     if (!sleRippleState)
     {
@@ -1150,29 +1154,25 @@ STAmount LedgerEntrySet::accountHolds (
 {
     STAmount    saAmount;
 
-    if (isXRP(currency) || isVBC(currency))
+    bool const bVBC (isVBC (currency));
+
+    if (isXRP(currency) || bVBC)
     {
-		SLE::pointer sleAccount = entryCache(ltACCOUNT_ROOT,
-			Ledger::getAccountRootIndex(account));
-		std::uint64_t uReserve = mLedger->getReserve(
-			sleAccount->getFieldU32(sfOwnerCount));
-		STAmount saBalance;
-		if (isVBC(currency))
-		{
-			saBalance = sleAccount->getFieldAmount(sfBalanceVBC);
-		}
-		else
-		{
-			saBalance = sleAccount->getFieldAmount(sfBalance);
-		}
-		if (saBalance < uReserve)
-		{
-			saAmount.clear();
-		}
-		else
-		{
-			saAmount = saBalance - uReserve;
-		}
+        SLE::pointer sleAccount = entryCache (ltACCOUNT_ROOT,
+            getAccountRootIndex (account));
+        std::uint64_t uReserve = mLedger->getReserve (
+            sleAccount->getFieldU32 (sfOwnerCount));
+
+        STAmount saBalance   = sleAccount->getFieldAmount(bVBC?sfBalanceVBC:sfBalance);
+
+        if (saBalance < uReserve)
+        {
+            saAmount.clear ();
+        }
+        else
+        {
+            saAmount = saBalance - uReserve;
+        }
 
         WriteLog (lsTRACE, LedgerEntrySet) << "accountHolds:" <<
             " account=" << to_string (account) <<
@@ -1194,10 +1194,10 @@ STAmount LedgerEntrySet::accountHolds (
 
 bool LedgerEntrySet::isGlobalFrozen (Account const& issuer)
 {
-	if (!enforceFreeze() || isXRP(issuer) || isVBC(issuer))
+    if (!enforceFreeze() || isNative(issuer))
         return false;
 
-    SLE::pointer sle = entryCache (ltACCOUNT_ROOT, Ledger::getAccountRootIndex (issuer));
+    SLE::pointer sle = entryCache (ltACCOUNT_ROOT, getAccountRootIndex (issuer));
     if (sle && sle->isFlag (lsfGlobalFreeze))
         return true;
 
@@ -1211,10 +1211,10 @@ bool LedgerEntrySet::isFrozen(
     Currency const& currency,
     Account const& issuer)
 {
-	if (!enforceFreeze() || isXRP(currency) || isVBC(currency))
+    if (!enforceFreeze() || isNative(currency))
         return false;
 
-    SLE::pointer sle = entryCache (ltACCOUNT_ROOT, Ledger::getAccountRootIndex (issuer));
+    SLE::pointer sle = entryCache (ltACCOUNT_ROOT, getAccountRootIndex (issuer));
     if (sle && sle->isFlag (lsfGlobalFreeze))
         return true;
 
@@ -1222,7 +1222,7 @@ bool LedgerEntrySet::isFrozen(
     {
         // Check if the issuer froze the line
         sle = entryCache (ltRIPPLE_STATE,
-            Ledger::getRippleStateIndex (account, issuer, currency));
+            getRippleStateIndex (account, issuer, currency));
         if (sle && sle->isFlag ((issuer > account) ? lsfHighFreeze : lsfLowFreeze))
         {
             return true;
@@ -1282,12 +1282,8 @@ STAmount LedgerEntrySet::rippleTransferFee (
 
         if (QUALITY_ONE != uTransitRate)
         {
-            // NIKB use STAmount::saFromRate
-            STAmount saTransitRate (
-                noIssue(), static_cast<std::uint64_t> (uTransitRate), -9);
-
             STAmount saTransferTotal = multiply (
-                saAmount, saTransitRate, saAmount.issue ());
+                saAmount, amountFromRate (uTransitRate), saAmount.issue ());
             STAmount saTransferFee = saTransferTotal - saAmount;
 
             WriteLog (lsDEBUG, LedgerEntrySet) << "rippleTransferFee:" <<
@@ -1326,7 +1322,7 @@ TER LedgerEntrySet::trustCreate (
 
     TER terResult = dirAdd (
         uLowNode,
-        Ledger::getOwnerDirIndex (uLowAccountID),
+        getOwnerDirIndex (uLowAccountID),
         sleRippleState->getIndex (),
         std::bind (&Ledger::ownerDirDescriber,
                    std::placeholders::_1, std::placeholders::_2,
@@ -1336,7 +1332,7 @@ TER LedgerEntrySet::trustCreate (
     {
         terResult = dirAdd (
             uHighNode,
-            Ledger::getOwnerDirIndex (uHighAccountID),
+            getOwnerDirIndex (uHighAccountID),
             sleRippleState->getIndex (),
             std::bind (&Ledger::ownerDirDescriber,
                        std::placeholders::_1, std::placeholders::_2,
@@ -1408,7 +1404,7 @@ TER LedgerEntrySet::trustDelete (
     terResult   = dirDelete (
         false,
         uLowNode,
-        Ledger::getOwnerDirIndex (uLowAccountID),
+        getOwnerDirIndex (uLowAccountID),
         sleRippleState->getIndex (),
         false,
         !bLowNode);
@@ -1420,7 +1416,7 @@ TER LedgerEntrySet::trustDelete (
         terResult   = dirDelete (
             false,
             uHighNode,
-            Ledger::getOwnerDirIndex (uHighAccountID),
+            getOwnerDirIndex (uHighAccountID),
             sleRippleState->getIndex (),
             false,
             !bHighNode);
@@ -1452,7 +1448,7 @@ TER LedgerEntrySet::rippleCredit (
     assert (uSenderID != uReceiverID);
 
     bool bSenderHigh = uSenderID > uReceiverID;
-    uint256 uIndex = Ledger::getRippleStateIndex (
+    uint256 uIndex = getRippleStateIndex (
         uSenderID, uReceiverID, saAmount.getCurrency ());
     auto sleRippleState  = entryCache (ltRIPPLE_STATE, uIndex);
 
@@ -1460,8 +1456,8 @@ TER LedgerEntrySet::rippleCredit (
 
     assert (!isXRP (uSenderID) && uSenderID != noAccount());
     assert (!isXRP (uReceiverID) && uReceiverID != noAccount());
-	assert (!isVBC (uSenderID) && uSenderID != noAccount());
-	assert (!isVBC (uReceiverID) && uReceiverID != noAccount());
+    assert (!isVBC (uSenderID) && uSenderID != noAccount());
+    assert (!isVBC (uReceiverID) && uReceiverID != noAccount());
 
     if (!sleRippleState)
     {
@@ -1480,7 +1476,7 @@ TER LedgerEntrySet::rippleCredit (
             uSenderID,
             uReceiverID,
             uIndex,
-            entryCache (ltACCOUNT_ROOT, Ledger::getAccountRootIndex (uReceiverID)),
+            entryCache (ltACCOUNT_ROOT, getAccountRootIndex (uReceiverID)),
             false,
             false,
             false,
@@ -1576,7 +1572,7 @@ TER LedgerEntrySet::rippleSend (
     TER             terResult;
 
     assert (!isXRP (uSenderID) && !isXRP (uReceiverID));
-	assert (!isVBC (uSenderID) && !isVBC (uReceiverID));
+    assert (!isVBC (uSenderID) && !isVBC (uReceiverID));
     assert (uSenderID != uReceiverID);
 
     if (uSenderID == issuer || uReceiverID == issuer || issuer == noAccount())
@@ -1645,10 +1641,10 @@ TER LedgerEntrySet::accountSend (
     TER terResult (tesSUCCESS);
 
     SLE::pointer sender = uSenderID != beast::zero
-        ? entryCache (ltACCOUNT_ROOT, Ledger::getAccountRootIndex (uSenderID))
+        ? entryCache (ltACCOUNT_ROOT, getAccountRootIndex (uSenderID))
         : SLE::pointer ();
     SLE::pointer receiver = uReceiverID != beast::zero
-        ? entryCache (ltACCOUNT_ROOT, Ledger::getAccountRootIndex (uReceiverID))
+        ? entryCache (ltACCOUNT_ROOT, getAccountRootIndex (uReceiverID))
         : SLE::pointer ();
 
     if (ShouldLog (lsTRACE, LedgerEntrySet))
@@ -1656,23 +1652,13 @@ TER LedgerEntrySet::accountSend (
         std::string sender_bal ("-");
         std::string receiver_bal ("-");
 
-		if (isVBC(saAmount))
-		{
-			if (sender)
-				sender_bal = sender->getFieldAmount(sfBalanceVBC).getFullText();
+        bool bVBC = isVBC(saAmount);
 
-			if (receiver)
-				receiver_bal = receiver->getFieldAmount(sfBalanceVBC).getFullText();
-		}
-		else
-		{
-			if (sender)
-				sender_bal = sender->getFieldAmount(sfBalance).getFullText();
+        if (sender)
+            sender_bal = sender->getFieldAmount (bVBC?sfBalanceVBC:sfBalance).getFullText();
 
-			if (receiver)
-				receiver_bal = receiver->getFieldAmount(sfBalance).getFullText();
-		}
-
+        if (receiver)
+            receiver_bal = receiver->getFieldAmount (bVBC?sfBalanceVBC:sfBalance).getFullText();
 
         WriteLog (lsTRACE, LedgerEntrySet) << "accountSend> " <<
             to_string (uSenderID) << " (" << sender_bal <<
@@ -1680,84 +1666,43 @@ TER LedgerEntrySet::accountSend (
             ") : " << saAmount.getFullText ();
     }
 
-	if (isVBC(saAmount))
-	{
-		if (sender)
-		{
-			if (sender->getFieldAmount(sfBalanceVBC) < saAmount)
-			{
-				terResult = (mParams & tapOPEN_LEDGER)
-					? telFAILED_PROCESSING
-					: tecFAILED_PROCESSING;
-			}
-			else
-			{
-				// Decrement VBC balance.
-				sender->setFieldAmount(sfBalanceVBC,
-					sender->getFieldAmount(sfBalanceVBC) - saAmount);
-				entryModify(sender);
-			}
-		}
+    bool const bVBC (isVBC(saAmount));
 
-		if (tesSUCCESS == terResult && receiver)
-		{
-			// Increment VBC balance.
-			receiver->setFieldAmount(sfBalanceVBC,
-				receiver->getFieldAmount(sfBalanceVBC) + saAmount);
-			entryModify(receiver);
-		}
-	}
-	else
-	{
-		if (sender)
-		{
-			if (sender->getFieldAmount(sfBalance) < saAmount)
-			{
-				terResult = (mParams & tapOPEN_LEDGER)
-					? telFAILED_PROCESSING
-					: tecFAILED_PROCESSING;
-			}
-			else
-			{
-				// Decrement XRP balance.
-				sender->setFieldAmount(sfBalance,
-					sender->getFieldAmount(sfBalance) - saAmount);
-				entryModify(sender);
-			}
-		}
+    if (sender)
+    {
+        if (sender->getFieldAmount (bVBC?sfBalanceVBC:sfBalance) < saAmount)
+        {
+            terResult = (mParams & tapOPEN_LEDGER)
+                ? telFAILED_PROCESSING
+                : tecFAILED_PROCESSING;
+        }
+        else
+        {
+            // Decrement XRP balance.
+            sender->setFieldAmount (bVBC?sfBalanceVBC:sfBalance,
+                sender->getFieldAmount (bVBC?sfBalanceVBC:sfBalance) - saAmount);
+            entryModify (sender);
+        }
+    }
 
-		if (tesSUCCESS == terResult && receiver)
-		{
-			// Increment XRP balance.
-			receiver->setFieldAmount(sfBalance,
-				receiver->getFieldAmount(sfBalance) + saAmount);
-			entryModify(receiver);
-		}
-	}
-
+    if (tesSUCCESS == terResult && receiver)
+    {
+        // Increment XRP balance.
+        receiver->setFieldAmount (bVBC?sfBalanceVBC:sfBalance,
+            receiver->getFieldAmount (bVBC?sfBalanceVBC:sfBalance) + saAmount);
+        entryModify (receiver);
+    }
 
     if (ShouldLog (lsTRACE, LedgerEntrySet))
     {
         std::string sender_bal ("-");
         std::string receiver_bal ("-");
 
-		if (isVBC(saAmount))
-		{
-			if (sender)
-				sender_bal = sender->getFieldAmount(sfBalanceVBC).getFullText();
+        if (sender)
+            sender_bal = sender->getFieldAmount (bVBC?sfBalanceVBC:sfBalance).getFullText ();
 
-			if (receiver)
-				receiver_bal = receiver->getFieldAmount(sfBalanceVBC).getFullText();
-		}
-		else
-		{
-			if (sender)
-				sender_bal = sender->getFieldAmount(sfBalance).getFullText();
-
-			if (receiver)
-				receiver_bal = receiver->getFieldAmount(sfBalance).getFullText();
-		}
-
+        if (receiver)
+            receiver_bal = receiver->getFieldAmount (bVBC?sfBalanceVBC:sfBalance).getFullText ();
 
         WriteLog (lsTRACE, LedgerEntrySet) << "accountSend< " <<
             to_string (uSenderID) << " (" << sender_bal <<
@@ -1772,7 +1717,7 @@ std::uint32_t
 rippleTransferRate (LedgerEntrySet& ledger, Account const& issuer)
 {
     SLE::pointer sleAccount (ledger.entryCache (
-        ltACCOUNT_ROOT, Ledger::getAccountRootIndex (issuer)));
+        ltACCOUNT_ROOT, getAccountRootIndex (issuer)));
 
     std::uint32_t quality = QUALITY_ONE;
 

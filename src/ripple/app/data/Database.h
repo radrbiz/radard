@@ -20,6 +20,11 @@
 #ifndef RIPPLE_DATABASE_H_INCLUDED
 #define RIPPLE_DATABASE_H_INCLUDED
 
+#include <ripple/basics/Blob.h>
+#include <cstdint>
+#include <string>
+#include <vector>
+
 namespace ripple {
 
 // VFALCO Get rid of these macros

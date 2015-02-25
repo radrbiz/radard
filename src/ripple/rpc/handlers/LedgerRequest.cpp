@@ -17,6 +17,9 @@
 */
 //==============================================================================
 
+#include <BeastConfig.h>
+#include <ripple/app/ledger/InboundLedgers.h>
+#include <ripple/app/ledger/LedgerToJson.h>
 
 namespace ripple {
 
@@ -26,8 +29,8 @@ namespace ripple {
 // }
 Json::Value doLedgerRequest (RPC::Context& context)
 {
-    auto const hasHash = context.params_.isMember (jss::ledger_hash);
-    auto const hasIndex = context.params_.isMember (jss::ledger_index);
+    auto const hasHash = context.params.isMember (jss::ledger_hash);
+    auto const hasIndex = context.params.isMember (jss::ledger_index);
 
     auto& ledgerMaster = getApp().getLedgerMaster();
     LedgerHash ledgerHash;
@@ -40,11 +43,11 @@ Json::Value doLedgerRequest (RPC::Context& context)
 
     if (hasHash)
     {
-        auto const& jsonHash = context.params_[jss::ledger_hash];
+        auto const& jsonHash = context.params[jss::ledger_hash];
         if (!jsonHash.isString() || !ledgerHash.SetHex (jsonHash.asString ()))
             return RPC::invalid_field_message ("ledger_hash");
     } else {
-        auto const& jsonIndex = context.params_[jss::ledger_index];
+        auto const& jsonIndex = context.params[jss::ledger_index];
         if (!jsonIndex.isNumeric ())
             return RPC::invalid_field_message ("ledger_index");
 
@@ -73,13 +76,18 @@ Json::Value doLedgerRequest (RPC::Context& context)
             {
                 // We don't have the ledger we need to figure out which ledger
                 // they want. Try to get it.
-                Json::Value jvResult
-                        =  getApp().getInboundLedgers().findCreate (
-                            refHash, refIndex, InboundLedger::fcGENERIC)
-                        ->getJson (0);
 
-                jvResult[jss::error] = "ledgerNotFound";
-                return jvResult;
+                if (auto il = getApp().getInboundLedgers().findCreate (
+                        refHash, refIndex, InboundLedger::fcGENERIC))
+                {
+                    Json::Value jvResult = il->getJson (0);
+
+                    jvResult[jss::error] = "ledgerNotFound";
+                    return jvResult;
+                }
+
+                // findCreate failed to return an inbound ledger. App is likely shutting down
+                return Json::Value();
             }
 
             ledgerHash = ledger->getLedgerHash (ledgerIndex);
@@ -93,15 +101,19 @@ Json::Value doLedgerRequest (RPC::Context& context)
         // We already have the ledger they want
         Json::Value jvResult;
         jvResult[jss::ledger_index] = ledger->getLedgerSeq();
-        ledger->addJson (jvResult, 0);
+        addJson (jvResult, {*ledger, 0});
         return jvResult;
     }
     else
     {
         // Try to get the desired ledger
-        auto il = getApp().getInboundLedgers().findCreate (
-            ledgerHash, 0, InboundLedger::fcGENERIC);
-        return il->getJson (0);
+        if (auto il = getApp ().getInboundLedgers ().findCreate (
+                ledgerHash, 0, InboundLedger::fcGENERIC))
+        {
+            return il->getJson (0);
+        }
+        return RPC::make_error (
+            rpcNOT_READY, "findCreate failed to return an inbound ledger");
     }
 }
 

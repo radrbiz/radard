@@ -6,6 +6,15 @@
 #endif
 #include <boost/multiprecision/cpp_int.hpp>
 
+#include <beast/threads/RecursiveMutex.h>
+
+#include <ripple/app/ledger/LedgerMaster.h>
+#include <ripple/app/main/Application.h>
+#include <ripple/app/misc/DefaultMissingNodeHandler.h>
+#include <ripple/app/misc/DividendMaster.h>
+#include <ripple/app/misc/NetworkOPs.h>
+#include <ripple/basics/Log.h>
+#include <ripple/protocol/SystemParameters.h>
 
 namespace ripple {
         
@@ -123,11 +132,14 @@ public:
         SHAMap::pointer txMap = std::make_shared<SHAMap>(
                                         smtTRANSACTION,
                                         app.getFullBelowCache(),
-                                        app.getTreeNodeCache());
+                                        app.getTreeNodeCache(),
+                                        app.getNodeStore(),
+                                        DefaultMissingNodeHandler(),
+                                        deprecatedLogs().journal("SHAMap"));
         
         for (const auto& it : m_divResult)
         {
-            SerializedTransaction trans(ttDIVIDEND);
+            STTx trans(ttDIVIDEND);
             trans.setFieldU8(sfDividendType, DividendMaster::DivType_Apply);
             trans.setFieldAccount(sfAccount, Account());
             trans.setFieldAccount(sfDestination, std::get<0>(it));
@@ -168,7 +180,7 @@ public:
 
     void fillDivReady(SHAMap::pointer initialPosition) override
     {
-        SerializedTransaction trans(ttDIVIDEND);
+        STTx trans(ttDIVIDEND);
         trans.setFieldU8(sfDividendType, DividendMaster::DivType_Done);
         trans.setFieldAccount(sfAccount, Account());
         trans.setFieldU32(sfDividendLedger, m_dividendLedgerSeq);
@@ -202,7 +214,7 @@ public:
     void fillDivResult(SHAMap::pointer initialPosition) override
     {
         for (const auto& it : m_divResult) {
-            SerializedTransaction trans(ttDIVIDEND);
+            STTx trans(ttDIVIDEND);
             trans.setFieldU8(sfDividendType, DividendMaster::DivType_Apply);
             trans.setFieldAccount(sfAccount, Account());
             trans.setFieldAccount(sfDestination, std::get<0>(it));

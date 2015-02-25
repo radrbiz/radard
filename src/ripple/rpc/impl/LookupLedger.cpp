@@ -17,6 +17,7 @@
 */
 //==============================================================================
 
+#include <BeastConfig.h>
 #include <ripple/rpc/impl/LookupLedger.h>
 
 namespace ripple {
@@ -40,10 +41,16 @@ static const int LEDGER_VALIDATED = -3;
 //
 // In the absence of the "ledger_hash" or "ledger_index" parameters, the code
 // assumes that "ledger_index" has the value "current".
-Json::Value lookupLedger (
+//
+// Returns a Json::objectValue.  If there was an error, it will be in that
+// return value.  Otherwise, the object contains the field "validated" and
+// optionally the fields "ledger_hash", "ledger_index" and
+// "ledger_current_index", if they are defined.
+Status lookupLedger (
     Json::Value const& params,
     Ledger::pointer& ledger,
-    NetworkOPs& netOps)
+    NetworkOPs& netOps,
+    Json::Value& jsonResult)
 {
     using RPC::make_error;
     ledger.reset();
@@ -66,10 +73,10 @@ Json::Value lookupLedger (
         }
     }
 
-    uint256 ledgerHash (0);
+    uint256 ledgerHash;
 
     if (!jsonHash.isString() || !ledgerHash.SetHex (jsonHash.asString ()))
-        return make_error(rpcINVALID_PARAMS, "ledgerHashMalformed");
+        return {rpcINVALID_PARAMS, "ledgerHashMalformed"};
 
     std::int32_t ledgerIndex = LEDGER_CURRENT;
 
@@ -92,7 +99,7 @@ Json::Value lookupLedger (
             else if (index == "validated")
                 ledgerIndex = LEDGER_VALIDATED;
             else
-                return make_error(rpcINVALID_PARAMS, "ledgerIndexMalformed");
+                return {rpcINVALID_PARAMS, "ledgerIndexMalformed"};
         }
     }
     else
@@ -100,7 +107,7 @@ Json::Value lookupLedger (
         ledger = netOps.getLedgerByHash (ledgerHash);
 
         if (!ledger)
-            return make_error(rpcLGR_NOT_FOUND, "ledgerNotFound");
+            return {rpcLGR_NOT_FOUND, "ledgerNotFound"};
 
         ledgerIndex = ledger->getLedgerSeq ();
     }
@@ -123,7 +130,7 @@ Json::Value lookupLedger (
             break;
 
         default:
-            return make_error(rpcINVALID_PARAMS, "ledgerIndexMalformed");
+            return {rpcINVALID_PARAMS, "ledgerIndexMalformed"};
         }
 
         assert (ledger->isImmutable());
@@ -137,10 +144,9 @@ Json::Value lookupLedger (
         ledger = netOps.getLedgerBySeq (ledgerIndex);
 
         if (!ledger)
-            return make_error(rpcLGR_NOT_FOUND, "ledgerNotFound");
+            return {rpcLGR_NOT_FOUND, "ledgerNotFound"};
     }
 
-    Json::Value jsonResult;
     if (ledger->isClosed ())
     {
         if (ledgerHash != zero)
@@ -185,7 +191,19 @@ Json::Value lookupLedger (
         }
     }
 
-    return jsonResult;
+    return Status::OK;
+}
+
+Json::Value lookupLedger (
+    Json::Value const& params,
+    Ledger::pointer& ledger,
+    NetworkOPs& netOps)
+{
+    Json::Value value (Json::objectValue);
+    if (auto status = lookupLedger (params, ledger, netOps, value))
+        status.inject (value);
+
+    return value;
 }
 
 } // RPC

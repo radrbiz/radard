@@ -17,15 +17,16 @@
 */
 //==============================================================================
 
+#include <BeastConfig.h>
 
 namespace ripple {
 
 Json::Value doLedgerClosed (RPC::Context& context)
 {
-    uint256 uLedger = context.netOps_.getClosedLedgerHash ();
+    uint256 uLedger = context.netOps.getClosedLedgerHash ();
 
     Json::Value jvResult;
-    jvResult["ledger_index"] = context.netOps_.getLedgerID (uLedger);
+    jvResult["ledger_index"] = context.netOps.getLedgerID (uLedger);
     jvResult["ledger_hash"] = to_string (uLedger);
 
     return jvResult;

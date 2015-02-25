@@ -17,6 +17,7 @@
 */
 //==============================================================================
 
+#include <BeastConfig.h>
 
 namespace ripple {
 
@@ -28,7 +29,7 @@ Json::Value doValidationSeed (RPC::Context& context)
     auto lock = getApp().masterLock();
     Json::Value obj (Json::objectValue);
 
-    if (!context.params_.isMember ("secret"))
+    if (!context.params.isMember ("secret"))
     {
         std::cerr << "Unset validation seed." << std::endl;
 
@@ -37,7 +38,7 @@ Json::Value doValidationSeed (RPC::Context& context)
         getConfig ().VALIDATION_PRIV.clear ();
     }
     else if (!getConfig ().VALIDATION_SEED.setSeedGeneric (
-        context.params_["secret"].asString ()))
+        context.params["secret"].asString ()))
     {
         getConfig ().VALIDATION_PUB.clear ();
         getConfig ().VALIDATION_PRIV.clear ();

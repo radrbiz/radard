@@ -21,7 +21,9 @@
 #define BEAST_UTILITY_CI_CHAR_TRAITS_H_INCLUDED
 
 #include <beast/cxx14/algorithm.h> // <algorithm>
+#include <beast/cxx14/type_traits.h> // <type_traits>
 #include <cctype>
+#include <iterator>
 #include <locale>
 #include <string>
 
@@ -36,9 +38,11 @@ struct ci_less
     bool
     operator() (String const& lhs, String const& rhs) const
     {
-        typedef typename String::value_type char_type;
-        return std::lexicographical_compare (std::begin(lhs), std::end(lhs),
-            std::begin(rhs), std::end(rhs),
+        using std::begin;
+        using std::end;
+        using char_type = typename String::value_type;
+        return std::lexicographical_compare (
+            begin(lhs), end(lhs), begin(rhs), end(rhs),
             [] (char_type lhs, char_type rhs)
             {
                 return std::tolower(lhs) < std::tolower(rhs);
@@ -47,83 +51,21 @@ struct ci_less
     }
 };
 
-/** Case-insensitive function object for performing equal to comparisons. */
-struct ci_equal_to
+/** Returns `true` if strings are case-insensitive equal. */
+template <class Lhs, class Rhs>
+std::enable_if_t<std::is_same<typename Lhs::value_type, char>::value &&
+    std::is_same<typename Lhs::value_type, char>::value, bool>
+ci_equal(Lhs const& lhs, Rhs const& rhs)
 {
-    static bool const is_transparent = true;
-
-    template <class String>
-    bool
-    operator() (String const& lhs, String const& rhs) const
-    {
-        typedef typename String::value_type char_type;
-        return std::equal (lhs.begin(), lhs.end(), rhs.begin(), rhs.end(),
-            [] (char_type lhs, char_type rhs)
-            {
-                return std::tolower(lhs) == std::tolower(rhs);
-            }
-        );
-    }
-};
-
-// DEPRECATED VFALCO This causes far more problems than it solves!
-//
-/** Case insensitive character traits. */
-struct ci_char_traits : std::char_traits <char>
-{
-    static
-    bool
-    eq (char c1, char c2)
-    {
-        return ::toupper(c1) ==
-               ::toupper(c2);
-    }
-
-    static
-    bool
-    ne (char c1, char c2)
-    {
-        return ::toupper(c1) !=
-               ::toupper(c2);
-    }
-
-    static
-    bool
-    lt (char c1, char c2)
-    {
-        return ::toupper(c1) <
-               ::toupper(c2);
-    }
-
-    static
-    int
-    compare (char const* s1, char const* s2, std::size_t n)
-    {
-        while (n-- > 0)
+    using std::begin;
+    using std::end;
+    return std::equal (begin(lhs), end(lhs), begin(rhs), end(rhs),
+        [] (char lhs, char rhs)
         {
-            auto const comp (
-                int(::toupper(*s1++)) -
-                int(::toupper(*s2++)));
-            if (comp != 0)
-                return comp;
+            return std::tolower(lhs) == std::tolower(rhs);
         }
-        return 0;
-    }
-
-    static
-    char const*
-    find (char const* s, int n, char a)
-    {
-        auto const ua (::toupper(a));
-        for (;n--;)
-        {
-            if (::toupper(*s) == ua)
-                return s;
-            s++;
-        }
-        return nullptr;
-    }
-};
+    );
+}
 
 }
 

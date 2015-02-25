@@ -17,7 +17,9 @@
 */
 //==============================================================================
 
+#include <BeastConfig.h>
 #include <ripple/app/paths/cursor/RippleLiquidity.h>
+#include <ripple/basics/Log.h>
 
 namespace ripple {
 namespace path {
@@ -206,7 +208,7 @@ TER PathCursor::deliverNodeReverse (
             continue;
         }
         // Find out input amount actually available at current rate.
-		else if (!isXRP(previousNode().account_) && !isVBC(previousNode().account_))
+        else if (!isNative(previousNode().account_))
         {
             // account --> OFFER --> ?
             // Due to node expansion, previous is guaranteed to be the issuer.
@@ -291,7 +293,7 @@ TER PathCursor::deliverNodeReverse (
             WriteLog (lsWARNING, RippleCalc)
                 << "deliverNodeReverse: NEGATIVE:"
                 << " node().saTakerPaysNew=" << saTakerPaysNew
-                << " node().saTakerGetsNew=%s" << saTakerGetsNew;
+                << " node().saTakerGetsNew=" << saTakerGetsNew;
 
             resultCode = telFAILED_PROCESSING;
             break;

@@ -17,8 +17,26 @@
 */
 //==============================================================================
 
-#include <ripple/basics/RangeSet.h>
+#include <BeastConfig.h>
 #include <ripple/app/ledger/LedgerMaster.h>
+#include <ripple/app/ledger/InboundLedgers.h>
+#include <ripple/app/ledger/LedgerCleaner.h>
+#include <ripple/app/ledger/LedgerHistory.h>
+#include <ripple/app/ledger/LedgerHolder.h>
+#include <ripple/app/ledger/OrderBookDB.h>
+#include <ripple/app/main/Application.h>
+#include <ripple/app/misc/IHashRouter.h>
+#include <ripple/app/misc/NetworkOPs.h>
+#include <ripple/app/misc/CanonicalTXSet.h>
+#include <ripple/app/misc/SHAMapStore.h>
+#include <ripple/app/misc/Validations.h>
+#include <ripple/app/paths/PathRequests.h>
+#include <ripple/app/tx/TransactionEngine.h>
+#include <ripple/basics/Log.h>
+#include <ripple/basics/RangeSet.h>
+#include <ripple/core/LoadFeeTrack.h>
+#include <ripple/overlay/Overlay.h>
+#include <ripple/overlay/Peer.h>
 #include <ripple/validators/Manager.h>
 #include <algorithm>
 #include <cassert>
@@ -85,13 +103,14 @@ public:
 
     // How much history do we want to keep
     std::uint32_t const ledger_history_;
+    // Acquire past ledgers down to this ledger index
+    std::uint32_t const ledger_history_index_;
 
     int const ledger_fetch_size_;
 
     //--------------------------------------------------------------------------
 
-    LedgerMasterImp (bool standalone, std::uint32_t fetch_depth,
-        std::uint32_t ledger_history, int ledger_fetch_size, Stoppable& parent,
+    LedgerMasterImp (Config const& config, Stoppable& parent,
         beast::insight::Collector::ptr const& collector, beast::Journal journal)
         : LedgerMaster (parent)
         , m_journal (journal)
@@ -111,11 +130,21 @@ public:
         , mValidLedgerClose (0)
         , mValidLedgerSeq (0)
         , mBuildingLedgerSeq (0)
-        , standalone_ (standalone)
-        , fetch_depth_ (fetch_depth)
-        , ledger_history_ (ledger_history)
-        , ledger_fetch_size_ (ledger_fetch_size)
+        , standalone_ (config.RUN_STANDALONE)
+        , fetch_depth_ (getApp ().getSHAMapStore ().clampFetchDepth (config.FETCH_DEPTH))
+        , ledger_history_ (config.LEDGER_HISTORY)
+        , ledger_history_index_ (config.LEDGER_HISTORY_INDEX)
+        , ledger_fetch_size_ (config.getSize (siLedgerFetch))
     {
+        if (ledger_history_index_ != 0 &&
+            config.nodeDatabase["online_delete"].isNotEmpty () &&
+            config.nodeDatabase["online_delete"].getIntValue () > 0)
+        {
+            std::stringstream ss;
+            ss << "[node_db] online_delete option and [ledger_history_index]"
+                " cannot be configured at the same time.";
+            throw std::runtime_error (ss.str ());
+        }
     }
 
     ~LedgerMasterImp ()
@@ -194,6 +223,12 @@ public:
         mValidLedgerClose = l->getCloseTimeNC();
         mValidLedgerSeq = l->getLedgerSeq();
         getApp().getOPs().updateLocalTx (l);
+        getApp().getSHAMapStore().onLedgerClosed (getValidatedLedger());
+
+    #if RIPPLE_HOOK_VALIDATORS
+        getApp().getValidators().onLedgerClosed (l->getLedgerSeq(),
+            l->getHash(), l->getParentHash());
+    #endif
     }
 
     void setPubLedger(Ledger::ref l)
@@ -355,7 +390,7 @@ public:
         mBuildingLedgerSeq.store (i);
     }
 
-    TER doTransaction (SerializedTransaction::ref txn, TransactionEngineParams params, bool& didApply)
+    TER doTransaction (STTx::ref txn, TransactionEngineParams params, bool& didApply)
     {
         Ledger::pointer ledger;
         TransactionEngine engine;
@@ -660,15 +695,6 @@ public:
                 }
             }
         }
-
-        //--------------------------------------------------------------------------
-        //
-        {
-            if (isCurrent)
-                getApp ().getValidators ().on_ledger_closed (ledger->getHash());
-        }
-        //
-        //--------------------------------------------------------------------------
     }
 
     void failedSave(std::uint32_t seq, uint256 const& hash)
@@ -932,7 +958,8 @@ public:
                     }
                     WriteLog (lsTRACE, LedgerMaster) << "tryAdvance discovered missing " << missing;
                     if ((missing != RangeSet::absent) && (missing > 0) &&
-                        shouldAcquire(mValidLedgerSeq, ledger_history_, missing) &&
+                        shouldAcquire (mValidLedgerSeq, ledger_history_,
+                            ledger_history_index_, missing) &&
                         ((mFillInProgress == 0) || (missing > mFillInProgress)))
                     {
                         WriteLog (lsTRACE, LedgerMaster) << "advanceThread should acquire";
@@ -951,6 +978,14 @@ public:
                                             getApp().getInboundLedgers().findCreate(nextLedger->getParentHash(),
                                                                                     nextLedger->getLedgerSeq() - 1,
                                                                                     InboundLedger::fcHISTORY);
+                                        if (!acq)
+                                        {
+                                            // On system shutdown, findCreate may return a nullptr
+                                            WriteLog (lsTRACE, LedgerMaster)
+                                                    << "findCreate failed to return an inbound ledger";
+                                            return;
+                                        }
+
                                         if (acq->isComplete() && !acq->isFailed())
                                             ledger = acq->getLedger();
                                         else if ((missing > 40000) && getApp().getOPs().shouldFetchPack(missing))
@@ -1102,8 +1137,15 @@ public:
                         InboundLedger::pointer acq =
                             getApp().getInboundLedgers ().findCreate (hash, seq, InboundLedger::fcGENERIC);
 
-                        if (!acq->isDone ())
+                        if (!acq)
                         {
+                            // On system shutdown, findCreate may return a nullptr
+                            WriteLog (lsTRACE, LedgerMaster)
+                                << "findCreate failed to return an inbound ledger";
+                            return {};
+                        }
+
+                        if (!acq->isDone()) {
                         }
                         else if (acq->isComplete () && !acq->isFailed ())
                         {
@@ -1114,6 +1156,15 @@ public:
                             WriteLog (lsWARNING, LedgerMaster) << "Failed to acquire a published ledger";
                             getApp().getInboundLedgers().dropLedger(hash);
                             acq = getApp().getInboundLedgers().findCreate(hash, seq, InboundLedger::fcGENERIC);
+
+                            if (!acq)
+                            {
+                                // On system shutdown, findCreate may return a nullptr
+                                WriteLog (lsTRACE, LedgerMaster)
+                                    << "findCreate failed to return an inbound ledger";
+                                return {};
+                            }
+
                             if (acq->isComplete())
                             {
                                 if (acq->isFailed())
@@ -1479,6 +1530,21 @@ public:
     {
         return *mLedgerCleaner;
     }
+
+    void clearPriorLedgers (LedgerIndex seq) override
+    {
+        ScopedLockType sl (mCompleteLock);
+        for (LedgerIndex i = mCompleteLedgers.getFirst(); i < seq; ++i)
+        {
+            if (haveLedger (i))
+                clearLedger (i);
+        }
+    }
+
+    void clearLedgerCachePrior (LedgerIndex seq) override
+    {
+        mLedgerHistory.clearLedgerCachePrior (seq);
+    }
 };
 
 //------------------------------------------------------------------------------
@@ -1492,27 +1558,27 @@ LedgerMaster::~LedgerMaster ()
 {
 }
 
-bool LedgerMaster::shouldAcquire (
-    std::uint32_t currentLedger, std::uint32_t ledgerHistory, std::uint32_t candidateLedger)
+bool LedgerMaster::shouldAcquire (std::uint32_t currentLedger,
+    std::uint32_t ledgerHistory, std::uint32_t ledgerHistoryIndex,
+    std::uint32_t candidateLedger)
 {
-    bool ret;
+    bool ret (candidateLedger >= currentLedger ||
+        (ledgerHistoryIndex != 0 && candidateLedger >= ledgerHistoryIndex) ||
+        (currentLedger - candidateLedger) <= ledgerHistory);
 
-    if (candidateLedger >= currentLedger)
-        ret = true;
-    else
-        ret = (currentLedger - candidateLedger) <= ledgerHistory;
-
-    WriteLog (lsTRACE, LedgerMaster) << "Missing ledger " << candidateLedger << (ret ? " should" : " should NOT") << " be acquired";
+    WriteLog (lsTRACE, LedgerMaster)
+        << "Missing ledger "
+        << candidateLedger
+        << (ret ? " should" : " should NOT")
+        << " be acquired";
     return ret;
 }
 
 std::unique_ptr <LedgerMaster>
-make_LedgerMaster (bool standalone, std::uint32_t fetch_depth,
-    std::uint32_t ledger_history, int ledger_fetch_size, beast::Stoppable& parent,
+make_LedgerMaster (Config const& config, beast::Stoppable& parent,
     beast::insight::Collector::ptr const& collector, beast::Journal journal)
 {
-    return std::make_unique <LedgerMasterImp> (standalone, fetch_depth,
-        ledger_history, ledger_fetch_size, parent, collector, journal);
+    return std::make_unique <LedgerMasterImp> (config, parent, collector, journal);
 }
 
 } // ripple

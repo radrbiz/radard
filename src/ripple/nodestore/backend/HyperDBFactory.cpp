@@ -17,18 +17,30 @@
 */
 //==============================================================================
 
+#include <BeastConfig.h>
+
+#include <ripple/unity/hyperleveldb.h>
+
 #if RIPPLE_HYPERLEVELDB_AVAILABLE
 
-#include <ripple/core/Config.h>
-
+#include <ripple/core/Config.h> // VFALCO Bad dependency
+#include <ripple/nodestore/Factory.h>
+#include <ripple/nodestore/Manager.h>
+#include <ripple/nodestore/impl/BatchWriter.h>
+#include <ripple/nodestore/impl/DecodedBlob.h>
+#include <ripple/nodestore/impl/EncodedBlob.h>
+#include <beast/cxx14/memory.h> // <memory>
+    
 namespace ripple {
 namespace NodeStore {
 
 class HyperDBBackend
     : public Backend
     , public BatchWriter::Callback
-    , public beast::LeakChecked <HyperDBBackend>
 {
+private:
+    std::atomic <bool> m_deletePath;
+
 public:
     beast::Journal m_journal;
     size_t const m_keyBytes;
@@ -40,7 +52,8 @@ public:
 
     HyperDBBackend (size_t keyBytes, Parameters const& keyValues,
         Scheduler& scheduler, beast::Journal journal)
-        : m_journal (journal)
+        : m_deletePath (false)
+        , m_journal (journal)
         , m_keyBytes (keyBytes)
         , m_scheduler (scheduler)
         , m_batch (*this, scheduler)
@@ -88,12 +101,27 @@ public:
 
     ~HyperDBBackend ()
     {
+        close();
     }
 
     std::string
     getName()
     {
         return m_name;
+    }
+
+    void
+    close() override
+    {
+        if (m_db)
+        {
+            m_db.reset();
+            if (m_deletePath)
+            {
+                boost::filesystem::path dir = m_name;
+                boost::filesystem::remove_all (dir);
+            }
+        }
     }
 
     //--------------------------------------------------------------------------
@@ -219,12 +247,23 @@ public:
         return m_batch.getWriteLoad ();
     }
 
+    void
+    setDeletePath() override
+    {
+        m_deletePath = true;
+    }
+
     //--------------------------------------------------------------------------
 
     void
     writeBatch (Batch const& batch)
     {
         storeBatch (batch);
+    }
+
+    void
+    verify() override
+    {
     }
 };
 
@@ -233,6 +272,16 @@ public:
 class HyperDBFactory : public NodeStore::Factory
 {
 public:
+    HyperDBFactory()
+    {
+        Manager::instance().insert(*this);
+    }
+
+    ~HyperDBFactory()
+    {
+        Manager::instance().erase(*this);
+    }
+
     std::string
     getName () const
     {
@@ -251,13 +300,7 @@ public:
     }
 };
 
-//------------------------------------------------------------------------------
-
-std::unique_ptr <Factory>
-make_HyperDBFactory ()
-{
-    return std::make_unique <HyperDBFactory> ();
-}
+static HyperDBFactory hyperDBFactory;
 
 }
 }

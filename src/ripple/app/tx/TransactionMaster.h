@@ -20,23 +20,28 @@
 #ifndef __TRANSACTIONMASTER__
 #define __TRANSACTIONMASTER__
 
+#include <ripple/app/tx/Transaction.h>
+#include <ripple/shamap/SHAMapItem.h>
+#include <ripple/shamap/SHAMapTreeNode.h>
+
 namespace ripple {
 
 // Tracks all transactions in memory
 
-class TransactionMaster : beast::LeakChecked <TransactionMaster>
+class TransactionMaster
 {
 public:
     TransactionMaster ();
 
     Transaction::pointer            fetch (uint256 const& , bool checkDisk);
-    SerializedTransaction::pointer  fetch (SHAMapItem::ref item, SHAMapTreeNode:: TNType type,
+    STTx::pointer  fetch (SHAMapItem::ref item, SHAMapTreeNode:: TNType type,
                                            bool checkDisk, std::uint32_t uCommitLedger);
 
     // return value: true = we had the transaction already
     bool inLedger (uint256 const& hash, std::uint32_t ledger);
     bool canonicalize (Transaction::pointer* pTransaction);
     void sweep (void);
+    TaggedCache <uint256, Transaction>& getCache();
 
 private:
     TaggedCache <uint256, Transaction> mCache;

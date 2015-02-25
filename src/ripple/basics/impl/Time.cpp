@@ -17,6 +17,9 @@
 */
 //==============================================================================
 
+#include <BeastConfig.h>
+#include <ripple/basics/Time.h>
+
 namespace ripple {
 
 // VFALCO TODO Tidy this up into a RippleTime object

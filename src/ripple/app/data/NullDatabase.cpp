@@ -1,3 +1,5 @@
+#include <ripple/app/data/NullDatabase.h>
+
 namespace ripple {
 NullDatabase::NullDatabase()
     : Database("null")

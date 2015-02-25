@@ -17,6 +17,12 @@
 */
 //==============================================================================
 
+#include <BeastConfig.h>
+#include <ripple/app/transactors/Transactor.h>
+#include <ripple/basics/Log.h>
+#include <ripple/protocol/Indexes.h>
+#include <ripple/protocol/TxFlags.h>
+
 namespace ripple {
 
 class AddWallet
@@ -24,7 +30,7 @@ class AddWallet
 {
 public:
     AddWallet (
-        SerializedTransaction const& txn,
+        STTx const& txn,
         TransactionEngineParams params,
         TransactionEngine* engine)
         : Transactor (
@@ -67,7 +73,7 @@ public:
         }
 
         SLE::pointer sleDst (mEngine->entryCache (
-            ltACCOUNT_ROOT, Ledger::getAccountRootIndex (uDstAccountID)));
+            ltACCOUNT_ROOT, getAccountRootIndex (uDstAccountID)));
 
         if (sleDst)
         {
@@ -118,7 +124,7 @@ public:
 		mTxnAccount->setFieldAmount (sfBalanceVBC, saSrcBalanceVBC - saDstAmount);
         // Create the account.
         sleDst  = mEngine->entryCreate (ltACCOUNT_ROOT,
-            Ledger::getAccountRootIndex (uDstAccountID));
+            getAccountRootIndex (uDstAccountID));
 
         sleDst->setFieldAccount (sfAccount, uDstAccountID);
         sleDst->setFieldU32 (sfSequence, 1);
@@ -132,7 +138,7 @@ public:
 
 TER
 transact_AddWallet (
-    SerializedTransaction const& txn,
+    STTx const& txn,
     TransactionEngineParams params,
     TransactionEngine* engine)
 {

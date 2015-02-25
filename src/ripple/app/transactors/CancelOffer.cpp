@@ -17,6 +17,12 @@
 */
 //==============================================================================
 
+#include <BeastConfig.h>
+#include <ripple/app/transactors/Transactor.h>
+#include <ripple/basics/Log.h>
+#include <ripple/protocol/Indexes.h>
+#include <ripple/protocol/TxFlags.h>
+
 namespace ripple {
 
 class CancelOffer
@@ -24,7 +30,7 @@ class CancelOffer
 {
 public:
     CancelOffer (
-        SerializedTransaction const& txn,
+        STTx const& txn,
         TransactionEngineParams params,
         TransactionEngine* engine)
         : Transactor (
@@ -62,11 +68,9 @@ public:
             return temBAD_SEQUENCE;
         }
 
-        uint256 const offerIndex (
-            Ledger::getOfferIndex (mTxnAccountID, uOfferSequence));
+        uint256 const offerIndex (getOfferIndex (mTxnAccountID, uOfferSequence));
 
-        SLE::pointer sleOffer (
-            mEngine->entryCache (ltOFFER, offerIndex));
+        SLE::pointer sleOffer (mEngine->entryCache (ltOFFER, offerIndex));
 
         if (sleOffer)
         {
@@ -88,7 +92,7 @@ public:
 
 TER
 transact_CancelOffer (
-    SerializedTransaction const& txn,
+    STTx const& txn,
     TransactionEngineParams params,
     TransactionEngine* engine)
 {

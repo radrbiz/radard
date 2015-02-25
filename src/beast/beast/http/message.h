@@ -21,7 +21,6 @@
 #define BEAST_HTTP_MESSAGE_H_INCLUDED
 
 #include <beast/http/basic_parser.h>
-#include <beast/http/body.h>
 #include <beast/http/method.h>
 #include <beast/http/headers.h>
 #include <beast/utility/ci_char_traits.h>
@@ -31,10 +30,25 @@
 #include <cctype>
 #include <ostream>
 #include <string>
+#include <sstream>
 #include <utility>
 
 namespace beast {
 namespace http {
+
+inline
+std::pair<int, int>
+http_1_0()
+{
+    return std::pair<int, int>(1, 0);
+}
+
+inline
+std::pair<int, int>
+http_1_1()
+{
+    return std::pair<int, int>(1, 1);
+}
 
 class message
 {
@@ -72,9 +86,8 @@ public:
 
 #endif
 
-    // Memberspaces
+    // Memberspace
     beast::http::headers headers;
-    beast::http::body body;
 
     bool
     request() const
@@ -180,6 +193,12 @@ public:
         version_ = std::make_pair (major, minor);
     }
 
+    void
+    version (std::pair<int, int> p)
+    {
+        version_ = p;
+    }
+
     std::pair<int, int>
     version() const
     {
@@ -213,7 +232,6 @@ message::message (message&& other)
     , keep_alive_ (other.keep_alive_)
     , upgrade_ (other.upgrade_)
     , headers (std::move(other.headers))
-    , body (std::move(other.body))
 {
 }
 
@@ -230,33 +248,15 @@ message::operator= (message&& other)
     keep_alive_ = other.keep_alive_;
     upgrade_ = other.upgrade_;
     headers = std::move(other.headers);
-    body = std::move(other.body);
     return *this;    
 }
 #endif
 
 //------------------------------------------------------------------------------
 
-template <class AsioStreamBuf>
+template <class Streambuf>
 void
-write (AsioStreamBuf& stream, std::string const& s)
-{
-    stream.commit (boost::asio::buffer_copy (
-        stream.prepare (s.size()), boost::asio::buffer(s)));
-}
-
-template <class AsioStreamBuf>
-void
-write (AsioStreamBuf& stream, char const* s)
-{
-    auto const len (::strlen(s));
-    stream.commit (boost::asio::buffer_copy (
-        stream.prepare (len), boost::asio::buffer (s, len)));
-}
-
-template <class AsioStreamBuf>
-void
-write (AsioStreamBuf& stream, message const& m)
+write (Streambuf& stream, message const& m)
 {
     if (m.request())
     {
@@ -280,13 +280,7 @@ write (AsioStreamBuf& stream, message const& m)
         write (stream, m.reason());
     }
     write (stream, "\r\n");
-    for (auto const& header : m.headers)
-    {
-        write (stream, header.field);
-        write (stream, ": ");
-        write (stream, header.value);
-        write (stream, "\r\n");
-    }
+    write(stream, m.headers);
     write (stream, "\r\n");
 }
 

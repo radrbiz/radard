@@ -19,15 +19,11 @@
 
 #include <BeastConfig.h>
 
-#include <ripple/unity/app.h>
-
 #include <ripple/app/book/impl/BookTip.cpp>
 #include <ripple/app/book/impl/OfferStream.cpp>
 #include <ripple/app/book/impl/Quality.cpp>
 #include <ripple/app/book/impl/Taker.cpp>
-
 #include <ripple/app/transactors/Transactor.cpp>
-
 #include <ripple/app/transactors/Change.cpp>
 #include <ripple/app/transactors/Dividend.cpp>
 #include <ripple/app/transactors/CancelOffer.cpp>

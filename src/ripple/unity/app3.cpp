@@ -19,10 +19,6 @@
 
 #include <BeastConfig.h>
 
-#include <ripple/unity/app.h>
-
 #include <ripple/app/ledger/Ledger.cpp>
-#include <ripple/app/shamap/SHAMapDelta.cpp>
-#include <ripple/app/shamap/SHAMapNodeID.cpp>
-#include <ripple/app/shamap/SHAMapTreeNode.cpp>
+#include <ripple/app/ledger/Ledger.test.cpp>
 #include <ripple/app/misc/AccountState.cpp>

@@ -271,14 +271,6 @@ public:
     Time& operator-= (RelativeTime delta);
 
     //==============================================================================
-    /** Tries to set the computer's clock.
-
-        @returns    true if this succeeds, although depending on the system, the
-                    application might not have sufficient privileges to do this.
-    */
-    bool setSystemTimeToThisTime() const;
-
-    //==============================================================================
     /** Returns the name of a day of the week.
 
         @param dayNumber            the day, 0 to 6 (0 = sunday, 1 = monday, etc)
@@ -331,12 +323,6 @@ public:
         @see getMillisecondCounter
     */
     static double getMillisecondCounterHiRes() noexcept;
-
-    /** Waits until the getMillisecondCounter() reaches a given value.
-
-        This will make the thread sleep as efficiently as it can while it's waiting.
-    */
-    static void waitForMillisecondCounter (std::uint32_t targetTime) noexcept;
 
     /** Less-accurate but faster version of getMillisecondCounter().
 

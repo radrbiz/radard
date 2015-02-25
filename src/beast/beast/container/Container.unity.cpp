@@ -21,10 +21,5 @@
 #include <BeastConfig.h>
 #endif
 
-#include <beast/container/impl/spookyv2.cpp>
-#include <beast/container/impl/siphash.cpp>
-
 #include <beast/container/tests/aged_associative_container.test.cpp>
 #include <beast/container/tests/buffer_view.test.cpp>
-#include <beast/container/tests/hardened_hash.test.cpp>
-#include <beast/container/tests/hash_append.test.cpp>

@@ -17,6 +17,7 @@
 */
 //==============================================================================
 
+#include <BeastConfig.h>
 #include <ripple/rpc/impl/Handler.h>
 #include <ripple/rpc/handlers/Handlers.h>
 
@@ -24,11 +25,47 @@ namespace ripple {
 namespace RPC {
 namespace {
 
+/** Adjust an old-style handler to be call-by-reference. */
+template <typename Function>
+Handler::Method<Json::Value> byRef (Function const& f)
+{
+    return [f] (Context& context, Json::Value& result)
+    {
+        result = f (context);
+        if (result.type() != Json::objectValue)
+        {
+            assert (false);
+            result = RPC::makeObjectValue (result);
+        }
+
+        return Status();
+    };
+}
+
+template <class Object, class HandlerImpl>
+Status handle (Context& context, Object& object)
+{
+    HandlerImpl handler (context);
+
+    auto status = handler.check ();
+    if (status)
+        status.inject (object);
+    else
+        handler.writeResult (object);
+    return status;
+};
+
 class HandlerTable {
   public:
-    HandlerTable(std::vector<Handler> const& entries) {
+    HandlerTable (std::vector<Handler> const& entries) {
         for (auto& entry: entries)
+        {
+            assert (table_.find(entry.name_) == table_.end());
             table_[entry.name_] = entry;
+    }
+
+        // This is where the new-style handlers are added.
+        addHandler<LedgerHandler>();
     }
 
     const Handler* getHandler(std::string name) {
@@ -38,78 +75,90 @@ class HandlerTable {
 
   private:
     std::map<std::string, Handler> table_;
+
+    template <class HandlerImpl>
+    void addHandler()
+    {
+        assert (table_.find(HandlerImpl::name()) == table_.end());
+
+        Handler h;
+        h.name_ = HandlerImpl::name(),
+        h.valueMethod_ = &handle<Json::Value, HandlerImpl>,
+        h.role_ = HandlerImpl::role(),
+        h.condition_ = HandlerImpl::condition(),
+        h.objectMethod_ = &handle<Object, HandlerImpl>;
+
+        table_[HandlerImpl::name()] = h;
+    };
 };
 
 HandlerTable HANDLERS({
     // Request-response methods
-    {   "account_info",         &doAccountInfo,         Config::USER,  NEEDS_CURRENT_LEDGER  },
-    {   "account_currencies",   &doAccountCurrencies,   Config::USER,  NEEDS_CURRENT_LEDGER  },
-    {   "account_lines",        &doAccountLines,        Config::USER,  NEEDS_CURRENT_LEDGER  },
-    {   "account_offers",       &doAccountOffers,       Config::USER,  NEEDS_CURRENT_LEDGER  },
-    {   "account_tx",           &doAccountTxSwitch,     Config::USER,  NEEDS_NETWORK_CONNECTION  },
-    {   "blacklist",            &doBlackList,           Config::ADMIN,   NO_CONDITION     },
-    {   "book_offers",          &doBookOffers,          Config::USER,  NEEDS_CURRENT_LEDGER  },
-    {   "connect",              &doConnect,             Config::ADMIN,   NO_CONDITION     },
-    {   "consensus_info",       &doConsensusInfo,       Config::ADMIN,   NO_CONDITION     },
-    {   "get_counts",           &doGetCounts,           Config::ADMIN,   NO_CONDITION     },
-    {   "internal",             &doInternal,            Config::ADMIN,   NO_CONDITION     },
-    {   "feature",              &doFeature,             Config::ADMIN,   NO_CONDITION     },
-    {   "fetch_info",           &doFetchInfo,           Config::ADMIN,   NO_CONDITION     },
-    {   "ledger",               &doLedger,              Config::USER,  NEEDS_NETWORK_CONNECTION  },
-    {   "ledger_accept",        &doLedgerAccept,        Config::ADMIN,   NEEDS_CURRENT_LEDGER  },
-    {   "ledger_cleaner",       &doLedgerCleaner,       Config::ADMIN,   NEEDS_NETWORK_CONNECTION  },
-    {   "ledger_closed",        &doLedgerClosed,        Config::USER,  NEEDS_CLOSED_LEDGER   },
-    {   "ledger_current",       &doLedgerCurrent,       Config::USER,  NEEDS_CURRENT_LEDGER  },
-    {   "ledger_data",          &doLedgerData,          Config::USER,  NEEDS_CURRENT_LEDGER  },
-    {   "ledger_entry",         &doLedgerEntry,         Config::USER,  NEEDS_CURRENT_LEDGER  },
-    {   "ledger_header",        &doLedgerHeader,        Config::USER,  NEEDS_CURRENT_LEDGER  },
-    {   "ledger_request",       &doLedgerRequest,       Config::ADMIN,   NO_CONDITION     },
-    {   "dividend_object",      &doDividendObject,      Config::USER,   NEEDS_NETWORK_CONNECTION },
-    {   "account_dividend",     &doAccountDividend,     Config::USER,   NEEDS_NETWORK_CONNECTION },
-    {   "ancestors",            &doAncestors,           Config::USER,   NEEDS_NETWORK_CONNECTION },
-    {   "log_level",            &doLogLevel,            Config::ADMIN,   NO_CONDITION     },
-    {   "logrotate",            &doLogRotate,           Config::ADMIN,   NO_CONDITION     },
-    {   "owner_info",           &doOwnerInfo,           Config::USER,  NEEDS_CURRENT_LEDGER  },
-    {   "peers",                &doPeers,               Config::ADMIN,   NO_CONDITION     },
-    {   "path_find",            &doPathFind,            Config::USER,  NEEDS_CURRENT_LEDGER  },
-    {   "ping",                 &doPing,                Config::USER,  NO_CONDITION     },
-    {   "print",                &doPrint,               Config::ADMIN,   NO_CONDITION     },
-//      {   "profile",              &doProfile,             Config::USER,  NEEDS_CURRENT_LEDGER  },
-    {   "proof_create",         &doProofCreate,         Config::ADMIN,   NO_CONDITION     },
-    {   "proof_solve",          &doProofSolve,          Config::ADMIN,   NO_CONDITION     },
-    {   "proof_verify",         &doProofVerify,         Config::ADMIN,   NO_CONDITION     },
-    {   "random",               &doRandom,              Config::USER,  NO_CONDITION     },
-    {   "ripple_path_find",     &doRipplePathFind,      Config::USER,  NEEDS_CURRENT_LEDGER  },
-    {   "sign",                 &doSign,                Config::USER,  NO_CONDITION     },
-    {   "submit",               &doSubmit,              Config::USER,  NEEDS_CURRENT_LEDGER  },
-    {   "server_info",          &doServerInfo,          Config::USER,  NO_CONDITION     },
-    {   "server_state",         &doServerState,         Config::USER,  NO_CONDITION     },
-    {   "sms",                  &doSMS,                 Config::ADMIN,   NO_CONDITION     },
-    {   "stop",                 &doStop,                Config::ADMIN,   NO_CONDITION     },
-    {   "transaction_entry",    &doTransactionEntry,    Config::USER,  NEEDS_CURRENT_LEDGER  },
-    {   "tx",                   &doTx,                  Config::USER,  NEEDS_NETWORK_CONNECTION  },
-    {   "tx_history",           &doTxHistory,           Config::USER,  NO_CONDITION     },
-    {   "unl_add",              &doUnlAdd,              Config::ADMIN,   NO_CONDITION     },
-    {   "unl_delete",           &doUnlDelete,           Config::ADMIN,   NO_CONDITION     },
-    {   "unl_list",             &doUnlList,             Config::ADMIN,   NO_CONDITION     },
-    {   "unl_load",             &doUnlLoad,             Config::ADMIN,   NO_CONDITION     },
-    {   "unl_network",          &doUnlNetwork,          Config::ADMIN,   NO_CONDITION     },
-    {   "unl_reset",            &doUnlReset,            Config::ADMIN,   NO_CONDITION     },
-    {   "unl_score",            &doUnlScore,            Config::ADMIN,   NO_CONDITION     },
-    {   "validation_create",    &doValidationCreate,    Config::ADMIN,   NO_CONDITION     },
-    {   "validation_seed",      &doValidationSeed,      Config::ADMIN,   NO_CONDITION     },
-    {   "wallet_accounts",      &doWalletAccounts,      Config::USER,  NEEDS_CURRENT_LEDGER  },
-    {   "wallet_propose",       &doWalletPropose,       Config::ADMIN,   NO_CONDITION     },
-    {   "wallet_seed",          &doWalletSeed,          Config::ADMIN,   NO_CONDITION     },
+    {   "account_info",         byRef (&doAccountInfo),         Role::USER,  NEEDS_CURRENT_LEDGER  },
+    {   "account_currencies",   byRef (&doAccountCurrencies),   Role::USER,  NEEDS_CURRENT_LEDGER  },
+    {   "account_lines",        byRef (&doAccountLines),        Role::USER,  NEEDS_CURRENT_LEDGER  },
+    {   "account_offers",       byRef (&doAccountOffers),       Role::USER,  NEEDS_CURRENT_LEDGER  },
+    {   "account_tx",           byRef (&doAccountTxSwitch),     Role::USER,  NEEDS_NETWORK_CONNECTION  },
+    {   "blacklist",            byRef (&doBlackList),           Role::ADMIN,   NO_CONDITION     },
+    {   "book_offers",          byRef (&doBookOffers),          Role::USER,  NEEDS_CURRENT_LEDGER  },
+    {   "can_delete",           byRef (&doCanDelete),           Role::ADMIN,   NO_CONDITION     },
+    {   "connect",              byRef (&doConnect),             Role::ADMIN,   NO_CONDITION     },
+    {   "consensus_info",       byRef (&doConsensusInfo),       Role::ADMIN,   NO_CONDITION     },
+    {   "get_counts",           byRef (&doGetCounts),           Role::ADMIN,   NO_CONDITION     },
+    {   "internal",             byRef (&doInternal),            Role::ADMIN,   NO_CONDITION     },
+    {   "feature",              byRef (&doFeature),             Role::ADMIN,   NO_CONDITION     },
+    {   "fetch_info",           byRef (&doFetchInfo),           Role::ADMIN,   NO_CONDITION     },
+    {   "ledger_accept",        byRef (&doLedgerAccept),        Role::ADMIN,   NEEDS_CURRENT_LEDGER  },
+    {   "ledger_cleaner",       byRef (&doLedgerCleaner),       Role::ADMIN,   NEEDS_NETWORK_CONNECTION  },
+    {   "ledger_closed",        byRef (&doLedgerClosed),        Role::USER,  NEEDS_CLOSED_LEDGER   },
+    {   "ledger_current",       byRef (&doLedgerCurrent),       Role::USER,  NEEDS_CURRENT_LEDGER  },
+    {   "ledger_data",          byRef (&doLedgerData),          Role::USER,  NEEDS_CURRENT_LEDGER  },
+    {   "ledger_entry",         byRef (&doLedgerEntry),         Role::USER,  NEEDS_CURRENT_LEDGER  },
+    {   "ledger_header",        byRef (&doLedgerHeader),        Role::USER,  NEEDS_CURRENT_LEDGER  },
+    {   "ledger_request",       byRef (&doLedgerRequest),       Role::ADMIN,   NO_CONDITION     },
+    {   "dividend_object",      byRef (&doDividendObject),      Role::USER,   NEEDS_NETWORK_CONNECTION },
+    {   "account_dividend",     byRef (&doAccountDividend),     Role::USER,   NEEDS_NETWORK_CONNECTION },
+    {   "ancestors",            byRef (&doAncestors),           Role::USER,   NEEDS_NETWORK_CONNECTION },
+    {   "log_level",            byRef (&doLogLevel),            Role::ADMIN,   NO_CONDITION     },
+    {   "logrotate",            byRef (&doLogRotate),           Role::ADMIN,   NO_CONDITION     },
+    {   "owner_info",           byRef (&doOwnerInfo),           Role::USER,  NEEDS_CURRENT_LEDGER  },
+    {   "peers",                byRef (&doPeers),               Role::ADMIN,   NO_CONDITION     },
+    {   "path_find",            byRef (&doPathFind),            Role::USER,  NEEDS_CURRENT_LEDGER  },
+    {   "ping",                 byRef (&doPing),                Role::USER,  NO_CONDITION     },
+    {   "print",                byRef (&doPrint),               Role::ADMIN,   NO_CONDITION     },
+//      {   "profile",              byRef (&doProfile),             Role::USER,  NEEDS_CURRENT_LEDGER  },
+    {   "random",               byRef (&doRandom),              Role::USER,  NO_CONDITION     },
+    {   "ripple_path_find",     byRef (&doRipplePathFind),      Role::USER,  NEEDS_CURRENT_LEDGER  },
+    {   "sign",                 byRef (&doSign),                Role::USER,  NO_CONDITION     },
+    {   "submit",               byRef (&doSubmit),              Role::USER,  NEEDS_CURRENT_LEDGER  },
+    {   "server_info",          byRef (&doServerInfo),          Role::USER,  NO_CONDITION     },
+    {   "server_state",         byRef (&doServerState),         Role::USER,  NO_CONDITION     },
+    {   "sms",                  byRef (&doSMS),                 Role::ADMIN,   NO_CONDITION     },
+    {   "stop",                 byRef (&doStop),                Role::ADMIN,   NO_CONDITION     },
+    {   "transaction_entry",    byRef (&doTransactionEntry),    Role::USER,  NEEDS_CURRENT_LEDGER  },
+    {   "tx",                   byRef (&doTx),                  Role::USER,  NEEDS_NETWORK_CONNECTION  },
+    {   "tx_history",           byRef (&doTxHistory),           Role::USER,  NO_CONDITION     },
+    {   "unl_add",              byRef (&doUnlAdd),              Role::ADMIN,   NO_CONDITION     },
+    {   "unl_delete",           byRef (&doUnlDelete),           Role::ADMIN,   NO_CONDITION     },
+    {   "unl_list",             byRef (&doUnlList),             Role::ADMIN,   NO_CONDITION     },
+    {   "unl_load",             byRef (&doUnlLoad),             Role::ADMIN,   NO_CONDITION     },
+    {   "unl_network",          byRef (&doUnlNetwork),          Role::ADMIN,   NO_CONDITION     },
+    {   "unl_reset",            byRef (&doUnlReset),            Role::ADMIN,   NO_CONDITION     },
+    {   "unl_score",            byRef (&doUnlScore),            Role::ADMIN,   NO_CONDITION     },
+    {   "validation_create",    byRef (&doValidationCreate),    Role::ADMIN,   NO_CONDITION     },
+    {   "validation_seed",      byRef (&doValidationSeed),      Role::ADMIN,   NO_CONDITION     },
+    {   "wallet_accounts",      byRef (&doWalletAccounts),      Role::USER,  NEEDS_CURRENT_LEDGER  },
+    {   "wallet_propose",       byRef (&doWalletPropose),       Role::ADMIN,   NO_CONDITION     },
+    {   "wallet_seed",          byRef (&doWalletSeed),          Role::ADMIN,   NO_CONDITION     },
 
     // Evented methods
-    {   "subscribe",            &doSubscribe,           Config::USER,  NO_CONDITION     },
-    {   "unsubscribe",          &doUnsubscribe,         Config::USER,  NO_CONDITION     },
+    {   "subscribe",            byRef (&doSubscribe),           Role::USER,  NO_CONDITION     },
+    {   "unsubscribe",          byRef (&doUnsubscribe),         Role::USER,  NO_CONDITION     },
 });
 
 } // namespace
 
-const Handler* getHandler(std::string name) {
+const Handler* getHandler(std::string const& name) {
     return HANDLERS.getHandler(name);
 }
 

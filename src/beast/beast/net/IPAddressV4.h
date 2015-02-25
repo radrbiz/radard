@@ -20,7 +20,7 @@
 #ifndef BEAST_NET_IPADDRESSV4_H_INCLUDED
 #define BEAST_NET_IPADDRESSV4_H_INCLUDED
 
-#include <beast/container/hash_append.h>
+#include <beast/hash/hash_append.h>
 
 #include <cstdint>
 #include <functional>
@@ -140,7 +140,7 @@ struct AddressV4
 
     Proxy <true> operator[] (std::size_t index) const;
     Proxy <false> operator[] (std::size_t index);
-    /** @{ */
+    /** @} */
 
     /** The value as a 32 bit unsigned. */
     std::uint32_t value;

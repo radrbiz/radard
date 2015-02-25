@@ -19,15 +19,10 @@
 
 #include <BeastConfig.h>
 
-#include <ripple/unity/app.h>
-
 #ifdef _MSC_VER
 #pragma warning (push)
 #pragma warning (disable: 4309) // truncation of constant value
 #endif
-
-#include <ripple/rpc/ErrorCodes.h>
-
 #include <ripple/app/paths/Node.cpp>
 #include <ripple/app/paths/PathRequest.cpp>
 #include <ripple/app/paths/PathRequests.cpp>
@@ -44,9 +39,7 @@
 #include <ripple/app/paths/cursor/ReverseLiquidityForAccount.cpp>
 #include <ripple/app/paths/cursor/RippleLiquidity.cpp>
 
-#include <ripple/app/main/ParameterTable.cpp>
 #include <ripple/app/paths/RippleLineCache.cpp>
-#include <ripple/app/ledger/SerializedValidation.cpp>
 
 #ifdef _MSC_VER
 #pragma warning (pop)
