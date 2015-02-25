@@ -82,7 +82,7 @@ class Git(object):
         self.exists = env.Detect('git')
         if self.exists:
             try:
-                self.tags = _execute('git describe --always --dirty')
+                self.tags = _execute('git describe --tags --always --dirty')
                 self.branch = _execute('git rev-parse --abbrev-ref HEAD')
                 remote = _execute('git config remote.origin.url')
                 self.user = remote.split(':')[1].split('/')[0]
