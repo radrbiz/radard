@@ -47,6 +47,8 @@
 		34DD1F891A89C23400F3F599 /* protocol.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 52A23FE21A7A4501009BB3F0 /* protocol.cpp */; };
 		34DD1F8A1A89C23A00F3F599 /* server.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 52A23FE91A7A4501009BB3F0 /* server.cpp */; };
 		34DD1F8B1A89C2EA00F3F599 /* hash_unity.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 529087BB1A7F1BE8008CB1B9 /* hash_unity.cpp */; };
+		525A39B51A9DC46E00847815 /* lz4.c in Sources */ = {isa = PBXBuildFile; fileRef = 525A39B41A9DC46E00847815 /* lz4.c */; };
+		525A39B61A9DC46E00847815 /* lz4.c in Sources */ = {isa = PBXBuildFile; fileRef = 525A39B41A9DC46E00847815 /* lz4.c */; };
 		529087BC1A7F1BE8008CB1B9 /* hash_unity.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 529087BB1A7F1BE8008CB1B9 /* hash_unity.cpp */; };
 		52A23FF11A7A4543009BB3F0 /* protocol.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 52A23FE21A7A4501009BB3F0 /* protocol.cpp */; };
 		52A23FF21A7A4543009BB3F0 /* server.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 52A23FE91A7A4501009BB3F0 /* server.cpp */; };
@@ -137,6 +139,7 @@
 		34373C821A7B770400487CE0 /* libmysqlclient.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libmysqlclient.a; path = /usr/local/lib/libmysqlclient.a; sourceTree = "<absolute>"; };
 		3493343D1A3FE05000418C3F /* beast */ = {isa = PBXFileReference; lastKnownFileType = folder; name = beast; path = ../../src/beast; sourceTree = "<group>"; };
 		3493343F1A3FE05000418C3F /* ripple */ = {isa = PBXFileReference; lastKnownFileType = folder; name = ripple; path = ../../src/ripple; sourceTree = "<group>"; };
+		525A39B41A9DC46E00847815 /* lz4.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = lz4.c; path = ../../src/ripple/unity/lz4.c; sourceTree = "<group>"; };
 		529087BB1A7F1BE8008CB1B9 /* hash_unity.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = hash_unity.cpp; path = ../../src/beast/beast/unity/hash_unity.cpp; sourceTree = "<group>"; };
 		52A23FD51A7A4501009BB3F0 /* crypto.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = crypto.cpp; path = ../../src/ripple/unity/crypto.cpp; sourceTree = "<group>"; };
 		52A23FE21A7A4501009BB3F0 /* protocol.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = protocol.cpp; path = ../../src/ripple/unity/protocol.cpp; sourceTree = "<group>"; };
@@ -200,6 +203,7 @@
 		3493343C1A3FDFF900418C3F /* build */ = {
 			isa = PBXGroup;
 			children = (
+				525A39B41A9DC46E00847815 /* lz4.c */,
 				8424480E1A13B30300A37710 /* app.cpp */,
 				842448101A13B30300A37710 /* app1.cpp */,
 				842448111A13B30300A37710 /* app2.cpp */,
@@ -341,6 +345,7 @@
 				34373C561A7B767A00487CE0 /* ripple.proto in Sources */,
 				34373C571A7B767A00487CE0 /* app.cpp in Sources */,
 				34373C581A7B767A00487CE0 /* app1.cpp in Sources */,
+				525A39B61A9DC46E00847815 /* lz4.c in Sources */,
 				34373C591A7B767A00487CE0 /* app2.cpp in Sources */,
 				34373C5A1A7B767A00487CE0 /* app3.cpp in Sources */,
 				34373C5B1A7B767A00487CE0 /* app4.cpp in Sources */,
@@ -386,6 +391,7 @@
 				3414533F1A19D8390005FD6D /* ripple.proto in Sources */,
 				84244BB21A13B36C00A37710 /* app.cpp in Sources */,
 				84244BB31A13B36C00A37710 /* app1.cpp in Sources */,
+				525A39B51A9DC46E00847815 /* lz4.c in Sources */,
 				84244BB41A13B36C00A37710 /* app2.cpp in Sources */,
 				84244BB51A13B36C00A37710 /* app3.cpp in Sources */,
 				84244BB61A13B36C00A37710 /* app4.cpp in Sources */,
