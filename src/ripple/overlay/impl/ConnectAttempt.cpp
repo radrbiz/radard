@@ -207,9 +207,6 @@ ConnectAttempt::onHandshake (error_code ec)
             beast::IPAddressConversion::from_asio (local_endpoint)))
         return fail("Duplicate connection");
 
-    if (! overlay_.setup().http_handshake)
-        return doLegacy();
-
     bool success;
     uint256 sharedValue;
     std::tie(sharedValue, success) = makeSharedValue(
