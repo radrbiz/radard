@@ -24,6 +24,7 @@
 #include <ripple/basics/StringUtilities.h>
 #include <ripple/json/to_string.h>
 #include <ripple/protocol/Indexes.h>
+#include <ripple/app/misc/DividendMaster.h>
 
 namespace ripple {
 
@@ -1569,7 +1570,7 @@ TER LedgerEntrySet::rippleSend (
     STAmount const& saAmount, STAmount& saActual)
 {
     auto const issuer   = saAmount.getIssuer ();
-    TER             terResult;
+    TER             terResult = tesSUCCESS;
 
     assert (!isXRP (uSenderID) && !isXRP (uReceiverID));
     assert (!isVBC (uSenderID) && !isVBC (uReceiverID));
@@ -1589,7 +1590,61 @@ TER LedgerEntrySet::rippleSend (
         STAmount saTransitFee = rippleTransferFee (
             uSenderID, uReceiverID, issuer, saAmount);
 
-        saActual = !saTransitFee ? saAmount : saAmount + saTransitFee;
+        //each ancestor(closest 5) get 25% * 20% = 5% transFee share
+        STAmount saTransFeeShareTotal = STAmount(saTransitFee.issue());
+        // share upto 25% of TransFee with sender's ancestors (25% * 20% ecah).
+        if (saTransitFee)
+        {
+            STAmount saTransFeeShareEach = multiply(saTransitFee, STAmount(saTransitFee.issue(), 5, -2));
+            // first get dividend object
+            SLE::pointer sleDivObj = mLedger->getDividendObject();
+            // we have a dividend object, and its state is done
+            if (sleDivObj && sleDivObj->getFieldU8(sfDividendState) == DividendMaster::DivState_Done)
+            {
+                // extract ledgerSeq and total VSpd
+                std::uint32_t divLedgerSeq = sleDivObj->getFieldU32(sfDividendLedger);
+                std::uint64_t divVSpdTotal = sleDivObj->getFieldU64(sfDividendVSprd);
+                // try find parent referee start from the sender itself
+                SLE::pointer sleSender = mLedger->getAccountRoot(uSenderID);
+                SLE::pointer sleCurrent = sleSender;
+                int sendCnt = 0;
+                while (tesSUCCESS == terResult && sleCurrent && sendCnt < 5)
+                {
+                    //no referee anymore
+                    if (!sleCurrent->isFieldPresent(sfReferee))
+                    {
+                        break;
+                    }
+                    RippleAddress refereeAccountID = sleCurrent->getFieldAccount(sfReferee);
+                    SLE::pointer sleReferee = mLedger->getAccountRoot(refereeAccountID);
+                    if (sleReferee)
+                    {
+                        // there is a referee and it has field sfDividendLedger, which is exact the same as divObjLedgerSeq
+                        if (sleReferee->isFieldPresent(sfDividendLedger) && sleReferee->getFieldU64(sfDividendLedger) == divLedgerSeq)
+                        {
+                            if (sleReferee->isFieldPresent(sfDividendVSprd))
+                            {
+                                std::uint64_t divVSpd = sleReferee->getFieldU64(sfDividendVSprd);
+                                // only VSpd greater than 10000 get the fee share
+                                if (divVSpd > 10000)
+                                {
+                                    terResult = rippleCredit (uSenderID, refereeAccountID.getAccountID(), saTransFeeShareEach);
+                                    if (tesSUCCESS == terResult)
+                                    {
+                                        sendCnt += 1;
+                                        saTransFeeShareTotal += saTransFeeShareEach;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    sleCurrent = sleReferee;
+                }
+            }
+        }
+        
+        // actualFee = totalFee - ancesterShareFee
+        saActual = !saTransitFee ? saAmount : saAmount + saTransitFee - saTransFeeShareTotal;
 
         saActual.setIssuer (issuer); // XXX Make sure this done in + above.
 
@@ -1600,12 +1655,13 @@ TER LedgerEntrySet::rippleSend (
             " fee=" << saTransitFee.getFullText () <<
             " cost=" << saActual.getFullText ();
 
-        terResult   = rippleCredit (issuer, uReceiverID, saAmount);
+        if (tesSUCCESS == terResult)
+            terResult   = rippleCredit (issuer, uReceiverID, saAmount);
 
         if (tesSUCCESS == terResult)
             terResult   = rippleCredit (uSenderID, issuer, saActual);
     }
-
+    
     return terResult;
 }
 

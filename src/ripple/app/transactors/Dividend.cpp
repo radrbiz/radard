@@ -220,6 +220,33 @@ namespace ripple {
                     mEngine->getLedger()->createCoins(divCoins);
                 }
                 
+
+                
+                //Record VSpd, TSpd, DividendLedgerSeq
+                if (mTxn.isFieldPresent(sfDividendLedger))
+                {
+                    std::uint32_t divLedgerSeq = mTxn.getFieldU32(sfDividendLedger);
+                    sleAccoutModified->setFieldU32(sfDividendLedger, divLedgerSeq);
+                    
+                    if (mTxn.isFieldPresent(sfDividendVRank))
+                    {
+                        std::uint64_t divVRank = mTxn.getFieldU64(sfDividendVRank);
+                        sleAccoutModified->setFieldU64(sfDividendVRank, divCoins);
+                    }
+                    
+                    if (mTxn.isFieldPresent(sfDividendVSprd))
+                    {
+                        std::uint64_t divVSpd = mTxn.getFieldU64(sfDividendVSprd);
+                        sleAccoutModified->setFieldU64(sfDividendVSprd, divVSpd);
+                    }
+                    
+                    if (mTxn.isFieldPresent(sfDividendTSprd))
+                    {
+                        std::uint64_t divTSpd = mTxn.getFieldU64(sfDividendTSprd);
+                        sleAccoutModified->setFieldU64(sfDividendTSprd, divTSpd);
+                    }
+                }
+                
                 if (m_journal.trace.active()) {
                     m_journal.trace << "Dividend Applied:" << sleAccoutModified->getText();
                 }
