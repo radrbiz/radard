@@ -1590,11 +1590,10 @@ TER LedgerEntrySet::rippleSend (
         STAmount saTransitFee = rippleTransferFee (
             uSenderID, uReceiverID, issuer, saAmount);
 
-        //each ancestor(closest 5) get 25% * 20% = 5% transFee share
-        STAmount saTransFeeShareTotal = STAmount(saTransitFee.issue());
         // share upto 25% of TransFee with sender's ancestors (25% * 20% ecah).
         if (saTransitFee)
         {
+            //each ancestor(closest 5) get 25% * 20% = 5% transFee share
             STAmount saTransFeeShareEach = multiply(saTransitFee, STAmount(saTransitFee.issue(), 5, -2));
             // first get dividend object
             SLE::pointer sleDivObj = mLedger->getDividendObject();
@@ -1628,11 +1627,10 @@ TER LedgerEntrySet::rippleSend (
                                 // only VSpd greater than 10000 get the fee share
                                 if (divVSpd > 10000)
                                 {
-                                    terResult = rippleCredit (uSenderID, refereeAccountID.getAccountID(), saTransFeeShareEach);
+                                    terResult = rippleCredit (issuer, refereeAccountID.getAccountID(), saTransFeeShareEach);
                                     if (tesSUCCESS == terResult)
                                     {
                                         sendCnt += 1;
-                                        saTransFeeShareTotal += saTransFeeShareEach;
                                     }
                                 }
                             }
@@ -1644,7 +1642,7 @@ TER LedgerEntrySet::rippleSend (
         }
         
         // actualFee = totalFee - ancesterShareFee
-        saActual = !saTransitFee ? saAmount : saAmount + saTransitFee - saTransFeeShareTotal;
+        saActual = !saTransitFee ? saAmount : saAmount + saTransitFee;
 
         saActual.setIssuer (issuer); // XXX Make sure this done in + above.
 
