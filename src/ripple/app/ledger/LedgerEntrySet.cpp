@@ -1160,6 +1160,7 @@ STAmount LedgerEntrySet::accountHolds (
 		if (isVBC(currency))
 		{
 			saBalance = sleAccount->getFieldAmount(sfBalanceVBC);
+            saBalance.setIssue(vbcIssue());
 		}
 		else
 		{
