@@ -1460,11 +1460,12 @@ TER LedgerEntrySet::shareFeeWithReferee(Account const& uSenderID, Account const&
                 break;
             }
             RippleAddress refereeAccountID = sleCurrent->getFieldAccount(sfReferee);
+
             SLE::pointer sleReferee = mLedger->getAccountRoot(refereeAccountID);
             if (sleReferee)
             {
                 // there is a referee and it has field sfDividendLedger, which is exact the same as divObjLedgerSeq
-                if (sleReferee->isFieldPresent(sfDividendLedger) && sleReferee->getFieldU64(sfDividendLedger) == divLedgerSeq)
+                if (sleReferee->isFieldPresent(sfDividendLedger) && sleReferee->getFieldU32(sfDividendLedger) == divLedgerSeq)
                 {
                     if (sleReferee->isFieldPresent(sfDividendVSprd))
                     {
@@ -1476,6 +1477,7 @@ TER LedgerEntrySet::shareFeeWithReferee(Account const& uSenderID, Account const&
                             if (tesSUCCESS == terResult)
                             {
                                 sendCnt += 1;
+                                WriteLog (lsINFO, LedgerEntrySet) << "FeeShare: " << refereeAccountID.getAccountID() << " get " << saTransFeeShareEach;
                             }
                         }
                     }
