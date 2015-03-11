@@ -89,7 +89,8 @@ Json::Value doGetCounts (RPC::Context& context)
     textTime (uptime, s, "hour", 60 * 60);
     textTime (uptime, s, "minute", 60);
     textTime (uptime, s, "second", 1);
-    ret["uptime"] = uptime;
+    ret["uptime"] = s;
+    ret["uptime_human"] = uptime;
 
     ret["node_writes"] = app.getNodeStore().getStoreCount();
     ret["node_reads_total"] = app.getNodeStore().getFetchTotalCount();
