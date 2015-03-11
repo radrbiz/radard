@@ -86,6 +86,7 @@ public:
     std::uint64_t scaleFeeLoad (std::uint64_t fee, bool bAdmin) const;
 
     bool hasAccountRoot () const;
+    bool isAccountExist (const Account& account) const;
 
     bool accountMasterDisabled () const;
 

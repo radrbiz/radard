@@ -1428,6 +1428,65 @@ TER LedgerEntrySet::trustDelete (
 
     return terResult;
 }
+    
+TER LedgerEntrySet::shareFeeWithReferee(Account const& uSenderID, Account const& uIssuerID, const STAmount& saAmount)
+{
+    WriteLog (lsINFO, LedgerEntrySet)
+        << "FeeShare:\n"
+        << "\tsender:" << uSenderID << "\n"
+        << "\tissuer:" << uIssuerID << "\n"
+        << "\tamount:" << saAmount;
+    
+    TER terResult = tesSUCCESS;
+    // evenly divide saAmount to 5 shares
+    STAmount saTransFeeShareEach = multiply(saAmount, STAmount(saAmount.issue(), 2, -1));
+    // first get dividend object
+    SLE::pointer sleDivObj = mLedger->getDividendObject();
+    // we have a dividend object, and its state is done
+    if (sleDivObj && sleDivObj->getFieldU8(sfDividendState) == DividendMaster::DivState_Done)
+    {
+        // extract ledgerSeq and total VSpd
+        std::uint32_t divLedgerSeq = sleDivObj->getFieldU32(sfDividendLedger);
+        std::uint64_t divVSpdTotal = sleDivObj->getFieldU64(sfDividendVSprd);
+        // try find parent referee start from the sender itself
+        SLE::pointer sleSender = mLedger->getAccountRoot(uSenderID);
+        SLE::pointer sleCurrent = sleSender;
+        int sendCnt = 0;
+        while (tesSUCCESS == terResult && sleCurrent && sendCnt < 5)
+        {
+            //no referee anymore
+            if (!sleCurrent->isFieldPresent(sfReferee))
+            {
+                break;
+            }
+            RippleAddress refereeAccountID = sleCurrent->getFieldAccount(sfReferee);
+            SLE::pointer sleReferee = mLedger->getAccountRoot(refereeAccountID);
+            if (sleReferee)
+            {
+                // there is a referee and it has field sfDividendLedger, which is exact the same as divObjLedgerSeq
+                if (sleReferee->isFieldPresent(sfDividendLedger) && sleReferee->getFieldU64(sfDividendLedger) == divLedgerSeq)
+                {
+                    if (sleReferee->isFieldPresent(sfDividendVSprd))
+                    {
+                        std::uint64_t divVSpd = sleReferee->getFieldU64(sfDividendVSprd);
+                        // only VSpd greater than 10000 get the fee share
+                        if (divVSpd > 10000)
+                        {
+                            terResult = rippleCredit (uIssuerID, refereeAccountID.getAccountID(), saTransFeeShareEach);
+                            if (tesSUCCESS == terResult)
+                            {
+                                sendCnt += 1;
+                            }
+                        }
+                    }
+                }
+            }
+            sleCurrent = sleReferee;
+        }
+    }
+
+    return terResult;
+}
 
 // Direct send w/o fees:
 // - Redeeming IOUs and/or sending sender's own IOUs.
@@ -1593,52 +1652,8 @@ TER LedgerEntrySet::rippleSend (
         // share upto 25% of TransFee with sender's ancestors (25% * 20% ecah).
         if (saTransitFee)
         {
-            //each ancestor(closest 5) get 25% * 20% = 5% transFee share
-            STAmount saTransFeeShareEach = multiply(saTransitFee, STAmount(saTransitFee.issue(), 5, -2));
-            // first get dividend object
-            SLE::pointer sleDivObj = mLedger->getDividendObject();
-            // we have a dividend object, and its state is done
-            if (sleDivObj && sleDivObj->getFieldU8(sfDividendState) == DividendMaster::DivState_Done)
-            {
-                // extract ledgerSeq and total VSpd
-                std::uint32_t divLedgerSeq = sleDivObj->getFieldU32(sfDividendLedger);
-                std::uint64_t divVSpdTotal = sleDivObj->getFieldU64(sfDividendVSprd);
-                // try find parent referee start from the sender itself
-                SLE::pointer sleSender = mLedger->getAccountRoot(uSenderID);
-                SLE::pointer sleCurrent = sleSender;
-                int sendCnt = 0;
-                while (tesSUCCESS == terResult && sleCurrent && sendCnt < 5)
-                {
-                    //no referee anymore
-                    if (!sleCurrent->isFieldPresent(sfReferee))
-                    {
-                        break;
-                    }
-                    RippleAddress refereeAccountID = sleCurrent->getFieldAccount(sfReferee);
-                    SLE::pointer sleReferee = mLedger->getAccountRoot(refereeAccountID);
-                    if (sleReferee)
-                    {
-                        // there is a referee and it has field sfDividendLedger, which is exact the same as divObjLedgerSeq
-                        if (sleReferee->isFieldPresent(sfDividendLedger) && sleReferee->getFieldU64(sfDividendLedger) == divLedgerSeq)
-                        {
-                            if (sleReferee->isFieldPresent(sfDividendVSprd))
-                            {
-                                std::uint64_t divVSpd = sleReferee->getFieldU64(sfDividendVSprd);
-                                // only VSpd greater than 10000 get the fee share
-                                if (divVSpd > 10000)
-                                {
-                                    terResult = rippleCredit (issuer, refereeAccountID.getAccountID(), saTransFeeShareEach);
-                                    if (tesSUCCESS == terResult)
-                                    {
-                                        sendCnt += 1;
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    sleCurrent = sleReferee;
-                }
-            }
+            STAmount saTransFeeShare = multiply(saTransitFee, STAmount(saTransitFee.issue(), 25, -2));
+            terResult = shareFeeWithReferee(uSenderID, issuer, saTransFeeShare);
         }
         
         // actualFee = totalFee - ancesterShareFee

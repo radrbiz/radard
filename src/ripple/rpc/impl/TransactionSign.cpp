@@ -127,6 +127,16 @@ bool LedgerFacade::hasAccountRoot () const
     return static_cast <bool> (sleAccountRoot);
 }
 
+bool LedgerFacade::isAccountExist (const Account& account) const
+{
+    if (!ledger_)
+    {
+        return false;
+    }
+    
+    return ledger_->getAccountRoot(account) != nullptr;
+}
+    
 bool LedgerFacade::accountMasterDisabled () const
 {
     if (!accountState_) // Unit testing.
@@ -213,7 +223,7 @@ static void autofill_fee (
         }
 
         //dst account not exist yet, charge a fix amount of fee(0.01) for creating
-        if (!ledgerFacade.isValidAccount())
+        if (!ledgerFacade.isAccountExist(dstAddress.getAccountID()))
         {
             feeByTrans = d.FEE_DEFAULT_CREATE;
         }
