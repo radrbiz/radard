@@ -1165,6 +1165,8 @@ STAmount LedgerEntrySet::accountHolds (
             sleAccount->getFieldU32 (sfOwnerCount));
 
         STAmount saBalance   = sleAccount->getFieldAmount(bVBC?sfBalanceVBC:sfBalance);
+        if (bVBC)
+            saBalance.setIssue(vbcIssue());
 
         if (saBalance < uReserve)
         {
