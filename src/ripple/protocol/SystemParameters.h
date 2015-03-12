@@ -64,6 +64,11 @@ static
 std::uint64_t const
 SYSTEM_CURRENCY_PARTS_VBC = 1000000;      // 10^SYSTEM_CURRENCY_PRECISION
 
+static
+std::uint64_t const
+MIN_VSPD_TO_GET_FEE_SHARE = 10000000000;
+    
+
 /** Calculate the amount of native currency created at genesis. */
 static
 std::uint64_t const

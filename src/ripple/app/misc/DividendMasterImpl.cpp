@@ -504,8 +504,10 @@ bool DividendMaster::calcDividendFunc(Ledger::ref baseLedger, uint64_t dividendC
             WriteLog(lsINFO, DividendMaster) << "{\"account\":\"" << RippleAddress::createAccountID(std::get<0>(it.first)).humanAccountID() << "\",\"data\":{\"divVBCByRank\":\"" << divVBCbyRank << "\",\"divVBCByPower\":\"" << divVBCbyPower << "\",\"divVBC\":\"" << divVBC << "\",\"balance\":\"" << std::get<0>(it.second) << "\",\"vrank\":\"" << std::get<1>(it.second) << "\",\"vsprd\":\"" << std::get<2>(it.second) << "\",\"tsprd\":\"" << std::get<3>(it.second) << "\"}}";
         }
         
-        if (div !=0 || divVBC !=0)
-        accountsOut.push_back(std::make_tuple(std::get<0>(it.first), div, divVBC, static_cast<uint64_t>(divVBCbyRank), static_cast<uint64_t>(divVBCbyPower), std::get<1>(it.second), std::get<2>(it.second), std::get<3>(it.second)));
+        if (div !=0 || divVBC !=0 || std::get<2>(it.second) > MIN_VSPD_TO_GET_FEE_SHARE)
+        {
+            accountsOut.push_back(std::make_tuple(std::get<0>(it.first), div, divVBC, static_cast<uint64_t>(divVBCbyRank), static_cast<uint64_t>(divVBCbyPower), std::get<1>(it.second), std::get<2>(it.second), std::get<3>(it.second)));
+        }
     }
     
     WriteLog(lsINFO, DividendMaster) << "calcDividend got actualTotalDividend " << actualTotalDividend << " actualTotalDividendVBC " << actualTotalDividendVBC << " Mem " << memUsed();

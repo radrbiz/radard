@@ -25,6 +25,7 @@
 #include <ripple/json/to_string.h>
 #include <ripple/protocol/Indexes.h>
 #include <ripple/app/misc/DividendMaster.h>
+#include <ripple/protocol/SystemParameters.h>
 
 namespace ripple {
 
@@ -1449,11 +1450,11 @@ TER LedgerEntrySet::shareFeeWithReferee(Account const& uSenderID, Account const&
     {
         // extract ledgerSeq and total VSpd
         std::uint32_t divLedgerSeq = sleDivObj->getFieldU32(sfDividendLedger);
-        std::uint64_t divVSpdTotal = sleDivObj->getFieldU64(sfDividendVSprd);
         // try find parent referee start from the sender itself
         SLE::pointer sleSender = mLedger->getAccountRoot(uSenderID);
         SLE::pointer sleCurrent = sleSender;
         int sendCnt = 0;
+        Account lastAccount;
         while (tesSUCCESS == terResult && sleCurrent && sendCnt < 5)
         {
             //no referee anymore
@@ -1472,13 +1473,14 @@ TER LedgerEntrySet::shareFeeWithReferee(Account const& uSenderID, Account const&
                     if (sleReferee->isFieldPresent(sfDividendVSprd))
                     {
                         std::uint64_t divVSpd = sleReferee->getFieldU64(sfDividendVSprd);
-                        // only VSpd greater than 10000 get the fee share
-                        if (divVSpd > 10000)
+                        // only VSpd greater than 10000(000000) get the fee share
+                        if (divVSpd > MIN_VSPD_TO_GET_FEE_SHARE)
                         {
                             terResult = rippleCredit (uIssuerID, refereeAccountID.getAccountID(), saTransFeeShareEach);
                             if (tesSUCCESS == terResult)
                             {
                                 sendCnt += 1;
+                                lastAccount = refereeAccountID.getAccountID();
                                 WriteLog (lsINFO, LedgerEntrySet) << "FeeShare: " << refereeAccountID.getAccountID() << " get " << saTransFeeShareEach;
                             }
                         }
@@ -1486,6 +1488,20 @@ TER LedgerEntrySet::shareFeeWithReferee(Account const& uSenderID, Account const&
                 }
             }
             sleCurrent = sleReferee;
+        }
+        // can't find 5 ancestors, give all share to last ancestor
+        if (terResult == tesSUCCESS)
+        {
+            if (sendCnt == 0)
+            {
+                WriteLog (lsINFO, LedgerEntrySet) << "FeeShare: no ancestor find gateway keep all fee share.";
+            }
+            else if (sendCnt < 5)
+            {
+                STAmount saLeft = multiply(saTransFeeShareEach, STAmount(saTransFeeShareEach.issue(), 5 - sendCnt));
+                terResult = rippleCredit (uIssuerID, lastAccount, saLeft);
+                WriteLog (lsINFO, LedgerEntrySet) << "FeeShare: left " << saLeft << " goes to "<< lastAccount;
+            }
         }
     }
 
