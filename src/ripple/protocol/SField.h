@@ -437,6 +437,7 @@ extern SField const sfAffectedNodes;
 extern SField const sfMemos;
 
 extern SField const sfReferences;
+extern SField const sfReferenceHash;
 
 } // ripple
 

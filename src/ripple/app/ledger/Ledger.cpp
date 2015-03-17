@@ -1560,6 +1560,16 @@ uint256 Ledger::getLedgerDividendIndex()
     return s.getSHA512Half();
 }
 
+uint256 Ledger::getAccountReferIndex(const Account& account)
+{
+    Serializer  s (22);
+    
+    s.add16 (spaceAccount);
+    s.add160 (account);
+    
+    return s.getSHA512Half ();
+}
+
 uint256 Ledger::getLedgerHash (std::uint32_t ledgerIndex)
 {
     // Return the hash of the specified ledger, 0 if not available
@@ -1876,6 +1886,12 @@ SLE::pointer Ledger::getDividendObject () const
     return getASNodeI (Ledger::getLedgerDividendIndex(), ltDIVIDEND);
 }
 
+SLE::pointer Ledger::getReferObject(const Account& account) const
+{
+//    Account
+    return nullptr;
+}
+            
 uint64_t Ledger::getDividendCoins() const
 {
     auto sle = getASNodeI(Ledger::getLedgerDividendIndex(), ltDIVIDEND);

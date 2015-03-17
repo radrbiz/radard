@@ -73,17 +73,24 @@ public:
             return tefREFERENCE_EXIST;
         } else {
             STArray references(sfReferences);
-            if (sleReferee->isFieldPresent(sfReferences)) {
+            bool oldFormat = false;
+            auto const referIndex = getAccountReferIndex (refereeID);
+            SLE::pointer sleRefer(mEngine->entryCache (ltREFER, referIndex));
+            if (sleRefer && sleRefer->isFieldPresent(sfReferences)) {
+                references = sleReference->getFieldArray(sfReferences);
+            } else if (sleReferee->isFieldPresent(sfReferences)) {
                 references = sleReferee->getFieldArray(sfReferences);
-                for (auto it = references.begin(); it != references.end(); ++it) {
-                    Account id = it->getFieldAccount(sfReference).getAccountID();
-                    if (id == referenceID) {
-                        m_journal.trace << "Malformed transaction: Reference has been set.";
+                oldFormat = true;
+            }
 
-                        return tefREFERENCE_EXIST;
-                    }
+            for (auto it = references.begin(); it != references.end(); ++it) {
+                Account id = it->getFieldAccount(sfReference).getAccountID();
+                if (id == referenceID) {
+                    m_journal.trace << "Malformed transaction: Reference has been set.";
+                    return tefREFERENCE_EXIST;
                 }
             }
+
             int referenceHeight=0;
             if (sleReferee->isFieldPresent(sfReferenceHeight))
                 referenceHeight=sleReferee->getFieldU32(sfReferenceHeight);
@@ -94,7 +101,15 @@ public:
             sleReference->setFieldU32(sfReferenceHeight, referenceHeight+1);
             references.push_back(STObject(sfReferenceHolder));
             references.back().setFieldAccount(sfReference, referenceID);
-            sleReferee->setFieldArray(sfReferences, references);
+            if (oldFormat) {
+                sleReferee->delField(sfReferences);
+            }
+            if (!sleRefer) {
+                sleRefer = mEngine->entryCreate(ltREFER, referIndex);
+            } else {
+                mEngine->entryModify(sleRefer);
+            }
+            sleRefer->setFieldArray(sfReferences, references);
         }
 
         return tesSUCCESS;
