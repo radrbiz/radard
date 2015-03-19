@@ -50,6 +50,12 @@ public:
         // Open a ledger for editing.
         SLE::pointer sleReferee(mEngine->entryCache(ltACCOUNT_ROOT, getAccountRootIndex(refereeID)));
         SLE::pointer sleReference(mEngine->entryCache(ltACCOUNT_ROOT, getAccountRootIndex(referenceID)));
+        auto const referenceReferIndex = getAccountReferIndex(referenceID);
+        
+        SLE::pointer sleReferenceRefer(mEngine->entryCache (ltREFER, referenceReferIndex));
+        auto const referIndex = getAccountReferIndex (refereeID);
+        SLE::pointer sleRefer(mEngine->entryCache (ltREFER, referIndex));
+        m_journal.debug << "refereeID:" << refereeID << "\n1." << getAccountRootIndex(refereeID) << "\n2." << getAccountRootIndex(refereeID);
 
         if (!sleReferee) {
             // Referee account does not exist.
@@ -66,18 +72,17 @@ public:
             m_journal.trace << "Referee has been set.";
 
             return tefREFEREE_EXIST;
-        } else if (sleReference->isFieldPresent(sfReferences)
-                   && !sleReference->getFieldArray(sfReferences).empty()) {
+        } else if ((sleReferenceRefer && !sleReferenceRefer->getFieldArray(sfReferences).empty())
+               || (sleReference->isFieldPresent(sfReferences)
+                   && !sleReference->getFieldArray(sfReferences).empty())) {
             m_journal.trace << "Reference has been set.";
             
             return tefREFERENCE_EXIST;
         } else {
             STArray references(sfReferences);
             bool oldFormat = false;
-            auto const referIndex = getAccountReferIndex (refereeID);
-            SLE::pointer sleRefer(mEngine->entryCache (ltREFER, referIndex));
             if (sleRefer && sleRefer->isFieldPresent(sfReferences)) {
-                references = sleReference->getFieldArray(sfReferences);
+                references = sleRefer->getFieldArray(sfReferences);
             } else if (sleReferee->isFieldPresent(sfReferences)) {
                 references = sleReferee->getFieldArray(sfReferences);
                 oldFormat = true;
@@ -96,12 +101,12 @@ public:
                 referenceHeight=sleReferee->getFieldU32(sfReferenceHeight);
             
             mEngine->entryModify(sleReference);
-            mEngine->entryModify(sleReferee);
             sleReference->setFieldAccount(sfReferee, refereeID);
             sleReference->setFieldU32(sfReferenceHeight, referenceHeight+1);
             references.push_back(STObject(sfReferenceHolder));
             references.back().setFieldAccount(sfReference, referenceID);
             if (oldFormat) {
+                mEngine->entryModify(sleReferee);
                 sleReferee->delField(sfReferences);
             }
             if (!sleRefer) {

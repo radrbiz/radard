@@ -381,7 +381,6 @@ public:
     typedef std::vector<std::pair<std::uint32_t, uint256>> LedgerHashes;
     LedgerHashes getLedgerHashes () const;
 
-    uint256 getAccountReferIndex(const Account& account);
     static uint256 getLedgerDividendIndex();
     std::vector<uint256> getLedgerAmendments () const;
 

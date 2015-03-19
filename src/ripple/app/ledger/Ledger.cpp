@@ -432,8 +432,8 @@ bool Ledger::addSLE (SLE const& sle)
 
 AccountState::pointer Ledger::getAccountState (RippleAddress const& accountID) const
 {
-    SLE::pointer sle = getSLEi (getAccountRootIndex (accountID));
-
+    SLE::pointer sle = getSLEi(getAccountRootIndex(accountID));
+    SLE::pointer sleRefer = getReferObject(accountID.getAccountID());
     if (!sle)
     {
         WriteLog (lsDEBUG, Ledger) << "Ledger:getAccountState:" <<
@@ -446,7 +446,7 @@ AccountState::pointer Ledger::getAccountState (RippleAddress const& accountID) c
     if (sle->getType () != ltACCOUNT_ROOT)
         return AccountState::pointer ();
 
-    return std::make_shared<AccountState> (sle, accountID);
+    return std::make_shared<AccountState> (sle, accountID, sleRefer);
 }
 
 bool Ledger::addTransaction (uint256 const& txID, const Serializer& txn)
@@ -1560,16 +1560,6 @@ uint256 Ledger::getLedgerDividendIndex()
     return s.getSHA512Half();
 }
 
-uint256 Ledger::getAccountReferIndex(const Account& account)
-{
-    Serializer  s (22);
-    
-    s.add16 (spaceAccount);
-    s.add160 (account);
-    
-    return s.getSHA512Half ();
-}
-
 uint256 Ledger::getLedgerHash (std::uint32_t ledgerIndex)
 {
     // Return the hash of the specified ledger, 0 if not available
@@ -1888,8 +1878,9 @@ SLE::pointer Ledger::getDividendObject () const
 
 SLE::pointer Ledger::getReferObject(const Account& account) const
 {
-//    Account
-    return nullptr;
+    auto referIndex = getAccountReferIndex(account);
+    auto sle = getSLEi(referIndex);
+    return sle;
 }
             
 uint64_t Ledger::getDividendCoins() const

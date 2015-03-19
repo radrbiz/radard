@@ -44,7 +44,6 @@ LedgerFormats::LedgerFormats ()
             << SOElement (sfReferee,             SOE_OPTIONAL)
             << SOElement (sfReferences,          SOE_OPTIONAL)
             << SOElement (sfReferenceHeight,     SOE_OPTIONAL)
-            << SOElement (sfReferenceHash,       SOE_OPTIONAL)
             ;
 
     add ("DirectoryNode", ltDIR_NODE)

@@ -43,14 +43,18 @@ AccountState::AccountState (RippleAddress const& naAccountID)
     }
 }
 
-AccountState::AccountState (SLE::ref ledgerEntry, RippleAddress const& naAccountID) :
-    mAccountID (naAccountID), mLedgerEntry (ledgerEntry), mValid (false)
+AccountState::AccountState (SLE::ref ledgerEntry, RippleAddress const& naAccountID, SLE::pointer sleRefer) :
+    mAccountID (naAccountID), mLedgerEntry (ledgerEntry), mValid (false), mSleRefer(sleRefer)
 {
     if (!mLedgerEntry)
         return;
 
     if (mLedgerEntry->getType () != ltACCOUNT_ROOT)
         return;
+    
+    if (sleRefer && sleRefer->getType() != ltREFER) {
+        return;
+    }
 
     mValid = true;
 }
@@ -76,6 +80,9 @@ void AccountState::addJson (Json::Value& val)
     {
         if (mLedgerEntry->isFieldPresent (sfEmailHash))
             val["urlgravatar"]  = createGravatarUrl (mLedgerEntry->getFieldH128 (sfEmailHash));
+        if (mSleRefer) {
+            val["References"] = mSleRefer->getJson(0)["References"];
+        }
     }
     else
     {

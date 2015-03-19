@@ -186,9 +186,7 @@ SField const sfLedgerIndex     = make::one(&sfLedgerIndex,     STI_HASH256, 6, "
 SField const sfWalletLocator   = make::one(&sfWalletLocator,   STI_HASH256, 7, "WalletLocator");
 SField const sfRootIndex       = make::one(&sfRootIndex,       STI_HASH256, 8, "RootIndex", SField::sMD_Always);
 SField const sfAccountTxnID    = make::one(&sfAccountTxnID,    STI_HASH256, 9, "AccountTxnID");
-
 SField const sfDividendResultHash = make::one(&sfDividendResultHash, STI_HASH256, 181, "DividendResultHash");
-SField const sfReferenceHash = make::one(&sfReferenceHash, STI_HASH256, 182, "ReferenceHash");
     
 // 256-bit (uncommon)
 SField const sfBookDirectory = make::one(&sfBookDirectory, STI_HASH256, 16, "BookDirectory");
