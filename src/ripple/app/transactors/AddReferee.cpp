@@ -50,12 +50,11 @@ public:
         // Open a ledger for editing.
         SLE::pointer sleReferee(mEngine->entryCache(ltACCOUNT_ROOT, getAccountRootIndex(refereeID)));
         SLE::pointer sleReference(mEngine->entryCache(ltACCOUNT_ROOT, getAccountRootIndex(referenceID)));
+
         auto const referenceReferIndex = getAccountReferIndex(referenceID);
-        
         SLE::pointer sleReferenceRefer(mEngine->entryCache (ltREFER, referenceReferIndex));
         auto const referIndex = getAccountReferIndex (refereeID);
         SLE::pointer sleRefer(mEngine->entryCache (ltREFER, referIndex));
-        m_journal.debug << "refereeID:" << refereeID << "\n1." << getAccountRootIndex(refereeID) << "\n2." << getAccountRootIndex(refereeID);
 
         if (!sleReferee) {
             // Referee account does not exist.
