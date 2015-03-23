@@ -645,6 +645,7 @@
 				MACOSX_DEPLOYMENT_TARGET = 10.10;
 				MTL_ENABLE_DEBUG_INFO = YES;
 				ONLY_ACTIVE_ARCH = YES;
+				OTHER_CPLUSPLUSFLAGS = "$(OTHER_CFLAGS)";
 				SDKROOT = macosx;
 			};
 			name = Debug;
@@ -719,7 +720,6 @@
 					"-Wno-deprecated-declarations",
 					"-Wno-unused-variable",
 					"-Wno-unused-function",
-					"-O3",
 					"-fno-strict-aliasing",
 					"-DOPENSSL_NO_SSL2",
 					"-DNDEBUG",
