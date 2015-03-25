@@ -130,8 +130,10 @@ LedgerFormats::LedgerFormats ()
             ;
 
     add("Refer", ltREFER)
-            << SOElement(sfReference,            SOE_REQUIRED)
-            << SOElement(sfReferee,              SOE_REQUIRED)
+//            << SOElement (sfAccount,             SOE_REQUIRED)
+            << SOElement (sfReferences,          SOE_OPTIONAL)
+//            << SOElement(sfReference,            SOE_REQUIRED)
+//            << SOElement(sfReferee,              SOE_REQUIRED)
             ;
 }
 

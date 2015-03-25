@@ -43,8 +43,8 @@ const char* TxnDBInit[] =
         FromSeq     BIGINT UNSIGNED,            \
         LedgerSeq   BIGINT UNSIGNED,            \
         Status      CHARACTER(1),               \
-        RawTxn      LONGBLOB,                   \
-        TxnMeta     LONGBLOB                    \
+        RawTxn      BLOB,                       \
+        TxnMeta     BLOB                        \
     );",
     "CREATE INDEX TxLgrIndex ON                 \
         Transactions(LedgerSeq);",
@@ -79,8 +79,8 @@ const char* TxnDBInitMySQL[] =
         FromSeq     BIGINT UNSIGNED,                \
         LedgerSeq   BIGINT UNSIGNED,                \
         Status      CHARACTER(1),                   \
-        RawTxn      BLOB,                           \
-        TxnMeta     BLOB                            \
+        RawTxn      LONGBLOB,                       \
+        TxnMeta     LONGBLOB                        \
     );",
     "CREATE INDEX TxLgrIndex ON                     \
         Transactions(LedgerSeq);",
