@@ -47,6 +47,9 @@ TransactionMetaSet::TransactionMetaSet (uint256 const& txid, std::uint32_t ledge
 
     if (obj->isFieldPresent (sfDeliveredAmount))
         setDeliveredAmount (obj->getFieldAmount (sfDeliveredAmount));
+    
+    if (obj->isFieldPresent (sfFeeShareTakers))
+        setFeeShareTakers(obj->getFieldArray(sfFeeShareTakers));
 }
 
 bool TransactionMetaSet::isNodeAffected (uint256 const& node) const
@@ -192,6 +195,7 @@ void TransactionMetaSet::init (uint256 const& id, std::uint32_t ledger)
     mLedger = ledger;
     mNodes = STArray (sfAffectedNodes, 32);
     mDelivered = boost::optional <STAmount> ();
+    mFeeShareTakers = boost::optional<STArray>();
 }
 
 void TransactionMetaSet::swap (TransactionMetaSet& s)
@@ -229,6 +233,9 @@ STObject TransactionMetaSet::getAsObject () const
     metaData.addObject (mNodes);
     if (hasDeliveredAmount ())
         metaData.setFieldAmount (sfDeliveredAmount, getDeliveredAmount ());
+    if (hasFeeShareTakers ())
+        metaData.setFieldArray (sfFeeShareTakers, getFeeShareTakers ());
+    
     return metaData;
 }
 

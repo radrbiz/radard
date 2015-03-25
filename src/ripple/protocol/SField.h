@@ -424,6 +424,7 @@ extern SField const sfTemplateEntry;
 extern SField const sfMemo;
 
 extern SField const sfReferenceHolder;
+extern SField const sfFeeShareTaker;
 
 // array of objects
 // ARRAY/1 is reserved for end of array
@@ -437,6 +438,7 @@ extern SField const sfAffectedNodes;
 extern SField const sfMemos;
 
 extern SField const sfReferences;
+extern SField const sfFeeShareTakers;
 
 } // ripple
 

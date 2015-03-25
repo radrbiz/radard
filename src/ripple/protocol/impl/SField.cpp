@@ -267,6 +267,7 @@ SField const sfTemplateEntry       = make::one(&sfTemplateEntry,       STI_OBJEC
 SField const sfMemo                = make::one(&sfMemo,                STI_OBJECT, 10, "Memo");
 
 SField const sfReferenceHolder     = make::one(&sfReferenceHolder,     STI_OBJECT, 181, "ReferenceHolder");
+SField const sfFeeShareTaker     = make::one(&sfFeeShareTaker,     STI_OBJECT, 182, "FeeShareTaker");
 
 // array of objects
 // ARRAY/1 is reserved for end of array
@@ -280,6 +281,7 @@ SField const sfAffectedNodes   = make::one(&sfAffectedNodes,   STI_ARRAY, 8, "Af
 SField const sfMemos           = make::one(&sfMemos,           STI_ARRAY, 9, "Memos");
 
 SField const sfReferences      = make::one(&sfReferences,      STI_ARRAY, 181, "References");
+SField const sfFeeShareTakers  = make::one(&sfFeeShareTakers,   STI_ARRAY, 182, "FeeShareTakers");
 
 SField::SField (SerializedTypeID tid, int fv, const char* fn,
                 int meta, bool signing)

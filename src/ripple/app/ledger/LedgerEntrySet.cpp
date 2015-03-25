@@ -1448,6 +1448,7 @@ TER LedgerEntrySet::shareFeeWithReferee(Account const& uSenderID, Account const&
     // we have a dividend object, and its state is done
     if (sleDivObj && sleDivObj->getFieldU8(sfDividendState) == DividendMaster::DivState_Done)
     {
+        STArray feeShareTakers(sfFeeShareTakers);
         // extract ledgerSeq and total VSpd
         std::uint32_t divLedgerSeq = sleDivObj->getFieldU32(sfDividendLedger);
         // try find parent referee start from the sender itself
@@ -1481,6 +1482,11 @@ TER LedgerEntrySet::shareFeeWithReferee(Account const& uSenderID, Account const&
                             {
                                 sendCnt += 1;
                                 lastAccount = refereeAccountID.getAccountID();
+                                STObject feeShareTaker(sfFeeShareTaker);
+                                feeShareTaker.setFieldAccount(sfAccount, refereeAccountID.getAccountID());
+                                feeShareTaker.setFieldAmount(sfAmount, saTransFeeShareEach);
+                                feeShareTakers.push_back(feeShareTaker);
+                                
                                 WriteLog (lsINFO, LedgerEntrySet) << "FeeShare: " << refereeAccountID.getAccountID() << " get " << saTransFeeShareEach;
                             }
                         }
@@ -1500,7 +1506,20 @@ TER LedgerEntrySet::shareFeeWithReferee(Account const& uSenderID, Account const&
             {
                 STAmount saLeft = multiply(saTransFeeShareEach, STAmount(saTransFeeShareEach.issue(), 5 - sendCnt));
                 terResult = rippleCredit (uIssuerID, lastAccount, saLeft);
+                if (terResult == tesSUCCESS)
+                {
+                    STObject feeShareTaker(sfFeeShareTaker);
+                    feeShareTaker.setFieldAccount(sfAccount, lastAccount);
+                    feeShareTaker.setFieldAmount(sfAmount, saLeft);
+                    feeShareTakers.push_back(feeShareTaker);
+                }
                 WriteLog (lsINFO, LedgerEntrySet) << "FeeShare: left " << saLeft << " goes to "<< lastAccount;
+            }
+            
+            if (terResult == tesSUCCESS)
+            {
+                mSet.setFeeShareTakers(feeShareTakers);
+                WriteLog (lsDEBUG, LedgerEntrySet) << mSet.getJson(0);
             }
         }
     }
