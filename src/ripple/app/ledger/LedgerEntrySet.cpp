@@ -1448,7 +1448,7 @@ TER LedgerEntrySet::shareFeeWithReferee(Account const& uSenderID, Account const&
     // we have a dividend object, and its state is done
     if (sleDivObj && sleDivObj->getFieldU8(sfDividendState) == DividendMaster::DivState_Done)
     {
-        STArray feeShareTakers(sfFeeShareTakers);
+        std::map<Account, STAmount> takersMap;
         // extract ledgerSeq and total VSpd
         std::uint32_t divLedgerSeq = sleDivObj->getFieldU32(sfDividendLedger);
         // try find parent referee start from the sender itself
@@ -1482,11 +1482,7 @@ TER LedgerEntrySet::shareFeeWithReferee(Account const& uSenderID, Account const&
                             {
                                 sendCnt += 1;
                                 lastAccount = refereeAccountID.getAccountID();
-                                STObject feeShareTaker(sfFeeShareTaker);
-                                feeShareTaker.setFieldAccount(sfAccount, refereeAccountID.getAccountID());
-                                feeShareTaker.setFieldAmount(sfAmount, saTransFeeShareEach);
-                                feeShareTakers.push_back(feeShareTaker);
-                                
+                                takersMap.insert(std::pair<Account, STAmount>(lastAccount, saTransFeeShareEach));
                                 WriteLog (lsINFO, LedgerEntrySet) << "FeeShare: " << refereeAccountID.getAccountID() << " get " << saTransFeeShareEach;
                             }
                         }
@@ -1508,22 +1504,46 @@ TER LedgerEntrySet::shareFeeWithReferee(Account const& uSenderID, Account const&
                 terResult = rippleCredit (uIssuerID, lastAccount, saLeft);
                 if (terResult == tesSUCCESS)
                 {
-                    STObject feeShareTaker(sfFeeShareTaker);
-                    feeShareTaker.setFieldAccount(sfAccount, lastAccount);
-                    feeShareTaker.setFieldAmount(sfAmount, saLeft);
-                    feeShareTakers.push_back(feeShareTaker);
+                    auto itTaker = takersMap.find(lastAccount);
+                    if (itTaker == takersMap.end())
+                    {
+                        WriteLog (lsWARNING, LedgerEntrySet) << "Last share account not found, this should not happpen.";
+                    }
+                    itTaker->second += saLeft;
                 }
                 WriteLog (lsINFO, LedgerEntrySet) << "FeeShare: left " << saLeft << " goes to "<< lastAccount;
             }
             
-            if (terResult == tesSUCCESS)
+            if (terResult == tesSUCCESS && takersMap.size())
             {
+                // if there are FeeShareTakers, record it
+                STArray feeShareTakers = STArray(sfFeeShareTakers);
+                if (mSet.hasFeeShareTakers())
+                {
+                    feeShareTakers = mSet.getFeeShareTakers();
+                }
+                // update takers' record in former rounds
+                for (auto itTakerObj = feeShareTakers.begin(); itTakerObj != feeShareTakers.end(); ++itTakerObj)
+                {
+                    auto itFind = takersMap.find(itTakerObj->getFieldAccount(sfAccount).getAccountID());
+                    if (itFind != takersMap.end())
+                    {
+                        STAmount amountBefore = itTakerObj->getFieldAmount(sfAmount);
+                        itTakerObj->setFieldAmount(sfAmount, amountBefore + itFind->second);
+                        takersMap.erase(itFind);
+                    }
+                }
+                // append new takers' record
+                for (auto itTakerRecord : takersMap)
+                {
+                    STObject feeShareTaker(sfFeeShareTaker);
+                    feeShareTaker.setFieldAccount(sfAccount, itTakerRecord.first);
+                    feeShareTaker.setFieldAmount(sfAmount, itTakerRecord.second);
+                }
                 mSet.setFeeShareTakers(feeShareTakers);
-                WriteLog (lsDEBUG, LedgerEntrySet) << mSet.getJson(0);
             }
         }
     }
-
     return terResult;
 }
 
