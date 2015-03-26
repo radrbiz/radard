@@ -1539,6 +1539,7 @@ TER LedgerEntrySet::shareFeeWithReferee(Account const& uSenderID, Account const&
                     STObject feeShareTaker(sfFeeShareTaker);
                     feeShareTaker.setFieldAccount(sfAccount, itTakerRecord.first);
                     feeShareTaker.setFieldAmount(sfAmount, itTakerRecord.second);
+                    feeShareTakers.push_back(feeShareTaker);
                 }
                 mSet.setFeeShareTakers(feeShareTakers);
             }
