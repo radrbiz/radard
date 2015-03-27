@@ -1529,8 +1529,12 @@ TER LedgerEntrySet::shareFeeWithReferee(Account const& uSenderID, Account const&
                     if (itFind != takersMap.end())
                     {
                         STAmount amountBefore = itTakerObj->getFieldAmount(sfAmount);
-                        itTakerObj->setFieldAmount(sfAmount, amountBefore + itFind->second);
-                        takersMap.erase(itFind);
+                        if (amountBefore.getCurrency() == itFind->second.getCurrency()
+                                && amountBefore.getIssuer() == itFind->second.getIssuer())
+                        {
+                            itTakerObj->setFieldAmount(sfAmount, amountBefore + itFind->second);
+                            takersMap.erase(itFind);
+                        }
                     }
                 }
                 // append new takers' record
