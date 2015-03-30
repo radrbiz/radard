@@ -69,8 +69,10 @@ CurrencySet accountDestCurrencies (
 {
     CurrencySet currencies;
 
-    if (includeXRP)
+    if (includeXRP) {
         currencies.insert (xrpCurrency());
+        currencies.insert (vbcCurrency());
+    }
     // Even if account doesn't exist
 
     // List of ripple lines.
