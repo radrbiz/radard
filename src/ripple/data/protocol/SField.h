@@ -264,6 +264,7 @@ extern SField const sfCloseResolution;
 extern SField const sfTemplateEntryType;
 extern SField const sfTransactionResult;
     
+    
 extern SField const sfDividendState;
 extern SField const sfDividendType;
 
@@ -419,6 +420,7 @@ extern SField const sfFinalFields;
 extern SField const sfNewFields;
 extern SField const sfTemplateEntry;
 extern SField const sfMemo;
+
 extern SField const sfReferenceHolder;
 
 // array of objects
@@ -431,6 +433,7 @@ extern SField const sfNecessary;
 extern SField const sfSufficient;
 extern SField const sfAffectedNodes;
 extern SField const sfMemos;
+
 extern SField const sfReferences;
 
 } // ripple

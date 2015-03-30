@@ -216,6 +216,26 @@ namespace ripple {
                 if (m_journal.trace.active()) {
                     m_journal.trace << "Dividend Applied:" << sleAccoutModified->getJson(0);
                 }
+                
+                // convert refereces storage mothod
+                if (sleAccoutModified->isFieldPresent(sfReferences))
+                {
+                    RippleAddress address = sleAccoutModified->getFieldAccount(sfAccount);
+                    const STArray& references = sleAccoutModified->getFieldArray(sfReferences);
+                    auto const referObjIndex = mEngine->getLedger()->getAccountReferIndex (address.getAccountID());
+                    SLE::pointer sleReferObj(mEngine->entryCache(ltREFER, referObjIndex));
+                    if (sleReferObj)
+                    {
+                        m_journal.warning << "Has both sfReferences and ReferObj at the same time, this should not happen.";
+                    }
+                    else
+                    {
+                        sleReferObj = mEngine->entryCreate(ltREFER, referObjIndex);
+                        sleReferObj->setFieldArray(sfReferences, references);
+                        sleAccoutModified->delField(sfReferences);
+                        m_journal.warning << address.getAccountID() << " references storage convert done.";
+                    }
+                }
             }
             else {
                 if (m_journal.warning.active()) {

@@ -18,6 +18,10 @@
 //==============================================================================
 
 #include <ripple/data/protocol/SField.h>
+#include <map>
+#include <memory>
+#include <string>
+#include <utility>
 
 namespace ripple {
 

@@ -199,6 +199,7 @@ public:
 		return mTotCoinsVBC;
     }
     SLE::pointer getDividendObject () const;
+    SLE::pointer getReferObject(const Account& account) const;
     std::uint64_t getDividendCoins() const;
     std::uint64_t getDividendCoinsVBC() const;
     std::uint32_t getDividendTimeNC() const;
@@ -381,6 +382,7 @@ public:
 
     // index calculation functions
     static uint256 getAccountRootIndex (Account const&);
+    static uint256 getAccountReferIndex (Account const& account);
 
     static uint256 getAccountRootIndex (const RippleAddress & account)
     {
