@@ -40,7 +40,8 @@
       ignoresPersistentStateOnLaunch = "NO"
       debugDocumentVersioning = "YES"
       allowLocationSimulation = "YES">
-      <BuildableProductRunnable>
+      <BuildableProductRunnable
+         runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "842440531A13B2B900A37710"
@@ -50,6 +51,10 @@
          </BuildableReference>
       </BuildableProductRunnable>
       <CommandLineArguments>
+         <CommandLineArgument
+            argument = "--fg"
+            isEnabled = "YES">
+         </CommandLineArgument>
          <CommandLineArgument
             argument = "--load"
             isEnabled = "NO">
