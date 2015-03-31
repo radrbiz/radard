@@ -542,7 +542,7 @@ STPathSet Pathfinder::getBestPaths (
         extraPaths.size () << " extras";
 
     assert (fullLiquidityPath.empty ());
-    const bool issuerIsSender = isXRP (mSrcCurrency) || (srcIssuer == mSrcAccount);
+    const bool issuerIsSender = isXRP (mSrcCurrency) || isVBC (mSrcCurrency) || (srcIssuer == mSrcAccount);
 
     if (issuerIsSender &&
             (mCompletePaths.size () <= maxPaths) &&
