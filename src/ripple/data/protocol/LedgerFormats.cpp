@@ -42,6 +42,10 @@ LedgerFormats::LedgerFormats ()
             << SOElement (sfReferee,             SOE_OPTIONAL)
             << SOElement (sfReferences,          SOE_OPTIONAL)
             << SOElement (sfReferenceHeight,     SOE_OPTIONAL)
+            << SOElement (sfDividendLedger,      SOE_OPTIONAL)
+            << SOElement (sfDividendVRank,       SOE_OPTIONAL)
+            << SOElement (sfDividendVSprd,       SOE_OPTIONAL)
+            << SOElement (sfDividendTSprd,       SOE_OPTIONAL)
             ;
 
     add ("DirectoryNode", ltDIR_NODE)
