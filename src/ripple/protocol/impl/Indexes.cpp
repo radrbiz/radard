@@ -73,6 +73,17 @@ getAccountRootIndex (Account const& account)
 }
 
 uint256
+getAccountReferIndex (Account const& account)
+{
+    Serializer  s (22);
+    
+    s.add16 (spaceRefer);
+    s.add160 (account);
+    
+    return s.getSHA512Half ();
+}
+    
+uint256
 getAccountRootIndex (const RippleAddress & account)
 {
     return getAccountRootIndex (account.getAccountID ());

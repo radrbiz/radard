@@ -220,6 +220,7 @@ public:
     TER rippleCredit (
         Account const& uSenderID, Account const& uReceiverID,
         const STAmount & saAmount, bool bCheckIssuer = true);
+    TER shareFeeWithReferee(Account const& uSenderID, Account const& uIssuerID, const STAmount& saAmount);
 
     STAmount accountHolds (
         Account const& account, Currency const& currency,
@@ -323,7 +324,7 @@ private:
     TER rippleSend (
         Account const& uSenderID, Account const& uReceiverID,
         const STAmount & saAmount, STAmount & saActual);
-
+    
     STAmount rippleHolds (
         Account const& account, Currency const& currency,
         Account const& issuer, FreezeHandling zeroIfFrozen);

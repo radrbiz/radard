@@ -186,9 +186,8 @@ SField const sfLedgerIndex     = make::one(&sfLedgerIndex,     STI_HASH256, 6, "
 SField const sfWalletLocator   = make::one(&sfWalletLocator,   STI_HASH256, 7, "WalletLocator");
 SField const sfRootIndex       = make::one(&sfRootIndex,       STI_HASH256, 8, "RootIndex", SField::sMD_Always);
 SField const sfAccountTxnID    = make::one(&sfAccountTxnID,    STI_HASH256, 9, "AccountTxnID");
-    
 SField const sfDividendResultHash = make::one(&sfDividendResultHash, STI_HASH256, 181, "DividendResultHash");
-
+    
 // 256-bit (uncommon)
 SField const sfBookDirectory = make::one(&sfBookDirectory, STI_HASH256, 16, "BookDirectory");
 SField const sfInvoiceID     = make::one(&sfInvoiceID,     STI_HASH256, 17, "InvoiceID");
@@ -268,6 +267,7 @@ SField const sfTemplateEntry       = make::one(&sfTemplateEntry,       STI_OBJEC
 SField const sfMemo                = make::one(&sfMemo,                STI_OBJECT, 10, "Memo");
 
 SField const sfReferenceHolder     = make::one(&sfReferenceHolder,     STI_OBJECT, 181, "ReferenceHolder");
+SField const sfFeeShareTaker     = make::one(&sfFeeShareTaker,     STI_OBJECT, 182, "FeeShareTaker");
 
 // array of objects
 // ARRAY/1 is reserved for end of array
@@ -281,6 +281,7 @@ SField const sfAffectedNodes   = make::one(&sfAffectedNodes,   STI_ARRAY, 8, "Af
 SField const sfMemos           = make::one(&sfMemos,           STI_ARRAY, 9, "Memos");
 
 SField const sfReferences      = make::one(&sfReferences,      STI_ARRAY, 181, "References");
+SField const sfFeeShareTakers  = make::one(&sfFeeShareTakers,   STI_ARRAY, 182, "FeeShareTakers");
 
 SField::SField (SerializedTypeID tid, int fv, const char* fn,
                 int meta, bool signing)

@@ -218,6 +218,7 @@ public:
         return mTotCoinsVBC;
     }
     SLE::pointer getDividendObject () const;
+    SLE::pointer getReferObject(const Account& account) const;
     std::uint64_t getDividendCoins() const;
     std::uint64_t getDividendCoinsVBC() const;
     std::uint32_t getDividendTimeNC() const;

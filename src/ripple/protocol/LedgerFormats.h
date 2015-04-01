@@ -97,6 +97,7 @@ enum LedgerNameSpace
     spaceFee            = 'e',
     spaceTicket         = 'T',
     spaceDividend       = 'D',
+    spaceRefer          = 'R',
 
     // No longer used or supported. Left here to reserve the space and
     // avoid accidental reuse of the space.

@@ -262,15 +262,32 @@ TER PathCursor::forwardLiquidityForAccount () const
             }
 
             STAmount saProvide = node().saFwdRedeem + node().saFwdIssue;
-
-            // Adjust prv --> cur balance : take all inbound
-            resultCode = saProvide
-                ? ledger().rippleCredit (
-                    previousAccountID,
-                    node().account_,
-                    previousNode().saFwdRedeem + previousNode().saFwdIssue,
-                    false)
-                : tecPATH_DRY;
+            
+            if (saProvide)
+            {
+                STAmount saTotalSend = previousNode().saFwdRedeem + previousNode().saFwdIssue;
+                // Adjust prv --> cur balance : take all inbound
+                resultCode = ledger().rippleCredit (
+                                       previousAccountID,
+                                       node().account_,
+                                       saTotalSend,
+                                       false);
+                
+                STAmount saFee = saTotalSend - node().saFwdIssue;
+                if (saFee > zero)
+                {
+                    // share fee with sender referee
+                    STAmount saShareRate = STAmount(saFee.issue(), 25, -2);
+                    STAmount saShareFee = multiply(saFee, saShareRate);
+                    Account sender = node(0).account_;
+                    Account issuer = node().account_;
+                    resultCode = ledger().shareFeeWithReferee(sender, issuer, saShareFee);
+                }
+            }
+            else
+            {
+                resultCode = tecPATH_DRY;
+            }
         }
     }
     else if (previousNode().isAccount() && !nextNode().isAccount())

@@ -49,6 +49,9 @@ getLedgerFeeIndex ();
 
 uint256
 getAccountRootIndex (Account const& account);
+    
+uint256
+getAccountReferIndex (Account const& account);
 
 uint256
 getAccountRootIndex (const RippleAddress & account);
