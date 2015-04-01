@@ -201,7 +201,6 @@ public:
 
     void fillDivResult(SHAMap::pointer initialPosition) override
     {
-        std::unordered_set<Account> processedAccounts;
         for (const auto& it : m_divResult) {
             SerializedTransaction trans(ttDIVIDEND);
             trans.setFieldU8(sfDividendType, DividendMaster::DivType_Apply);
@@ -227,52 +226,12 @@ public:
                     m_journal.warning << "Ledger already had dividend for " << std::get<0>(it);
             }
             else {
-                processedAccounts.insert(std::get<0>(it));
                 if (m_journal.trace.active())
                     m_journal.trace << "dividend add TX " << txID << " for " << std::get<0>(it);
             }
         }
-        
         if (m_journal.info)
             m_journal.info << "dividend add " << m_divResult.size() << " TXs done. Mem" << memUsed();
-        
-        //Refer storage shift
-        Ledger::ref baseLedger = getApp().getOPs().getValidatedLedger();
-        baseLedger->visitStateItems([this, &initialPosition, processedAccounts](SLE::ref sle) {
-            if (sle->getType() == ltACCOUNT_ROOT) {
-                Account account = sle->getFieldAccount(sfAccount).getAccountID();
-                // account not added yet and it has sfReferences field
-                if (processedAccounts.find(account) == processedAccounts.end() && sle->isFieldPresent(sfReferences)) {
-                    SerializedTransaction trans(ttDIVIDEND);
-                    trans.setFieldU8(sfDividendType, DividendMaster::DivType_Apply);
-                    trans.setFieldAccount(sfAccount, Account());
-                    trans.setFieldAccount(sfDestination, account);
-                    trans.setFieldU32(sfDividendLedger, m_dividendLedgerSeq);
-                    trans.setFieldU64(sfDividendCoins, 0);
-                    trans.setFieldU64(sfDividendCoinsVBC, 0);
-                    trans.setFieldU64(sfDividendCoinsVBCRank, 0);
-                    trans.setFieldU64(sfDividendCoinsVBCSprd, 0);
-                    trans.setFieldU64(sfDividendVRank, 0);
-                    trans.setFieldU64(sfDividendVSprd, 0);
-                    trans.setFieldU64(sfDividendTSprd, 0);
-                    
-                    uint256 txID = trans.getTransactionID();
-                    Serializer s;
-                    trans.add(s, true);
-                    
-                    SHAMapItem::pointer tItem = std::make_shared<SHAMapItem>(txID, s.peekData());
-                    
-                    if (!initialPosition->addGiveItem(tItem, true, false)) {
-                        if (m_journal.warning.active())
-                            m_journal.warning << "Refer Shift: fail for account: " << account;
-                    }
-                    else {
-                        if (m_journal.trace.active())
-                            m_journal.trace << "Refer Shift: ok for tx: " << txID << ", account: " << account;
-                    }
-                }
-            }
-        });
     }
 
     void setLedgerSeq(uint32_t seq) override
@@ -396,15 +355,19 @@ bool DividendMaster::calcDividendFunc(Ledger::ref baseLedger, uint64_t dividendC
     // <<AccountId, ParentId, Height>, <BalanceVBC, VRank, VSpd, TSpd>>, accounts sorted by reference height and parent desc
     std::multimap<std::tuple<Account, Account, uint32_t>, std::tuple<uint64_t, uint32_t, uint64_t, uint64_t>, AccountsByReference_Less> accountsByReference;
     
+    hash_set<Account> accountsNeedsUpgrade;
+    
     // visit account stats to fill accountsByBalance
-    baseLedger->visitStateItems([&accountsByBalance, &accountsByReference, baseLedger](SLE::ref sle) {
+    baseLedger->visitStateItems([&accountsByBalance, &accountsByReference, &accountsNeedsUpgrade, baseLedger](SLE::ref sle) {
         if (sle->getType() == ltACCOUNT_ROOT) {
             uint64_t bal = sle->getFieldAmount(sfBalanceVBC).getNValue();
             // Only accounts with balance >= SYSTEM_CURRENCY_PARTS_VBC or has child should be calculated.
-            if (bal < SYSTEM_CURRENCY_PARTS_VBC
-                && !baseLedger->hasRefer(sle->getFieldAccount(sfAccount).getAccountID())
-                && !sle->isFieldPresent(sfReferences) // old format compatable
-                ) {
+            if (sle->isFieldPresent(sfReferences)) {
+                // refer migrate needed, @todo: simply delete this if after migration.
+                accountsNeedsUpgrade.insert(sle->getFieldAccount(sfAccount).getAccountID());
+            }
+            else if (bal < SYSTEM_CURRENCY_PARTS_VBC
+                && !baseLedger->hasRefer(sle->getFieldAccount(sfAccount).getAccountID())) {
                 return;
             }
             uint32_t height = 0;
@@ -538,8 +501,16 @@ bool DividendMaster::calcDividendFunc(Ledger::ref baseLedger, uint64_t dividendC
             WriteLog(lsINFO, DividendMaster) << "{\"account\":\"" << RippleAddress::createAccountID(std::get<0>(it.first)).humanAccountID() << "\",\"data\":{\"divVBCByRank\":\"" << divVBCbyRank << "\",\"divVBCByPower\":\"" << divVBCbyPower << "\",\"divVBC\":\"" << divVBC << "\",\"balance\":\"" << std::get<0>(it.second) << "\",\"vrank\":\"" << std::get<1>(it.second) << "\",\"vsprd\":\"" << std::get<2>(it.second) << "\",\"tsprd\":\"" << std::get<3>(it.second) << "\"}}";
         }
         
-        if (div !=0 || divVBC !=0)
-        accountsOut.push_back(std::make_tuple(std::get<0>(it.first), div, divVBC, static_cast<uint64_t>(divVBCbyRank), static_cast<uint64_t>(divVBCbyPower), std::get<1>(it.second), std::get<2>(it.second), std::get<3>(it.second)));
+        if (div !=0 || divVBC !=0) {
+            accountsOut.push_back(std::make_tuple(std::get<0>(it.first), div, divVBC, static_cast<uint64_t>(divVBCbyRank), static_cast<uint64_t>(divVBCbyPower), std::get<1>(it.second), std::get<2>(it.second), std::get<3>(it.second)));
+            accountsNeedsUpgrade.erase(std::get<0>(it.first)); // refer migrate needed, @todo: simply delete this line after migration.
+        }
+    }
+    accountsByReference.clear();
+    
+    for (const auto& it : accountsNeedsUpgrade) {
+        // refer migrate needed, @todo: simply delete this for loop after migration.
+        accountsOut.push_back(std::make_tuple(it, 0, 0, 0, 0, 0, 0, 0));
     }
     
     WriteLog(lsINFO, DividendMaster) << "calcDividend got actualTotalDividend " << actualTotalDividend << " actualTotalDividendVBC " << actualTotalDividendVBC << " Mem " << memUsed();
@@ -557,7 +528,6 @@ bool DividendMaster::calcDividendFunc(Ledger::ref baseLedger, uint64_t dividendC
     if (remainCoins > 0 || remainCoinsVBC > 0)
         accountsOut.push_back(std::make_tuple(Account("0x56CE5173B6A2CBEDF203BD69159212094C651041"), remainCoins, remainCoinsVBC, 0, 0, 0, 0, 0));
     
-    accountsByReference.clear();
     WriteLog(lsINFO, DividendMaster) << "calcDividend done with " << accountsOut.size() << " accounts Mem " << memUsed();
     
     return true;
