@@ -198,13 +198,6 @@ public:
 	{
 		return mTotCoinsVBC;
     }
-    SLE::pointer getDividendObject () const;
-    SLE::pointer getReferObject(const Account& account) const;
-    std::uint64_t getDividendCoins() const;
-    std::uint64_t getDividendCoinsVBC() const;
-    std::uint32_t getDividendTimeNC() const;
-    bool isDividendStarted() const;
-    std::uint32_t getDividendBaseLedger() const;
     void destroyCoins (std::uint64_t fee)
     {
         mTotCoins -= fee;
@@ -388,6 +381,22 @@ public:
     {
         return getAccountRootIndex (account.getAccountID ());
     }
+    
+    //
+    // refer functions
+    //
+    SLE::pointer getReferObject(const Account& account) const;
+    bool hasRefer (const Account & Account) const;
+    
+    //
+    // dividend functions
+    //
+    SLE::pointer getDividendObject () const;
+    std::uint64_t getDividendCoins() const;
+    std::uint64_t getDividendCoinsVBC() const;
+    std::uint32_t getDividendTimeNC() const;
+    bool isDividendStarted() const;
+    std::uint32_t getDividendBaseLedger() const;
 
     //
     // Generator Map functions

@@ -400,11 +400,12 @@ bool DividendMaster::calcDividendFunc(Ledger::ref baseLedger, uint64_t dividendC
     baseLedger->visitStateItems([&accountsByBalance, &accountsByReference, baseLedger](SLE::ref sle) {
         if (sle->getType() == ltACCOUNT_ROOT) {
             uint64_t bal = sle->getFieldAmount(sfBalanceVBC).getNValue();
-            if (bal < SYSTEM_CURRENCY_PARTS_VBC) {
-                auto selRefer = baseLedger->getReferObject(sle->getFieldAccount(sfAccount).getAccountID());
-                if (!selRefer && !sle->isFieldPresent(sfReferences)) {
-                    return;
-                }
+            // Only accounts with balance >= SYSTEM_CURRENCY_PARTS_VBC or has child should be calculated.
+            if (bal < SYSTEM_CURRENCY_PARTS_VBC
+                && !baseLedger->hasRefer(sle->getFieldAccount(sfAccount).getAccountID())
+                && !sle->isFieldPresent(sfReferences) // old format compatable
+                ) {
+                return;
             }
             uint32_t height = 0;
             Account addrParent;
