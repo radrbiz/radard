@@ -191,9 +191,6 @@ namespace ripple {
             uint64_t divCoinsVBC = mTxn.getFieldU64(sfDividendCoinsVBC);
             uint64_t divCoins = mTxn.getFieldU64(sfDividendCoins);
             
-            if (divCoinsVBC == 0 && divCoins ==0)
-                return tesSUCCESS;
-            
             SLE::pointer sleAccoutModified = mEngine->entryCache(
                 ltACCOUNT_ROOT, Ledger::getAccountRootIndex(account));
 
