@@ -1883,6 +1883,11 @@ SLE::pointer Ledger::getReferObject(const Account& account) const
     return sle;
 }
             
+bool Ledger::hasRefer (const Account& account) const
+{
+    return mAccountStateMap->hasItem (getAccountReferIndex (account));
+}
+
 uint64_t Ledger::getDividendCoins() const
 {
     auto sle = getASNodeI(Ledger::getLedgerDividendIndex(), ltDIVIDEND);

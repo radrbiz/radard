@@ -368,11 +368,13 @@ bool DividendMaster::calcDividendFunc(Ledger::ref baseLedger, uint64_t dividendC
     std::multimap<std::tuple<Account, Account, uint32_t>, std::tuple<uint64_t, uint32_t, uint64_t, uint64_t>, AccountsByReference_Less> accountsByReference;
     
     // visit account stats to fill accountsByBalance
-    baseLedger->visitStateItems([&accountsByBalance, &accountsByReference](SLE::ref sle) {
+    baseLedger->visitStateItems([&accountsByBalance, &accountsByReference, baseLedger](SLE::ref sle) {
         if (sle->getType() == ltACCOUNT_ROOT) {
             uint64_t bal = sle->getFieldAmount(sfBalanceVBC).getNValue();
-            if (bal < SYSTEM_CURRENCY_PARTS_VBC && (!sle->isFieldPresent(sfReferences)))
+            if (bal < SYSTEM_CURRENCY_PARTS_VBC
+                && !baseLedger->hasRefer(sle->getFieldAccount(sfAccount).getAccountID())) {
                 return;
+            }
             uint32_t height = 0;
             Account addrParent;
             if (sle->isFieldPresent(sfReferee) && sle->isFieldPresent(sfReferenceHeight)) {
