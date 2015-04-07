@@ -71,20 +71,13 @@ public:
             m_journal.trace << "Referee has been set.";
 
             return tefREFEREE_EXIST;
-        } else if ((sleReferenceRefer && !sleReferenceRefer->getFieldArray(sfReferences).empty())
-               || (sleReference->isFieldPresent(sfReferences)
-                   && !sleReference->getFieldArray(sfReferences).empty())) {
+        } else if ((sleReferenceRefer && !sleReferenceRefer->getFieldArray(sfReferences).empty())) {
             m_journal.trace << "Reference has been set.";
-            
             return tefREFERENCE_EXIST;
         } else {
             STArray references(sfReferences);
-            bool oldFormat = false;
             if (sleRefer && sleRefer->isFieldPresent(sfReferences)) {
                 references = sleRefer->getFieldArray(sfReferences);
-            } else if (sleReferee->isFieldPresent(sfReferences)) {
-                references = sleReferee->getFieldArray(sfReferences);
-                oldFormat = true;
             }
 
             for (auto it = references.begin(); it != references.end(); ++it) {
@@ -104,10 +97,6 @@ public:
             sleReference->setFieldU32(sfReferenceHeight, referenceHeight+1);
             references.push_back(STObject(sfReferenceHolder));
             references.back().setFieldAccount(sfReference, referenceID);
-            if (oldFormat) {
-                mEngine->entryModify(sleReferee);
-                sleReferee->delField(sfReferences);
-            }
             if (!sleRefer) {
                 sleRefer = mEngine->entryCreate(ltREFER, referIndex);
             } else {
