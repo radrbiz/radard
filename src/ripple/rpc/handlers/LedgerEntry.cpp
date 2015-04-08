@@ -199,6 +199,24 @@ Json::Value doLedgerEntry (RPC::Context& context)
                 naA.getAccountID (), naB.getAccountID (), uCurrency);
         }
     }
+    else if (context.params_.isMember ("dividend"))
+    {
+        uNodeIndex = Ledger::getLedgerDividendIndex();
+    }
+    else if (context.params_.isMember ("account_refer"))
+    {
+        RippleAddress   naAccount;
+        
+        if (!naAccount.setAccountID (context.params_["account_refer"].asString())
+            || !naAccount.getAccountID ())
+        {
+            jvResult["error"]   = "malformedAddress";
+        }
+        else
+        {
+            uNodeIndex = Ledger::getAccountReferIndex(naAccount.getAccountID());
+        }
+    }
     else
     {
         jvResult["error"]   = "unknownOption";

@@ -191,9 +191,6 @@ namespace ripple {
             uint64_t divCoinsVBC = mTxn.getFieldU64(sfDividendCoinsVBC);
             uint64_t divCoins = mTxn.getFieldU64(sfDividendCoins);
             
-            if (divCoinsVBC == 0 && divCoins ==0)
-                return tesSUCCESS;
-            
             SLE::pointer sleAccoutModified = mEngine->entryCache(
                 ltACCOUNT_ROOT, Ledger::getAccountRootIndex(account));
 
@@ -215,6 +212,27 @@ namespace ripple {
                 
                 if (m_journal.trace.active()) {
                     m_journal.trace << "Dividend Applied:" << sleAccoutModified->getJson(0);
+                }
+                
+                // convert refereces storage mothod
+                if (sleAccoutModified->isFieldPresent(sfReferences))
+                {
+                    // refer migrate needed, @todo: simply delete this if after migration.
+                    RippleAddress address = sleAccoutModified->getFieldAccount(sfAccount);
+                    const STArray& references = sleAccoutModified->getFieldArray(sfReferences);
+                    auto const referObjIndex = mEngine->getLedger()->getAccountReferIndex (address.getAccountID());
+                    SLE::pointer sleReferObj(mEngine->entryCache(ltREFER, referObjIndex));
+                    if (sleReferObj)
+                    {
+                        m_journal.error << "Has both sfReferences and ReferObj at the same time for " <<  RippleAddress::createAccountID(account).humanAccountID() << ", this should not happen.";
+                    }
+                    else
+                    {
+                        sleReferObj = mEngine->entryCreate(ltREFER, referObjIndex);
+                        sleReferObj->setFieldArray(sfReferences, references);
+                        sleAccoutModified->delField(sfReferences);
+                        m_journal.info << address.getAccountID() << " references storage convert done.";
+                    }
                 }
             }
             else {

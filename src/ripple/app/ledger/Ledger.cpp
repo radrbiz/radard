@@ -444,13 +444,13 @@ bool Ledger::addSLE (SLE const& sle)
 
 AccountState::pointer Ledger::getAccountState (RippleAddress const& accountID) const
 {
-    SLE::pointer sle = getSLEi (Ledger::getAccountRootIndex (accountID));
-
+    SLE::pointer sle = getSLEi(getAccountRootIndex(accountID));
+    SLE::pointer sleRefer = getReferObject(accountID.getAccountID());
     if (!sle)
     {
         WriteLog (lsDEBUG, Ledger) << "Ledger:getAccountState:" <<
             " not found: " << accountID.humanAccountID () <<
-            ": " << to_string (Ledger::getAccountRootIndex (accountID));
+            ": " << to_string (getAccountRootIndex (accountID));
 
         return AccountState::pointer ();
     }
@@ -458,7 +458,7 @@ AccountState::pointer Ledger::getAccountState (RippleAddress const& accountID) c
     if (sle->getType () != ltACCOUNT_ROOT)
         return AccountState::pointer ();
 
-    return std::make_shared<AccountState> (sle, accountID);
+    return std::make_shared<AccountState> (sle, accountID, sleRefer);
 }
 
 bool Ledger::addTransaction (uint256 const& txID, const Serializer& txn)
@@ -1664,6 +1664,78 @@ SLE::pointer Ledger::getDirNode (uint256 const& uNodeIndex) const
 {
     return getASNodeI (uNodeIndex, ltDIR_NODE);
 }
+            
+SLE::pointer Ledger::getReferObject(const Account& account) const
+{
+    auto referIndex = getAccountReferIndex(account);
+    auto sle = getSLEi(referIndex);
+    return sle;
+}
+
+bool Ledger::hasRefer (const Account& account) const
+{
+    return mAccountStateMap->hasItem (Ledger::getAccountReferIndex (account));
+}
+
+SLE::pointer Ledger::getDividendObject () const
+{
+    return getASNodeI (Ledger::getLedgerDividendIndex(), ltDIVIDEND);
+}
+
+uint64_t Ledger::getDividendCoins() const
+{
+    auto sle = getASNodeI(Ledger::getLedgerDividendIndex(), ltDIVIDEND);
+    
+    if (!sle || sle->getFieldIndex(sfDividendCoins)==-1) return 0;
+    
+    return sle->getFieldU64(sfDividendCoins);
+}
+
+uint64_t Ledger::getDividendCoinsVBC() const
+{
+    auto sle = getASNodeI(Ledger::getLedgerDividendIndex(), ltDIVIDEND);
+    
+    if (!sle || sle->getFieldIndex(sfDividendCoinsVBC) == -1) return 0;
+    
+    return sle->getFieldU64(sfDividendCoinsVBC);
+}
+
+bool Ledger::isDividendStarted() const
+{
+    auto sle = getASNodeI(Ledger::getLedgerDividendIndex(), ltDIVIDEND);
+    
+    if (!sle || sle->getFieldIndex(sfDividendState) == -1) return false;
+    
+    uint8_t type = sle->getFieldU8(sfDividendState);
+    return type == DividendMaster::DivType_Start;
+}
+
+std::uint32_t Ledger::getDividendBaseLedger() const
+{
+    auto sle = getASNodeI(Ledger::getLedgerDividendIndex(), ltDIVIDEND);
+    
+    if (!sle || sle->getFieldIndex(sfDividendLedger) == -1)
+    {
+        return 0;
+    }
+    
+    return sle->getFieldU32(sfDividendLedger);
+}
+
+uint32_t Ledger::getDividendTimeNC() const
+{
+    auto sle = getASNodeI(Ledger::getLedgerDividendIndex(), ltDIVIDEND);
+    
+    if (!sle || sle->getFieldIndex(sfDividendLedger) == -1) return 0;
+    
+    uint32_t dividendLedger = sle->getFieldU32(sfDividendLedger);
+    if (dividendLedger==0) return 0;
+    
+    auto ledger=getApp().getLedgerMaster().getLedgerBySeq(dividendLedger);
+    if (!ledger) return 0;
+    
+    return ledger->getCloseTimeNC();
+}
 
 SLE::pointer Ledger::getGenerator (Account const& uGeneratorID) const
 {
@@ -1716,6 +1788,16 @@ uint256 Ledger::getAccountRootIndex (Account const& account)
     s.add16 (spaceAccount); //  2
     s.add160 (account);  // 20
 
+    return s.getSHA512Half ();
+}
+            
+uint256 Ledger::getAccountReferIndex (Account const& account)
+{
+    Serializer  s (22);
+    
+    s.add16 (spaceRefer);
+    s.add160 (account);
+    
     return s.getSHA512Half ();
 }
 
@@ -2176,66 +2258,6 @@ void Ledger::initializeFees ()
     mReferenceFeeUnits = 0;
     mReserveBase = 0;
     mReserveIncrement = 0;
-}
-            
-SLE::pointer Ledger::getDividendObject () const
-{
-    return getASNodeI (Ledger::getLedgerDividendIndex(), ltDIVIDEND);
-}
-
-uint64_t Ledger::getDividendCoins() const
-{
-    auto sle = getASNodeI(Ledger::getLedgerDividendIndex(), ltDIVIDEND);
-
-    if (!sle || sle->getFieldIndex(sfDividendCoins)==-1) return 0;
-
-    return sle->getFieldU64(sfDividendCoins);
-}
-
-uint64_t Ledger::getDividendCoinsVBC() const
-{
-    auto sle = getASNodeI(Ledger::getLedgerDividendIndex(), ltDIVIDEND);
-
-    if (!sle || sle->getFieldIndex(sfDividendCoinsVBC) == -1) return 0;
-
-    return sle->getFieldU64(sfDividendCoinsVBC);
-}
-
-bool Ledger::isDividendStarted() const
-{
-    auto sle = getASNodeI(Ledger::getLedgerDividendIndex(), ltDIVIDEND);
-
-    if (!sle || sle->getFieldIndex(sfDividendState) == -1) return false;
-    
-    uint8_t type = sle->getFieldU8(sfDividendState);
-    return type == DividendMaster::DivType_Start;
-}
-            
-std::uint32_t Ledger::getDividendBaseLedger() const
-{
-    auto sle = getASNodeI(Ledger::getLedgerDividendIndex(), ltDIVIDEND);
-    
-    if (!sle || sle->getFieldIndex(sfDividendLedger) == -1)
-    {
-        return 0;
-    }
-    
-    return sle->getFieldU32(sfDividendLedger);
-}
-
-uint32_t Ledger::getDividendTimeNC() const
-{
-    auto sle = getASNodeI(Ledger::getLedgerDividendIndex(), ltDIVIDEND);
-    
-    if (!sle || sle->getFieldIndex(sfDividendLedger) == -1) return 0;
-    
-    uint32_t dividendLedger = sle->getFieldU32(sfDividendLedger);
-    if (dividendLedger==0) return 0;
-    
-    auto ledger=getApp().getLedgerMaster().getLedgerBySeq(dividendLedger);
-    if (!ledger) return 0;
-    
-    return ledger->getCloseTimeNC();
 }
 
 void Ledger::updateFees ()
