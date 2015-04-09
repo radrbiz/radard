@@ -90,7 +90,7 @@ detect_peer_protocol (Socket& socket, StreamBuf& buf, Yield yield)
             break;
         if (n>=6)
         {
-            if (data[5] == 1)
+            if (data[5] == 181) 
                 result.second = true;
             break;
         }
