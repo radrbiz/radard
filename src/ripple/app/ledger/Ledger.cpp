@@ -804,7 +804,7 @@ bool Ledger::saveValidatedLedger (bool current)
             db->executeSQL (
                 STTx::getMetaSQLInsertReplaceHeader (db->getDBType()) +
                 vt.second->getTxn ()->getMetaSQL (
-                    getLedgerSeq (), vt.second->getEscMeta ()) + ";");
+                    getLedgerSeq (), vt.second->getEscMeta (), mCloseTime) + ";");
         }
         db->endTransaction();
         db->batchCommit();
