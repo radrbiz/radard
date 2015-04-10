@@ -157,11 +157,11 @@ namespace ripple {
         //achieve consensus on which ledger to start dividend
         TER startCalc()
         {
-            SLE::pointer dividendObject = mEngine->entryCache(ltDIVIDEND, Ledger::getLedgerDividendIndex());
+            SLE::pointer dividendObject = mEngine->entryCache(ltDIVIDEND, getLedgerDividendIndex());
 
             if (!dividendObject)
             {
-                dividendObject = mEngine->entryCreate(ltDIVIDEND, Ledger::getLedgerDividendIndex());
+                dividendObject = mEngine->entryCreate(ltDIVIDEND, getLedgerDividendIndex());
             }
 
             m_journal.info << "Previous dividend object: " << dividendObject->getText();
@@ -197,9 +197,6 @@ namespace ripple {
             
             uint64_t divCoinsVBC = mTxn.getFieldU64(sfDividendCoinsVBC);
             uint64_t divCoins = mTxn.getFieldU64(sfDividendCoins);
-            
-            if (divCoinsVBC == 0 && divCoins ==0)
-                return tesSUCCESS;
             
             SLE::pointer sleAccoutModified = mEngine->entryCache(
                 ltACCOUNT_ROOT, getAccountRootIndex(account));
@@ -270,6 +267,27 @@ namespace ripple {
                         m_journal.warning << address.getAccountID() << " references storage convert done.";
                     }
                 }
+                
+                // convert refereces storage mothod
+                if (sleAccoutModified->isFieldPresent(sfReferences))
+                {
+                    // refer migrate needed, @todo: simply delete this if after migration.
+                    RippleAddress address = sleAccoutModified->getFieldAccount(sfAccount);
+                    const STArray& references = sleAccoutModified->getFieldArray(sfReferences);
+                    auto const referObjIndex = getAccountReferIndex (address.getAccountID());
+                    SLE::pointer sleReferObj(mEngine->entryCache(ltREFER, referObjIndex));
+                    if (sleReferObj)
+                    {
+                        m_journal.error << "Has both sfReferences and ReferObj at the same time for " <<  RippleAddress::createAccountID(account).humanAccountID() << ", this should not happen.";
+                    }
+                    else
+                    {
+                        sleReferObj = mEngine->entryCreate(ltREFER, referObjIndex);
+                        sleReferObj->setFieldArray(sfReferences, references);
+                        sleAccoutModified->delField(sfReferences);
+                        m_journal.info << address.getAccountID() << " references storage convert done.";
+                    }
+                }
             }
             else {
                 if (m_journal.warning.active()) {
@@ -285,11 +303,11 @@ namespace ripple {
         {
             uint256 dividendResultHash = mTxn.getFieldH256(sfDividendResultHash);
 
-            SLE::pointer dividendObject = mEngine->entryCache(ltDIVIDEND, Ledger::getLedgerDividendIndex());
+            SLE::pointer dividendObject = mEngine->entryCache(ltDIVIDEND, getLedgerDividendIndex());
 
             if (!dividendObject)
             {
-                dividendObject = mEngine->entryCreate(ltDIVIDEND, Ledger::getLedgerDividendIndex());
+                dividendObject = mEngine->entryCreate(ltDIVIDEND, getLedgerDividendIndex());
             }
 
             m_journal.info << "Previous dividend object: " << dividendObject->getText();

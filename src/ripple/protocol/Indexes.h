@@ -49,12 +49,15 @@ getLedgerFeeIndex ();
 
 uint256
 getAccountRootIndex (Account const& account);
-    
+
+uint256
+getAccountRootIndex (const RippleAddress & account);
+
 uint256
 getAccountReferIndex (Account const& account);
 
 uint256
-getAccountRootIndex (const RippleAddress & account);
+getLedgerDividendIndex ();
 
 uint256
 getGeneratorIndex (Account const& uGeneratorID);

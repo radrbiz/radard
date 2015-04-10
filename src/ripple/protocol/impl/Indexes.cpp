@@ -71,6 +71,12 @@ getAccountRootIndex (Account const& account)
 
     return s.getSHA512Half ();
 }
+    
+uint256
+getAccountRootIndex (const RippleAddress & account)
+{
+    return getAccountRootIndex (account.getAccountID ());
+}
 
 uint256
 getAccountReferIndex (Account const& account)
@@ -82,11 +88,13 @@ getAccountReferIndex (Account const& account)
     
     return s.getSHA512Half ();
 }
-    
+
 uint256
-getAccountRootIndex (const RippleAddress & account)
+getLedgerDividendIndex ()
 {
-    return getAccountRootIndex (account.getAccountID ());
+    Serializer s(2);
+    s.add16(spaceDividend);
+    return s.getSHA512Half();
 }
 
 uint256
