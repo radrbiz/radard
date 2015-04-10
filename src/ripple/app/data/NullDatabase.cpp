@@ -106,5 +106,10 @@ std::uint64_t NullDatabase::getBigInt (int colIndex)
 {
     return 0;
 }
+    
+bool NullDatabase::hasField(const std::string &table, const std::string &field)
+{
+    return true;
+}
 
 } // ripple

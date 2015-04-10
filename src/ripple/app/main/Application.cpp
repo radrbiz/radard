@@ -1402,6 +1402,17 @@ static void addTxnSeqField ()
     db->endTransaction();
 }
 
+static void addCloseTimeField()
+{
+    auto db = getApp().getTxnDB ().getDB ();
+    if (!db->hasField("Transactions", "CloseTime"))
+    {
+        db->beginTransaction();
+        db->executeSQL("ALTER TABLE Transactions ADD COLUMN CloseTime INTEGER NOT NULL DEFAULT 0");
+        db->endTransaction();
+    }
+}
+    
 void ApplicationImp::updateTables ()
 {
     if (getConfig ().nodeDatabase.size () <= 0)
@@ -1410,6 +1421,7 @@ void ApplicationImp::updateTables ()
         exitWithCode(1);
     }
 
+    addCloseTimeField();
     // perform any needed table updates
     //assert (schemaHas (getApp().getTxnDB (), "AccountTransactions", 0, "TransID"));
     //assert (!schemaHas (getApp().getTxnDB (), "AccountTransactions", 0, "foobar"));
