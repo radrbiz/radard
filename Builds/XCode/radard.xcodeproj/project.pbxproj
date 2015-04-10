@@ -444,19 +444,13 @@
 				HEADER_SEARCH_PATHS = (
 					"$(inherited)",
 					/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/include,
-					/usr/local/Cellar/openssl/1.0.1j/include,
-					/usr/local/Cellar/boost/1.56.0/include,
 					/usr/local/include,
 					../../src,
 					../../src/beast,
 					../../build/proto,
 					/usr/include/mysql,
 				);
-				LIBRARY_SEARCH_PATHS = (
-					/usr/local/Cellar/boost/1.56.0/lib,
-					/usr/local/Cellar/openssl/1.0.1j/lib,
-					/usr/local/lib,
-				);
+				LIBRARY_SEARCH_PATHS = /usr/local/lib;
 				OTHER_CPLUSPLUSFLAGS = (
 					"$(OTHER_CFLAGS)",
 					"-Wall",
@@ -515,19 +509,13 @@
 				HEADER_SEARCH_PATHS = (
 					"$(inherited)",
 					/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/include,
-					/usr/local/Cellar/openssl/1.0.1j/include,
-					/usr/local/Cellar/boost/1.56.0/include,
 					/usr/local/include,
 					../../src,
 					../../src/beast,
 					../../build/proto,
 					/usr/include/mysql,
 				);
-				LIBRARY_SEARCH_PATHS = (
-					/usr/local/Cellar/boost/1.56.0/lib,
-					/usr/local/Cellar/openssl/1.0.1j/lib,
-					/usr/local/lib,
-				);
+				LIBRARY_SEARCH_PATHS = /usr/local/lib;
 				OTHER_CPLUSPLUSFLAGS = (
 					"$(OTHER_CFLAGS)",
 					"-Wall",
@@ -656,18 +644,12 @@
 				HEADER_SEARCH_PATHS = (
 					"$(inherited)",
 					/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/include,
-					/usr/local/Cellar/openssl/1.0.1j/include,
-					/usr/local/Cellar/boost/1.56.0/include,
 					/usr/local/include,
 					../../src,
 					../../src/beast,
 					../../build/proto,
 				);
-				LIBRARY_SEARCH_PATHS = (
-					/usr/local/Cellar/boost/1.56.0/lib,
-					/usr/local/Cellar/openssl/1.0.1j/lib,
-					/usr/local/lib,
-				);
+				LIBRARY_SEARCH_PATHS = /usr/local/lib;
 				OTHER_CPLUSPLUSFLAGS = (
 					"$(OTHER_CFLAGS)",
 					"-Wall",
@@ -721,18 +703,12 @@
 				HEADER_SEARCH_PATHS = (
 					"$(inherited)",
 					/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/include,
-					/usr/local/Cellar/openssl/1.0.1j/include,
-					/usr/local/Cellar/boost/1.56.0/include,
 					/usr/local/include,
 					../../src,
 					../../src/beast,
 					../../build/proto,
 				);
-				LIBRARY_SEARCH_PATHS = (
-					/usr/local/Cellar/boost/1.56.0/lib,
-					/usr/local/Cellar/openssl/1.0.1j/lib,
-					/usr/local/lib,
-				);
+				LIBRARY_SEARCH_PATHS = /usr/local/lib;
 				OTHER_CPLUSPLUSFLAGS = (
 					"$(OTHER_CFLAGS)",
 					"-Wall",
