@@ -43,6 +43,7 @@ const char* TxnDBInit[] =
         FromSeq     BIGINT UNSIGNED,            \
         LedgerSeq   BIGINT UNSIGNED,            \
         Status      CHARACTER(1),               \
+        CloseTime   INTEGER DEFAULT 0,          \
         RawTxn      BLOB,                       \
         TxnMeta     BLOB                        \
     );",
@@ -63,6 +64,7 @@ const char* TxnDBInit[] =
         AccountTransactions(LedgerSeq, Account, TransID);",
 
     "END TRANSACTION;"
+    
 };
 
 int TxnDBCount = std::extent<decltype(TxnDBInit)>::value;
@@ -79,8 +81,9 @@ const char* TxnDBInitMySQL[] =
         FromSeq     BIGINT UNSIGNED,                \
         LedgerSeq   BIGINT UNSIGNED,                \
         Status      CHARACTER(1),                   \
+        CloseTime   INTEGER DEFAULT 0,               \
         RawTxn      LONGBLOB,                       \
-        TxnMeta     LONGBLOB                        \
+        TxnMeta     LONGBLOB                       \
     );",
     "CREATE INDEX TxLgrIndex ON                     \
         Transactions(LedgerSeq);",

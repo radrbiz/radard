@@ -105,6 +105,7 @@ public:
     virtual int getBinary (int colIndex, unsigned char* buf, int maxSize) = 0;
     virtual std::uint64_t getBigInt (int colIndex) = 0;
     virtual Blob getBinary (int colIndex) = 0;
+    virtual bool hasField(const std::string &table, const std::string &field) = 0;
     
     const Type getDBType()
     {
