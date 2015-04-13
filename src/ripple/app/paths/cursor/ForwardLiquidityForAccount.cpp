@@ -273,7 +273,20 @@ TER PathCursor::forwardLiquidityForAccount () const
                                        saTotalSend,
                                        false);
                 
-                STAmount saFee = saTotalSend - node().saFwdIssue;
+                STAmount saFee = saTotalSend - saProvide;
+                WriteLog (lsINFO, RippleCalc)
+                    << "\n--------------------"
+                    << "\npreviousNode():" << previousNode().account_
+                    << "\n\tpreviousNode().saFwdRedeem:" << previousNode().saFwdRedeem
+                    << "\n\tpreviousNode().saFwdIssue:" << previousNode().saFwdIssue
+                    << "\nnode():" << node().account_
+                    << "\n\tnode().saFwdRedeem:" << node().saFwdRedeem
+                    << "\n\tnode().saFwdIssue:" << node().saFwdIssue
+                    << "\nsaTotalSend:" << saTotalSend
+                    << "\nsaProvide:" << saProvide
+                    << "\nsaFee:"<< saFee
+                    << "\n--------------------";
+
                 if (saFee > zero)
                 {
                     // share fee with sender referee
