@@ -24,6 +24,8 @@
 #include <ripple/basics/StringUtilities.h>
 #include <ripple/json/to_string.h>
 #include <ripple/protocol/Indexes.h>
+#include <ripple/app/misc/DividendMaster.h>
+#include <ripple/protocol/SystemParameters.h>
 
 namespace ripple {
 
@@ -1429,6 +1431,126 @@ TER LedgerEntrySet::trustDelete (
 
     return terResult;
 }
+    
+TER LedgerEntrySet::shareFeeWithReferee(Account const& uSenderID, Account const& uIssuerID, const STAmount& saAmount)
+{
+    WriteLog (lsINFO, LedgerEntrySet)
+        << "FeeShare:\n"
+        << "\tsender:" << uSenderID << "\n"
+        << "\tissuer:" << uIssuerID << "\n"
+        << "\tamount:" << saAmount;
+    
+    TER terResult = tesSUCCESS;
+    // evenly divide saAmount to 5 shares
+    STAmount saTransFeeShareEach = multiply(saAmount, STAmount(saAmount.issue(), 2, -1));
+    // first get dividend object
+    SLE::pointer sleDivObj = mLedger->getDividendObject();
+    // we have a dividend object, and its state is done
+    if (sleDivObj && sleDivObj->getFieldU8(sfDividendState) == DividendMaster::DivState_Done)
+    {
+        std::map<Account, STAmount> takersMap;
+        // extract ledgerSeq and total VSpd
+        std::uint32_t divLedgerSeq = sleDivObj->getFieldU32(sfDividendLedger);
+        // try find parent referee start from the sender itself
+        SLE::pointer sleSender = mLedger->getAccountRoot(uSenderID);
+        SLE::pointer sleCurrent = sleSender;
+        int sendCnt = 0;
+        Account lastAccount;
+        while (tesSUCCESS == terResult && sleCurrent && sendCnt < 5)
+        {
+            //no referee anymore
+            if (!sleCurrent->isFieldPresent(sfReferee))
+            {
+                break;
+            }
+            RippleAddress refereeAccountID = sleCurrent->getFieldAccount(sfReferee);
+
+            SLE::pointer sleReferee = mLedger->getAccountRoot(refereeAccountID);
+            if (sleReferee)
+            {
+                // there is a referee and it has field sfDividendLedger, which is exact the same as divObjLedgerSeq
+                if (sleReferee->isFieldPresent(sfDividendLedger) && sleReferee->getFieldU32(sfDividendLedger) == divLedgerSeq)
+                {
+                    if (sleReferee->isFieldPresent(sfDividendVSprd))
+                    {
+                        std::uint64_t divVSpd = sleReferee->getFieldU64(sfDividendVSprd);
+                        // only VSpd greater than 10000(000000) get the fee share
+                        if (divVSpd > MIN_VSPD_TO_GET_FEE_SHARE)
+                        {
+                            terResult = rippleCredit (uIssuerID, refereeAccountID.getAccountID(), saTransFeeShareEach);
+                            if (tesSUCCESS == terResult)
+                            {
+                                sendCnt += 1;
+                                lastAccount = refereeAccountID.getAccountID();
+                                takersMap.insert(std::pair<Account, STAmount>(lastAccount, saTransFeeShareEach));
+                                WriteLog (lsINFO, LedgerEntrySet) << "FeeShare: " << refereeAccountID.getAccountID() << " get " << saTransFeeShareEach;
+                            }
+                        }
+                    }
+                }
+            }
+            sleCurrent = sleReferee;
+        }
+        // can't find 5 ancestors, give all share to last ancestor
+        if (terResult == tesSUCCESS)
+        {
+            if (sendCnt == 0)
+            {
+                WriteLog (lsINFO, LedgerEntrySet) << "FeeShare: no ancestor find gateway keep all fee share.";
+            }
+            else if (sendCnt < 5)
+            {
+                STAmount saLeft = multiply(saTransFeeShareEach, STAmount(saTransFeeShareEach.issue(), 5 - sendCnt));
+                terResult = rippleCredit (uIssuerID, lastAccount, saLeft);
+                if (terResult == tesSUCCESS)
+                {
+                    auto itTaker = takersMap.find(lastAccount);
+                    if (itTaker == takersMap.end())
+                    {
+                        WriteLog (lsWARNING, LedgerEntrySet) << "Last share account not found, this should not happpen.";
+                    }
+                    itTaker->second += saLeft;
+                }
+                WriteLog (lsINFO, LedgerEntrySet) << "FeeShare: left " << saLeft << " goes to "<< lastAccount;
+            }
+            
+            if (terResult == tesSUCCESS && takersMap.size())
+            {
+                // if there are FeeShareTakers, record it
+                STArray feeShareTakers = STArray(sfFeeShareTakers);
+                if (mSet.hasFeeShareTakers())
+                {
+                    feeShareTakers = mSet.getFeeShareTakers();
+                }
+                // update takers' record in former rounds
+                for (auto itTakerObj = feeShareTakers.begin(); itTakerObj != feeShareTakers.end(); ++itTakerObj)
+                {
+                    auto itFind = takersMap.find(itTakerObj->getFieldAccount(sfAccount).getAccountID());
+                    if (itFind != takersMap.end())
+                    {
+                        STAmount amountBefore = itTakerObj->getFieldAmount(sfAmount);
+                        if (amountBefore.getCurrency() == itFind->second.getCurrency()
+                                && amountBefore.getIssuer() == itFind->second.getIssuer())
+                        {
+                            itTakerObj->setFieldAmount(sfAmount, amountBefore + itFind->second);
+                            takersMap.erase(itFind);
+                        }
+                    }
+                }
+                // append new takers' record
+                for (auto itTakerRecord : takersMap)
+                {
+                    STObject feeShareTaker(sfFeeShareTaker);
+                    feeShareTaker.setFieldAccount(sfAccount, itTakerRecord.first);
+                    feeShareTaker.setFieldAmount(sfAmount, itTakerRecord.second);
+                    feeShareTakers.push_back(feeShareTaker);
+                }
+                mSet.setFeeShareTakers(feeShareTakers);
+            }
+        }
+    }
+    return terResult;
+}
 
 // Direct send w/o fees:
 // - Redeeming IOUs and/or sending sender's own IOUs.
@@ -1571,7 +1693,7 @@ TER LedgerEntrySet::rippleSend (
     STAmount const& saAmount, STAmount& saActual)
 {
     auto const issuer   = saAmount.getIssuer ();
-    TER             terResult;
+    TER             terResult = tesSUCCESS;
 
     assert (!isXRP (uSenderID) && !isXRP (uReceiverID));
     assert (!isVBC (uSenderID) && !isVBC (uReceiverID));
@@ -1591,6 +1713,14 @@ TER LedgerEntrySet::rippleSend (
         STAmount saTransitFee = rippleTransferFee (
             uSenderID, uReceiverID, issuer, saAmount);
 
+        // share upto 25% of TransFee with sender's ancestors (25% * 20% ecah).
+        if (saTransitFee)
+        {
+            STAmount saTransFeeShare = multiply(saTransitFee, STAmount(saTransitFee.issue(), 25, -2));
+            terResult = shareFeeWithReferee(uSenderID, issuer, saTransFeeShare);
+        }
+        
+        // actualFee = totalFee - ancesterShareFee
         saActual = !saTransitFee ? saAmount : saAmount + saTransitFee;
 
         saActual.setIssuer (issuer); // XXX Make sure this done in + above.
@@ -1602,12 +1732,13 @@ TER LedgerEntrySet::rippleSend (
             " fee=" << saTransitFee.getFullText () <<
             " cost=" << saActual.getFullText ();
 
-        terResult   = rippleCredit (issuer, uReceiverID, saAmount);
+        if (tesSUCCESS == terResult)
+            terResult   = rippleCredit (issuer, uReceiverID, saAmount);
 
         if (tesSUCCESS == terResult)
             terResult   = rippleCredit (uSenderID, issuer, saActual);
     }
-
+    
     return terResult;
 }
 

@@ -217,12 +217,6 @@ public:
     {
         return mTotCoinsVBC;
     }
-    SLE::pointer getDividendObject () const;
-    std::uint64_t getDividendCoins() const;
-    std::uint64_t getDividendCoinsVBC() const;
-    std::uint32_t getDividendTimeNC() const;
-    bool isDividendStarted() const;
-    std::uint32_t getDividendBaseLedger() const;
     void destroyCoins (std::uint64_t fee)
     {
         mTotCoins -= fee;
@@ -380,13 +374,28 @@ public:
     typedef std::vector<std::pair<std::uint32_t, uint256>> LedgerHashes;
     LedgerHashes getLedgerHashes () const;
 
-    static uint256 getLedgerDividendIndex();
     std::vector<uint256> getLedgerAmendments () const;
 
     std::vector<uint256> getNeededTransactionHashes (
         int max, SHAMapSyncFilter* filter) const;
     std::vector<uint256> getNeededAccountStateHashes (
         int max, SHAMapSyncFilter* filter) const;
+
+    //
+    // refer functions
+    //
+    SLE::pointer getReferObject(const Account& account) const;
+    bool hasRefer (const Account & Account) const;
+    
+    //
+    // dividend functions
+    //
+    SLE::pointer getDividendObject () const;
+    std::uint64_t getDividendCoins() const;
+    std::uint64_t getDividendCoinsVBC() const;
+    std::uint32_t getDividendTimeNC() const;
+    bool isDividendStarted() const;
+    std::uint32_t getDividendBaseLedger() const;
 
     //
     // Generator Map functions

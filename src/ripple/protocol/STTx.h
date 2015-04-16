@@ -136,13 +136,14 @@ public:
     getMetaSQLInsertReplaceHeader (const Database::Type dbType);
 
     std::string getMetaSQL (
-        std::uint32_t inLedger, std::string const& escapedMetaData) const;
+        std::uint32_t inLedger, std::string const& escapedMetaData, std::uint32_t closeTime) const;
 
     std::string getMetaSQL (
         Serializer rawTxn,
         std::uint32_t inLedger,
         char status,
-        std::string const& escapedMetaData) const;
+        std::string const& escapedMetaData,
+        std::uint32_t closeTime) const;
 
 private:
     STTx* duplicate () const override

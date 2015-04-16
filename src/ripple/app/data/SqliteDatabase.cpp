@@ -377,6 +377,25 @@ void SqliteDatabase::runWal ()
         walRunning = false;
     }
 }
+    
+bool SqliteDatabase::hasField(const std::string &table, const std::string &field)
+{
+    std::string sql = "SELECT sql FROM sqlite_master WHERE tbl_name='" + table + "';";
+    if (executeSQL(sql.c_str(), false))
+    {
+        for (bool bMore = startIterRows(true); bMore; bMore = getNextRow(true))
+        {
+            std::string schema;
+            Database::getStr ("sql", schema);
+            if (schema.find (field) != std::string::npos)
+            {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
 
 sqlite3_stmt* SqliteStatement::peekStatement ()
 {

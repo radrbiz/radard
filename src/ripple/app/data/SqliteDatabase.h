@@ -57,6 +57,7 @@ public:
 
     virtual bool beginTransaction() override;
     virtual bool endTransaction() override;
+    bool hasField(const std::string &table, const std::string &field) override;
 
     bool getNull (int colIndex);
     char* getStr (int colIndex, std::string& retStr);

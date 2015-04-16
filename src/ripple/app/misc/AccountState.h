@@ -41,7 +41,7 @@ public:
     explicit AccountState (RippleAddress const& naAccountID);
 
     // For accounts in a ledger
-    AccountState (SLE::ref ledgerEntry, RippleAddress const& naAccountI);
+    AccountState (SLE::ref ledgerEntry, RippleAddress const& naAccountI, SLE::pointer sleRefer);
 
     bool haveAuthorizedKey ()
     {
@@ -97,6 +97,7 @@ private:
     STLedgerEntry::pointer mLedgerEntry;
 
     bool                           mValid;
+    SLE::pointer mSleRefer;
 };
 
 } // ripple

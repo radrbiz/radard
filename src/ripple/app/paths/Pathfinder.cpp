@@ -183,6 +183,7 @@ Pathfinder::Pathfinder (
         mRLCache (cache)
 {
     assert (isXRP(uSrcCurrency) == isXRP(uSrcIssuer));
+    assert (isVBC(uSrcCurrency) == isVBC(uSrcIssuer));
 }
 
 Pathfinder::Pathfinder (
@@ -198,7 +199,7 @@ Pathfinder::Pathfinder (
         mSrcAmount (
         {
             uSrcCurrency,
-            isXRP (uSrcCurrency) ? xrpAccount () : uSrcAccount
+            isXRP (uSrcCurrency) ? xrpAccount () : (isVBC(uSrcCurrency) ? vbcAccount() : uSrcAccount)
         }, 1u, 0, true),
         mLedger (cache->getLedger ()),
         mRLCache (cache)
@@ -541,7 +542,7 @@ STPathSet Pathfinder::getBestPaths (
         extraPaths.size () << " extras";
 
     assert (fullLiquidityPath.empty ());
-    const bool issuerIsSender = isXRP (mSrcCurrency) || (srcIssuer == mSrcAccount);
+    const bool issuerIsSender = isXRP (mSrcCurrency) || isVBC (mSrcCurrency) || (srcIssuer == mSrcAccount);
 
     if (issuerIsSender &&
             (mCompletePaths.size () <= maxPaths) &&

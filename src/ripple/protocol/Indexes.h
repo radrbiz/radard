@@ -54,6 +54,12 @@ uint256
 getAccountRootIndex (const RippleAddress & account);
 
 uint256
+getAccountReferIndex (Account const& account);
+
+uint256
+getLedgerDividendIndex ();
+
+uint256
 getGeneratorIndex (Account const& uGeneratorID);
 
 uint256

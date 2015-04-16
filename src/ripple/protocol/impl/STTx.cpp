@@ -136,7 +136,7 @@ STTx::getMentionedAccounts () const
         {
             auto const& issuer = sa->getIssuer ();
 
-            if (isXRP (issuer))
+            if (isNative (issuer))
                 continue;
 
             RippleAddress na;
@@ -244,31 +244,32 @@ STTx::getMetaSQLInsertReplaceHeader (const Database::Type dbType)
     if (dbType == Database::Type::MySQL)
     {
         static std::string const sqlMySQL = "REPLACE INTO Transactions "
-        "(TransID, TransType, FromAcct, FromSeq, LedgerSeq, Status, RawTxn, TxnMeta)"
+        "(TransID, TransType, FromAcct, FromSeq, LedgerSeq, Status, CloseTime, RawTxn, TxnMeta)"
         " VALUES ";
         return sqlMySQL;
     }
     
     static std::string const sql = "INSERT OR REPLACE INTO Transactions "
-        "(TransID, TransType, FromAcct, FromSeq, LedgerSeq, Status, RawTxn, TxnMeta)"
+        "(TransID, TransType, FromAcct, FromSeq, LedgerSeq, Status, CloseTime, RawTxn, TxnMeta)"
         " VALUES ";
 
     return sql;
 }
 
 std::string STTx::getMetaSQL (std::uint32_t inLedger,
-                                               std::string const& escapedMetaData) const
+    std::string const& escapedMetaData,
+    std::uint32_t closeTime) const
 {
     Serializer s;
     add (s);
-    return getMetaSQL (s, inLedger, TXN_SQL_VALIDATED, escapedMetaData);
+    return getMetaSQL (s, inLedger, TXN_SQL_VALIDATED, escapedMetaData, closeTime);
 }
 
 std::string
 STTx::getMetaSQL (Serializer rawTxn,
-    std::uint32_t inLedger, char status, std::string const& escapedMetaData) const
+    std::uint32_t inLedger, char status, std::string const& escapedMetaData, std::uint32_t closeTime) const
 {
-    static boost::format bfTrans ("('%s', '%s', '%s', '%d', '%d', '%c', %s, %s)");
+    static boost::format bfTrans ("('%s', '%s', '%s', '%d', '%d', '%c', '%d', %s, %s)");
     std::string rTxn = sqlEscape (rawTxn.peekData ());
 
     auto format = TxFormats::getInstance().findByType (tx_type_);
@@ -277,7 +278,7 @@ STTx::getMetaSQL (Serializer rawTxn,
     return str (boost::format (bfTrans)
                 % to_string (getTransactionID ()) % format->getName ()
                 % getSourceAccount ().humanAccountID ()
-                % getSequence () % inLedger % status % rTxn % escapedMetaData);
+                % getSequence () % inLedger % status % closeTime % rTxn % escapedMetaData);
 }
 
 //------------------------------------------------------------------------------
