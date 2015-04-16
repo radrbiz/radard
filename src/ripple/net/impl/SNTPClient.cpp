@@ -17,12 +17,15 @@
 */
 //==============================================================================
 
+#include <BeastConfig.h>
 #include <ripple/basics/Log.h>
+#include <ripple/crypto/RandomNumbers.h>
 #include <ripple/net/SNTPClient.h>
-#include <ripple/types/RandomNumbers.h>
 #include <beast/asio/placeholders.h>
 #include <beast/threads/Thread.h>
+#include <boost/asio.hpp>
 #include <boost/foreach.hpp>
+#include <mutex>
 
 namespace ripple {
 
@@ -231,7 +234,7 @@ public:
 
                 query.mReceivedReply = false;
                 query.mLocalTimeSent = now;
-                RandomNumbers::getInstance ().fill (&query.mQueryNonce);
+                random_fill (&query.mQueryNonce);
                 reinterpret_cast<std::uint32_t*> (SNTPQueryData)[NTP_OFF_XMITTS_INT] = static_cast<std::uint32_t> (time (nullptr)) + NTP_UNIX_OFFSET;
                 reinterpret_cast<std::uint32_t*> (SNTPQueryData)[NTP_OFF_XMITTS_FRAC] = query.mQueryNonce;
                 mSocket.async_send_to (boost::asio::buffer (SNTPQueryData, 48), *sel,
@@ -345,8 +348,8 @@ public:
     }
 
 private:
-    typedef RippleMutex LockType;
-    typedef std::lock_guard <LockType> ScopedLockType;
+    using LockType = std::mutex;
+    using ScopedLockType = std::lock_guard <LockType>;
     LockType mLock;
 
     boost::asio::io_service m_io_service;

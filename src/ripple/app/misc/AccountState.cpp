@@ -17,7 +17,13 @@
 */
 //==============================================================================
 
+#include <BeastConfig.h>
+#include <ripple/app/misc/AccountState.h>
+#include <ripple/basics/Log.h>
 #include <ripple/basics/StringUtilities.h>
+#include <ripple/json/to_string.h>
+#include <ripple/protocol/Indexes.h>
+#include <boost/algorithm/string.hpp>
 #include <boost/format.hpp>
 
 namespace ripple {
@@ -30,8 +36,8 @@ AccountState::AccountState (RippleAddress const& naAccountID)
     {
         mValid = true;
 
-        mLedgerEntry = std::make_shared <SerializedLedgerEntry> (
-                           ltACCOUNT_ROOT, Ledger::getAccountRootIndex (naAccountID));
+        mLedgerEntry = std::make_shared <STLedgerEntry> (
+                           ltACCOUNT_ROOT, getAccountRootIndex (naAccountID));
 
         mLedgerEntry->setFieldAccount (sfAccount, naAccountID.getAccountID ());
     }

@@ -1,6 +1,9 @@
 #ifndef RIPPLE_NULLDATABASE_H_INCLUDED
 #define RIPPLE_NULLDATABASE_H_INCLUDED
 
+#include <beast/utility/LeakChecked.h>
+#include <ripple/app/data/DatabaseCon.h>
+
 namespace ripple {
 
 class NullDatabase
@@ -34,6 +37,7 @@ public:
     
     bool beginTransaction() override;
     bool endTransaction() override;
+    bool hasField(const std::string &table, const std::string &field) override;
 
     bool getNull (int colIndex);
     char* getStr (int colIndex, std::string& retStr);

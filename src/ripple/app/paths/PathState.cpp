@@ -17,6 +17,14 @@
 */
 //==============================================================================
 
+#include <BeastConfig.h>
+#include <ripple/app/paths/Credit.h>
+#include <ripple/app/paths/PathState.h>
+#include <ripple/basics/Log.h>
+#include <ripple/json/to_string.h>
+#include <ripple/protocol/Indexes.h>
+#include <boost/lexical_cast.hpp>
+
 namespace ripple {
 
 // OPTIMIZE: When calculating path increment, note if increment consumes all
@@ -57,7 +65,7 @@ void PathState::reset(STAmount const& in, STAmount const& out)
     CondLog (outAct() >= outReq(), lsWARNING, RippleCalc)
         << "rippleCalc: ALREADY DONE:"
         << " saOutAct=" << outAct()
-        << " saOutReq=%s" << outReq();
+        << " saOutReq=" << outReq();
 
     assert (outAct() < outReq());
     assert (nodes().size () >= 2);
@@ -114,20 +122,19 @@ TER PathState::pushImpliedNodes (
         // Corresponds to "Implies an offer directory" in the diagram, currently
         // at http://goo.gl/Uj3HAB.
 
-		auto type = (isXRP(currency) || isVBC(currency)) ? STPathElement::typeCurrency
+        auto type = isNative (currency) ? STPathElement::typeCurrency
             : STPathElement::typeCurrency | STPathElement::typeIssuer;
 
         // The offer's output is what is now wanted.
         // xrpAccount() is a placeholder for offers.
-        resultCode = pushNode (type, xrpAccount(), currency, issuer);
+        resultCode = pushNode (type, isXRP(currency)?xrpAccount():vbcAccount(), currency, issuer);
     }
 
 
     // For ripple, non-XRP && non-VBC, ensure the issuer is on at least one side of the
     // transaction.
     if (resultCode == tesSUCCESS
-		&& !isXRP(currency) 
-		&& !isVBC(currency)
+		&& !isNative (currency)
         && nodes_.back ().account_ != issuer
         // Previous is not issuing own IOUs.
         && account != issuer)
@@ -197,18 +204,12 @@ TER PathState::pushNode (
         WriteLog (lsDEBUG, RippleCalc) << "pushNode: bad bits.";
         resultCode = temBAD_PATH;
     }
-    else if (hasIssuer && isXRP (node.issue_))
+    else if (hasIssuer && isNative (node.issue_))
     {
-        WriteLog (lsDEBUG, RippleCalc) << "pushNode: issuer specified for XRP.";
+        WriteLog (lsDEBUG, RippleCalc) << "pushNode: issuer specified for Native.";
 
         resultCode = temBAD_PATH;
     }
-	else if (hasIssuer && isVBC(node.issue_))
-	{
-		WriteLog(lsDEBUG, RippleCalc) << "pushNode: issuer specified for VBC.";
-
-		resultCode = temBAD_PATH;
-	}
     else if (hasIssuer && !issuer)
     {
         WriteLog (lsDEBUG, RippleCalc) << "pushNode: specified bad issuer.";
@@ -228,7 +229,8 @@ TER PathState::pushNode (
         // Account link
         node.account_ = account;
         node.issue_.account = hasIssuer ? issuer :
-			(isXRP(node.issue_) ? xrpAccount() : (isVBC(node.issue_) ? vbcAccount() : account));
+                (isXRP(node.issue_) ? xrpAccount() :
+                 (isVBC(node.issue_) ? vbcAccount() : account));
         // Zero value - for accounts.
         node.saRevRedeem = STAmount ({node.issue_.currency, account});
         node.saRevIssue = node.saRevRedeem;
@@ -256,7 +258,8 @@ TER PathState::pushNode (
             resultCode = pushImpliedNodes (
                 node.account_,
                 node.issue_.currency,
-				isXRP(node.issue_.currency) ? xrpAccount() : (isVBC(node.issue_.currency) ? vbcAccount() : account));
+                isXRP(node.issue_.currency) ? xrpAccount() :
+                  (isVBC(node.issue_.currency) ? vbcAccount() : account));
 
             // Note: backNode may no longer be the immediately previous node.
         }
@@ -268,7 +271,7 @@ TER PathState::pushNode (
             {
                 auto sleRippleState = lesEntries.entryCache (
                     ltRIPPLE_STATE,
-                    Ledger::getRippleStateIndex (
+                    getRippleStateIndex (
                         backNode.account_,
                         node.account_,
                         backNode.issue_.currency));
@@ -295,7 +298,7 @@ TER PathState::pushNode (
 
                     auto sleBck  = lesEntries.entryCache (
                         ltACCOUNT_ROOT,
-                        Ledger::getAccountRootIndex (backNode.account_));
+                        getAccountRootIndex (backNode.account_));
                     // Is the source account the highest numbered account ID?
                     bool bHigh = backNode.account_ > node.account_;
 
@@ -321,13 +324,13 @@ TER PathState::pushNode (
 
                     if (resultCode == tesSUCCESS)
                     {
-                        STAmount saOwed = credit_balance (lesEntries,
+                        STAmount saOwed = creditBalance (lesEntries,
                             node.account_, backNode.account_,
                             node.issue_.currency);
                         STAmount saLimit;
 
                         if (saOwed <= zero) {
-                            saLimit = credit_limit (lesEntries,
+                            saLimit = creditLimit (lesEntries,
                                 node.account_,
                                 backNode.account_,
                                 node.issue_.currency);
@@ -359,12 +362,10 @@ TER PathState::pushNode (
             node.issue_.account = issuer;
         else if (isXRP (node.issue_.currency))
             node.issue_.account = xrpAccount();
-        else if (isXRP (backNode.issue_.account))
+        else if (isVBC (node.issue_.currency))
+            node.issue_.account = vbcAccount();
+        else if (isNative (backNode.issue_.account))
             node.issue_.account = backNode.account_;
-		else if (isVBC (node.issue_.currency))
-			node.issue_.account = vbcAccount();
-		else if (isVBC (backNode.issue_.account))
-			node.issue_.account = backNode.account_;
         else
             node.issue_.account = backNode.issue_.account;
 
@@ -433,7 +434,8 @@ TER PathState::expandPath (
     Currency const& currencyOutID = saOutReq.getCurrency ();
     Account const& issuerOutID = saOutReq.getIssuer ();
     Account const& uSenderIssuerID
-		= isXRP(uMaxCurrencyID) ? xrpAccount() : (isVBC(uMaxCurrencyID) ? vbcAccount() : uSenderID);
+        = isXRP(uMaxCurrencyID) ? xrpAccount() :
+            (isVBC(uMaxCurrencyID) ? vbcAccount() : uSenderID);
     // Sender is always issuer for non-XRP && non-VBC.
 
     WriteLog (lsTRACE, RippleCalc)
@@ -449,6 +451,8 @@ TER PathState::expandPath (
 		|| (isVBC (uMaxCurrencyID) && !isVBC (uMaxIssuerID))
 		|| (isVBC (currencyOutID) && !isVBC (issuerOutID)))
     {
+        WriteLog (lsDEBUG, RippleCalc)
+            << "expandPath> issuer with XRP";
         terStatus   = temBAD_PATH;
     }
 
@@ -459,7 +463,7 @@ TER PathState::expandPath (
     if (terStatus == tesSUCCESS)
     {
         terStatus   = pushNode (
-			(!isXRP(uMaxCurrencyID) && !isVBC(uMaxCurrencyID))
+			!isNative(uMaxCurrencyID)
             ? STPathElement::typeAccount | STPathElement::typeCurrency |
               STPathElement::typeIssuer
             : STPathElement::typeAccount | STPathElement::typeCurrency,
@@ -474,9 +478,8 @@ TER PathState::expandPath (
         << " currency=" << uMaxCurrencyID
         << " issuer=" << uSenderIssuerID;
 
-    if (tesSUCCESS == terStatus
-            && uMaxIssuerID != uSenderIssuerID)
-        // Issuer was not same as sender.
+    // Issuer was not same as sender.
+    if (tesSUCCESS == terStatus && uMaxIssuerID != uSenderIssuerID)
     {
         // May have an implied account node.
         // - If it was XRP, then issuers would have matched.
@@ -490,19 +493,13 @@ TER PathState::expandPath (
 
         // TODO(tom): complexify this next logic further in case someone
         // understands it.
-        //const auto nextAccountID   = spSourcePath.size ()
-        //        ? Account(spSourcePath. front ().getAccountID ())
-        //        : !isXRP(currencyOutID)
-        //        ? (issuerOutID == uReceiverID)
-        //        ? Account(uReceiverID)
-        //        : Account(issuerOutID)                      // Use implied node.
-        //        : xrpAccount();
-
-		// Replace above code with the below
-		const auto nextAccountID = spSourcePath.size()
-			? Account(spSourcePath.front().getAccountID())
-			: !isXRP(currencyOutID) ? (isVBC(currencyOutID) ? vbcAccount() : (issuerOutID == uReceiverID) ? Account(uReceiverID) : Account(issuerOutID))                      // Use implied node.
-			: xrpAccount();
+		const auto nextAccountID   = spSourcePath.size ()
+                ? Account(spSourcePath. front ().getAccountID ())
+                : !isXRP(currencyOutID)
+                ? (isVBC(currencyOutID) ? vbcAccount() : (issuerOutID == uReceiverID)
+                ? Account(uReceiverID)
+                : Account(issuerOutID))                     // Use implied node.
+                : xrpAccount();
 
         WriteLog (lsDEBUG, RippleCalc)
             << "expandPath: implied check:"
@@ -528,7 +525,7 @@ TER PathState::expandPath (
 
             // Add account implied by SendMax.
             terStatus = pushNode (
-				!isXRP(uMaxCurrencyID) && !isVBC(uMaxCurrencyID)
+                !isNative(uMaxCurrencyID)
                     ? STPathElement::typeAccount | STPathElement::typeCurrency |
                       STPathElement::typeIssuer
                     : STPathElement::typeAccount | STPathElement::typeCurrency,
@@ -549,32 +546,33 @@ TER PathState::expandPath (
         }
     }
 
-    auto const& backNode = nodes_.back ();
-
     if (terStatus == tesSUCCESS
-        && !isXRP(currencyOutID)                         // Next is not XRP
-		&& !isVBC(currencyOutID)                         // Next is not VBC
-        && issuerOutID != uReceiverID              // Out issuer is not receiver
-        && (backNode.issue_.currency != currencyOutID
-        // Previous will be an offer.
-            || backNode.account_ != issuerOutID))
-        // Need the implied issuer.
+        && !isNative(currencyOutID)            // Next is not XRP or VBC
+        && issuerOutID != uReceiverID)         // Out issuer is not receiver
     {
-        // Add implied account.
-        WriteLog (lsDEBUG, RippleCalc)
-            << "expandPath: receiver implied:"
-            << " account=" << issuerOutID
-            << " currency=" << currencyOutID
-            << " issuer=" << issuerOutID;
+        assert (!nodes_.empty ());
 
-        terStatus   = pushNode (
-			!isXRP(currencyOutID) && !isVBC(currencyOutID)
-                ? STPathElement::typeAccount | STPathElement::typeCurrency |
-                  STPathElement::typeIssuer
-                : STPathElement::typeAccount | STPathElement::typeCurrency,
-            issuerOutID,
-            currencyOutID,
-            issuerOutID);
+        auto const& backNode = nodes_.back ();
+
+        if (backNode.issue_.currency != currencyOutID  // Previous will be offer
+            || backNode.account_ != issuerOutID)       // Need implied issuer
+        {
+            // Add implied account.
+            WriteLog (lsDEBUG, RippleCalc)
+                << "expandPath: receiver implied:"
+                << " account=" << issuerOutID
+                << " currency=" << currencyOutID
+                << " issuer=" << issuerOutID;
+
+            terStatus   = pushNode (
+                !isNative(currencyOutID)
+                    ? STPathElement::typeAccount | STPathElement::typeCurrency |
+                      STPathElement::typeIssuer
+                    : STPathElement::typeAccount | STPathElement::typeCurrency,
+                issuerOutID,
+                currencyOutID,
+                issuerOutID);
+        }
     }
 
     if (terStatus == tesSUCCESS)
@@ -641,7 +639,7 @@ void PathState::checkFreeze()
         if (nodes_[i].uFlags & STPathElement::typeIssuer)
         {
             sle = lesEntries.entryCache (ltACCOUNT_ROOT,
-                Ledger::getAccountRootIndex (nodes_[i].issue_.account));
+                getAccountRootIndex (nodes_[i].issue_.account));
 
             if (sle && sle->isFlag (lsfGlobalFreeze))
             {
@@ -660,7 +658,7 @@ void PathState::checkFreeze()
             if (inAccount != outAccount)
             {
                 sle = lesEntries.entryCache (ltACCOUNT_ROOT,
-                    Ledger::getAccountRootIndex (outAccount));
+                    getAccountRootIndex (outAccount));
 
                 if (sle && sle->isFlag (lsfGlobalFreeze))
                 {
@@ -669,7 +667,7 @@ void PathState::checkFreeze()
                 }
 
                 sle = lesEntries.entryCache (ltRIPPLE_STATE,
-                    Ledger::getRippleStateIndex (inAccount,
+                    getRippleStateIndex (inAccount,
                         outAccount, currencyID));
 
                 if (sle && sle->isFlag (
@@ -697,9 +695,9 @@ TER PathState::checkNoRipple (
 {
     // fetch the ripple lines into and out of this node
     SLE::pointer sleIn = lesEntries.entryCache (ltRIPPLE_STATE,
-        Ledger::getRippleStateIndex (firstAccount, secondAccount, currency));
+        getRippleStateIndex (firstAccount, secondAccount, currency));
     SLE::pointer sleOut = lesEntries.entryCache (ltRIPPLE_STATE,
-        Ledger::getRippleStateIndex (secondAccount, thirdAccount, currency));
+        getRippleStateIndex (secondAccount, thirdAccount, currency));
 
     if (!sleIn || !sleOut)
     {

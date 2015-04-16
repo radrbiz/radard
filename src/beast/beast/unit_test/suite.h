@@ -29,6 +29,8 @@
 namespace beast {
 namespace unit_test {
 
+class thread;
+
 /** A testsuite class.
     Derived classes execute a series of testcases, where each testcase is
     a series of pass/fail tests. To provide a unit test using this class,
@@ -46,9 +48,19 @@ public:
 
 private:
     bool abort_ = false;
+    bool aborted_ = false;
     runner* runner_ = nullptr;
 
-    struct abort_exception;
+    // This exception is thrown internally to stop the current suite
+    // in the event of a failure, if the option to stop is set.
+    struct abort_exception : public std::exception
+    {
+        char const*
+        what() const noexcept override
+        {
+            return "suite aborted";
+        }
+    };
 
     // Memberspace
     class log_t
@@ -105,16 +117,6 @@ private:
         /** @} */
     };
 
-    // Hacks to make this header-only
-    
-    template <class = void>
-    void
-    run (runner& r);
-
-    template <class = void>
-    void
-    do_fail (std::string const& reason);
-
 public:
     /** Type for scoped stream logging.
         To use this type, declare a local variable of the type
@@ -162,50 +164,65 @@ public:
         logged if the condition is false.
         @return `true` if the test condition indicates success.
     */
+    template <class Condition, class String>
+    bool
+    expect (Condition shouldBeTrue,
+        String const& reason);
+
     template <class Condition>
     bool
-    expect (Condition shouldBeTrue, std::string const& reason = "");
+    expect (Condition shouldBeTrue)
+    {
+        return expect (shouldBeTrue, "");
+    }
+
+    /** Return the argument associated with the runner. */
+    std::string const&
+    arg() const
+    {
+        return runner_->arg();
+    }
 
     // DEPRECATED
     // @return `true` if the test condition indicates success (a false value)
+    template <class Condition, class String>
+    bool
+    unexpected (Condition shouldBeFalse,
+        String const& reason);
+
     template <class Condition>
     bool
-    unexpected (Condition shouldBeFalse, std::string const& reason = "");
-
-    /** Record a successful test condition. */
-    void
-    pass()
+    unexpected (Condition shouldBeFalse)
     {
-        runner_->pass();
+        return unexpected (shouldBeFalse, "");
     }
 
+    /** Record a successful test condition. */
+    template <class = void>
+    void
+    pass();
+
     /** Record a failure. */
+    template <class = void>
     void
     fail (std::string const& reason = "");
 
 private:
+    friend class thread;
+
     /** Runs the suite. */
     virtual
     void
     run() = 0;
+
+    template <class = void>
+    void
+    propagate_abort();
+
+    template <class = void>
+    void
+    run (runner& r);
 };
-
-//------------------------------------------------------------------------------
-
-// This exception is thrown internally to stop the current suite
-// in the event of a failure, if the option to stop is set.
-struct suite::abort_exception : public std::exception
-{
-    char const*
-    what() const noexcept override;
-};
-
-inline
-char const*
-suite::abort_exception::what() const noexcept
-{
-    return "suite aborted on failed condition";
-}
 
 //------------------------------------------------------------------------------
 
@@ -316,6 +333,68 @@ suite::testcase_t::operator<< (T const& t)
 
 //------------------------------------------------------------------------------
 
+inline
+void
+suite::operator() (runner& r)
+{
+    run (r);
+}
+
+template <class Condition, class String>
+inline
+bool
+suite::expect (Condition shouldBeTrue,
+    String const& reason)
+{
+    if (shouldBeTrue)
+        pass();
+    else
+        fail (reason);
+    return shouldBeTrue;
+}
+
+template <class Condition, class String>
+inline
+bool
+suite::unexpected (Condition shouldBeFalse,
+    String const& reason)
+{
+    if (! shouldBeFalse)
+        pass();
+    else
+        fail (reason);
+    return ! shouldBeFalse;
+}
+
+template <class>
+void
+suite::pass()
+{
+    propagate_abort();
+    runner_->pass();
+}
+
+template <class>
+void
+suite::fail (std::string const& reason)
+{
+    propagate_abort();
+    runner_->fail (reason);
+    if (abort_)
+    {
+        aborted_ = true;
+        throw abort_exception();
+    }
+}
+
+template <class>
+void
+suite::propagate_abort()
+{
+    if (abort_ && aborted_)
+        throw abort_exception();
+}
+
 template <class>
 void
 suite::run (runner& r)
@@ -334,60 +413,13 @@ suite::run (runner& r)
     }
     catch (std::exception const& e)
     {
-        fail (std::string ("unhandled exception: ") +
+        runner_->fail ("unhandled exception: " +
             std::string (e.what()));
     }
     catch (...)
     {
-        fail ("unhandled exception");
+        runner_->fail ("unhandled exception");
     }
-}
-
-inline
-void
-suite::operator() (runner& r)
-{
-    run (r);
-}
-
-template <class Condition>
-inline
-bool
-suite::expect (Condition shouldBeTrue, std::string const& reason)
-{
-    if (shouldBeTrue)
-        pass();
-    else
-        do_fail (reason);
-    return shouldBeTrue;
-}
-
-template <class Condition>
-inline
-bool
-suite::unexpected (Condition shouldBeFalse, std::string const& reason)
-{
-    if (! shouldBeFalse)
-        pass();
-    else
-        do_fail (reason);
-    return ! shouldBeFalse;
-}
-
-template <class>
-void
-suite::do_fail (std::string const& reason)
-{
-    runner_->fail (reason);
-    if (abort_)
-        throw abort_exception();
-}
-
-inline
-void
-suite::fail (std::string const& reason)
-{
-    do_fail (reason);
 }
 
 } // unit_test
@@ -398,8 +430,8 @@ suite::fail (std::string const& reason)
 // detail:
 // This inserts the suite with the given manual flag
 #define BEAST_DEFINE_TESTSUITE_INSERT(Class,Module,Library,manual) \
-    static beast::unit_test::detail::global_suite_instance <Class##_test>    \
-        Library ## Module ## Class ## _test_instance (                       \
+    static beast::unit_test::detail::insert_suite <Class##_test>   \
+        Library ## Module ## Class ## _test_instance (             \
             #Class, #Module, #Library, manual);
 
 //------------------------------------------------------------------------------

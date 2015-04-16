@@ -24,8 +24,8 @@
 #include <ripple/app/book/Quality.h>
 #include <ripple/app/book/Types.h>
 
-#include <ripple/app/misc/SerializedLedger.h>
-#include <ripple/data/protocol/SField.h>
+#include <ripple/protocol/STLedgerEntry.h>
+#include <ripple/protocol/SField.h>
 
 #include <beast/utility/noexcept.h>
 

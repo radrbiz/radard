@@ -20,7 +20,12 @@
 #ifndef RIPPLE_PEERSET_H
 #define RIPPLE_PEERSET_H
 
+#include <ripple/basics/Log.h>
+#include <ripple/core/Job.h>
 #include <ripple/overlay/Peer.h>
+#include <beast/chrono/abstract_clock.h>
+#include <beast/utility/LeakChecked.h>
+#include <beast/utility/Journal.h>
 #include <boost/asio/deadline_timer.hpp>
 
 namespace ripple {
@@ -32,7 +37,7 @@ namespace ripple {
 class PeerSet : beast::LeakChecked <PeerSet>
 {
 public:
-    typedef beast::abstract_clock <std::chrono::seconds> clock_type;
+    typedef beast::abstract_clock <std::chrono::steady_clock> clock_type;
 
     uint256 const& getHash () const
     {
@@ -154,7 +159,7 @@ protected:
     boost::asio::deadline_timer             mTimer;
 
     // VFALCO TODO Verify that these are used in the way that the names suggest.
-    typedef Peer::ShortId PeerIdentifier;
+    typedef Peer::id_t PeerIdentifier;
     typedef int ReceivedChunkCount;
     typedef hash_map <PeerIdentifier, ReceivedChunkCount> PeerSetMap;
 

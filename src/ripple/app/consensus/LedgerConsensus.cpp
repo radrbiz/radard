@@ -17,9 +17,32 @@
 */
 //==============================================================================
 
+#include <BeastConfig.h>
+#include <ripple/app/consensus/DisputedTx.h>
+#include <ripple/app/consensus/LedgerConsensus.h>
+#include <ripple/app/misc/DefaultMissingNodeHandler.h> // VFALCO bad dependency
+#include <ripple/app/ledger/InboundLedgers.h>
+#include <ripple/app/ledger/LedgerMaster.h>
+#include <ripple/app/ledger/LedgerTiming.h>
+#include <ripple/app/ledger/LedgerToJson.h>
+#include <ripple/app/main/Application.h>
+#include <ripple/app/misc/AmendmentTable.h>
+#include <ripple/app/misc/CanonicalTXSet.h>
+#include <ripple/app/misc/IHashRouter.h>
+#include <ripple/app/misc/NetworkOPs.h>
+#include <ripple/app/misc/Validations.h>
+#include <ripple/app/tx/TransactionAcquire.h>
+#include <ripple/basics/CountedObject.h>
+#include <ripple/basics/Log.h>
+#include <ripple/core/Config.h>
+#include <ripple/core/JobQueue.h>
 #include <ripple/core/LoadFeeTrack.h>
+#include <ripple/json/to_string.h>
+#include <ripple/overlay/Overlay.h>
 #include <ripple/overlay/predicates.h>
-#include <ripple/types/UintTypes.h>
+#include <ripple/protocol/STValidation.h>
+#include <ripple/protocol/UintTypes.h>
+#include <ripple/app/misc/DividendVote.h>
 
 namespace ripple {
 
@@ -332,9 +355,9 @@ public:
                 {
                     Application& app = getApp();
                     SHAMap::pointer empty = std::make_shared<SHAMap> (
-                        smtTRANSACTION,
-                        app.getFullBelowCache(),
-                        app.getTreeNodeCache());
+                        smtTRANSACTION, app.getFullBelowCache(),
+                            app.getTreeNodeCache(), getApp().getNodeStore(),
+                                DefaultMissingNodeHandler(), deprecatedLogs().journal("SHAMap"));
                     mapCompleteInternal (hash, empty, false);
                     return empty;
                 }
@@ -541,7 +564,7 @@ public:
             WriteLog (lsWARNING, LedgerConsensus) << mPrevLedgerHash
                 << " to " << netLgr;
             WriteLog (lsWARNING, LedgerConsensus)
-                << mPreviousLedger->getJson (0);
+                << ripple::getJson (*mPreviousLedger);
 
             if (ShouldLog (lsDEBUG, LedgerConsensus))
             {
@@ -1067,8 +1090,8 @@ private:
             {
                 // Build validation
                 uint256 signingHash;
-                SerializedValidation::pointer v =
-                    std::make_shared<SerializedValidation>
+                STValidation::pointer v =
+                    std::make_shared<STValidation>
                     (newLCLHash, getApp().getOPs ().getValidationTimeNC ()
                     , mValPublic, mProposing);
                 v->setFieldU32 (sfLedgerSequence, newLCL->getLedgerSeq ());
@@ -1135,8 +1158,8 @@ private:
                             << "Test applying disputed transaction that did"
                             << " not get in";
                         SerializerIterator sit (it.second->peekTransaction ());
-                        SerializedTransaction::pointer txn
-                            = std::make_shared<SerializedTransaction>(sit);
+                        STTx::pointer txn
+                            = std::make_shared<STTx>(sit);
 
                         retriableTransactions.push_back (txn);
                         anyDisputes = true;
@@ -1441,178 +1464,6 @@ private:
         getApp ().overlay ().foreach (send_always (
             std::make_shared <Message> (
                 msg, protocol::mtHAVE_SET)));
-    }
-
-    /** Apply a set of transactions to a ledger
-
-      @param set                   The set of transactions to apply
-      @param applyLedger           The ledger to which the transactions should
-                                   be applied.
-      @param checkLedger           A reference ledger for determining error
-                                   messages (typically new last closed ledger).
-      @param retriableTransactions collect failed transactions in this set
-      @param openLgr               true if applyLedger is open, else false.
-    */
-    void applyTransactions (SHAMap::ref set, Ledger::ref applyLedger,
-        Ledger::ref checkLedger, CanonicalTXSet& retriableTransactions,
-        bool openLgr)
-    {
-        TransactionEngine engine (applyLedger);
-
-        if (set)
-        {
-            WriteLog (lsINFO, LedgerConsensus) <<
-                "Processing candidate transactions";
-            for (SHAMapItem::pointer item = set->peekFirstItem (); !!item;
-                item = set->peekNextItem (item->getTag ()))
-            {
-                // If the checkLedger doesn't have the transaction
-                if (!checkLedger->hasTransaction (item->getTag ()))
-                {
-                    // Then try to apply the transaction to applyLedger
-                    WriteLog (lsDEBUG, LedgerConsensus) <<
-                        "Processing candidate transaction: " << item->getTag ();
-                    try
-                    {
-                        SerializerIterator sit (item->peekSerializer ());
-                        SerializedTransaction::pointer txn
-                            = std::make_shared<SerializedTransaction>(sit);
-                        if (applyTransaction (engine, txn,
-                                              openLgr, true) == resultRetry)
-                        {
-                            // On failure, stash the failed transaction for
-                            // later retry.
-                            retriableTransactions.push_back (txn);
-                        }
-                    }
-                    catch (...)
-                    {
-                        WriteLog (lsWARNING, LedgerConsensus) << "  Throws";
-                    }
-                }
-            }
-            WriteLog (lsINFO, LedgerConsensus) <<
-                "Processing candidate transactions finished retriable:" << retriableTransactions.size();
-        }
-
-        int changes;
-        bool certainRetry = true;
-        // Attempt to apply all of the retriable transactions
-        for (int pass = 0; pass < LEDGER_TOTAL_PASSES; ++pass)
-        {
-            WriteLog (lsDEBUG, LedgerConsensus) << "Pass: " << pass << " Txns: "
-                << retriableTransactions.size ()
-                << (certainRetry ? " retriable" : " final");
-            changes = 0;
-
-            auto it = retriableTransactions.begin ();
-
-            while (it != retriableTransactions.end ())
-            {
-                try
-                {
-                    switch (applyTransaction (engine, it->second,
-                            openLgr, certainRetry))
-                    {
-                    case resultSuccess:
-                        it = retriableTransactions.erase (it);
-                        ++changes;
-                        break;
-
-                    case resultFail:
-                        it = retriableTransactions.erase (it);
-                        break;
-
-                    case resultRetry:
-                        ++it;
-                    }
-                }
-                catch (...)
-                {
-                    WriteLog (lsWARNING, LedgerConsensus)
-                        << "Transaction throws";
-                    it = retriableTransactions.erase (it);
-                }
-            }
-
-            WriteLog (lsDEBUG, LedgerConsensus) << "Pass: "
-                << pass << " finished " << changes << " changes";
-
-            // A non-retry pass made no changes
-            if (!changes && !certainRetry)
-                return;
-
-            // Stop retriable passes
-            if ((!changes) || (pass >= LEDGER_RETRY_PASSES))
-                certainRetry = false;
-        }
-
-        // If there are any transactions left, we must have
-        // tried them in at least one final pass
-        assert (retriableTransactions.empty() || !certainRetry);
-    }
-
-    /** Apply a transaction to a ledger
-
-      @param engine       The transaction engine containing the ledger.
-      @param txn          The transaction to be applied to ledger.
-      @param openLedger   true if ledger is open
-      @param retryAssured true if the transaction should be retried on failure.
-      @return             One of resultSuccess, resultFail or resultRetry.
-    */
-    int applyTransaction (TransactionEngine& engine
-        , SerializedTransaction::ref txn, bool openLedger, bool retryAssured)
-    {
-        // Returns false if the transaction has need not be retried.
-        TransactionEngineParams parms = openLedger ? tapOPEN_LEDGER : tapNONE;
-
-        if (retryAssured)
-        {
-            parms = static_cast<TransactionEngineParams> (parms | tapRETRY);
-        }
-
-        if (getApp().getHashRouter ().setFlag (txn->getTransactionID ()
-            , SF_SIGGOOD))
-        {
-            parms = static_cast<TransactionEngineParams>
-                (parms | tapNO_CHECK_SIGN);
-        }
-        WriteLog (lsDEBUG, LedgerConsensus) << "TXN "
-            << txn->getTransactionID ()
-            << (openLedger ? " open" : " closed")
-            << (retryAssured ? "/retry" : "/final");
-        WriteLog (lsTRACE, LedgerConsensus) << txn->getJson (0);
-
-        try
-        {
-            bool didApply;
-            TER result = engine.applyTransaction (*txn, parms, didApply);
-
-            if (didApply)
-            {
-                WriteLog (lsDEBUG, LedgerConsensus)
-                << "Transaction success: " << transHuman (result);
-                return resultSuccess;
-            }
-
-            if (isTefFailure (result) || isTemMalformed (result) ||
-                isTelLocal (result))
-            {
-                // failure
-                WriteLog (lsDEBUG, LedgerConsensus)
-                    << "Transaction failure: " << transHuman (result);
-                return resultFail;
-            }
-
-            WriteLog (lsDEBUG, LedgerConsensus)
-                << "Transaction retry: " << transHuman (result);
-            return resultRetry;
-        }
-        catch (...)
-        {
-            WriteLog (lsWARNING, LedgerConsensus) << "Throws";
-            return resultFail;
-        }
     }
 
     /**
@@ -2011,7 +1862,7 @@ private:
 
     #if 0
     // FIXME: We can't do delayed relay because we don't have the signature
-                std::set<Peer::ShortId> peers
+                std::set<Peer::id_t> peers
 
                 if (relay && getApp().getHashRouter ().swapSet (proposal.getSuppress (), set, SF_RELAYED))
                 {
@@ -2064,7 +1915,7 @@ private:
             return;
         }
 
-        SerializedValidation::pointer lastVal
+        STValidation::pointer lastVal
             = getApp().getOPs ().getLastValidation ();
 
         if (lastVal)
@@ -2079,8 +1930,8 @@ private:
         }
 
         uint256 signingHash;
-        SerializedValidation::pointer v
-            = std::make_shared<SerializedValidation>
+        STValidation::pointer v
+            = std::make_shared<STValidation>
             (mPreviousLedger->getHash ()
             , getApp().getOPs ().getValidationTimeNC (), mValPublic, false);
         addLoad(v);
@@ -2135,7 +1986,7 @@ private:
 
     /** Add our load fee to our validation
     */
-    void addLoad(SerializedValidation::ref val)
+    void addLoad(STValidation::ref val)
     {
         std::uint32_t fee = std::max(
             getApp().getFeeTrack().getLocalFee(),
@@ -2210,6 +2061,175 @@ make_LedgerConsensus (LedgerConsensus::clock_type& clock, LocalTxs& localtx,
 {
     return std::make_shared <LedgerConsensusImp> (clock, localtx,
         prevLCLHash, previousLedger, closeTime, feeVote, dividendVote);
+}
+
+/** Apply a transaction to a ledger
+
+  @param engine       The transaction engine containing the ledger.
+  @param txn          The transaction to be applied to ledger.
+  @param openLedger   true if ledger is open
+  @param retryAssured true if the transaction should be retried on failure.
+  @return             One of resultSuccess, resultFail or resultRetry.
+*/
+static
+int applyTransaction (TransactionEngine& engine
+    , STTx::ref txn, bool openLedger, bool retryAssured)
+{
+    // Returns false if the transaction has need not be retried.
+    TransactionEngineParams parms = openLedger ? tapOPEN_LEDGER : tapNONE;
+
+    if (retryAssured)
+    {
+        parms = static_cast<TransactionEngineParams> (parms | tapRETRY);
+    }
+
+    if (getApp().getHashRouter ().setFlag (txn->getTransactionID ()
+        , SF_SIGGOOD))
+    {
+        parms = static_cast<TransactionEngineParams>
+            (parms | tapNO_CHECK_SIGN);
+    }
+    WriteLog (lsDEBUG, LedgerConsensus) << "TXN "
+        << txn->getTransactionID ()
+        << (openLedger ? " open" : " closed")
+        << (retryAssured ? "/retry" : "/final");
+    WriteLog (lsTRACE, LedgerConsensus) << txn->getJson (0);
+
+    try
+    {
+        bool didApply;
+        TER result = engine.applyTransaction (*txn, parms, didApply);
+
+        if (didApply)
+        {
+            WriteLog (lsDEBUG, LedgerConsensus)
+            << "Transaction success: " << transHuman (result);
+            return LedgerConsensusImp::resultSuccess;
+        }
+
+        if (isTefFailure (result) || isTemMalformed (result) ||
+            isTelLocal (result))
+        {
+            // failure
+            WriteLog (lsDEBUG, LedgerConsensus)
+                << "Transaction failure: " << transHuman (result);
+            return LedgerConsensusImp::resultFail;
+        }
+
+        WriteLog (lsDEBUG, LedgerConsensus)
+            << "Transaction retry: " << transHuman (result);
+        return LedgerConsensusImp::resultRetry;
+    }
+    catch (...)
+    {
+        WriteLog (lsWARNING, LedgerConsensus) << "Throws";
+        return LedgerConsensusImp::resultFail;
+    }
+}
+
+/** Apply a set of transactions to a ledger
+
+  @param set                   The set of transactions to apply
+  @param applyLedger           The ledger to which the transactions should
+                               be applied.
+  @param checkLedger           A reference ledger for determining error
+                               messages (typically new last closed ledger).
+  @param retriableTransactions collect failed transactions in this set
+  @param openLgr               true if applyLedger is open, else false.
+*/
+void applyTransactions (SHAMap::ref set, Ledger::ref applyLedger,
+    Ledger::ref checkLedger, CanonicalTXSet& retriableTransactions,
+    bool openLgr)
+{
+    TransactionEngine engine (applyLedger);
+
+    if (set)
+    {
+        for (SHAMapItem::pointer item = set->peekFirstItem (); !!item;
+            item = set->peekNextItem (item->getTag ()))
+        {
+            // If the checkLedger doesn't have the transaction
+            if (!checkLedger->hasTransaction (item->getTag ()))
+            {
+                // Then try to apply the transaction to applyLedger
+                WriteLog (lsDEBUG, LedgerConsensus) <<
+                    "Processing candidate transaction: " << item->getTag ();
+                try
+                {
+                    SerializerIterator sit (item->peekSerializer ());
+                    STTx::pointer txn
+                        = std::make_shared<STTx>(sit);
+                    if (applyTransaction (engine, txn,
+                              openLgr, true) == LedgerConsensusImp::resultRetry)
+                    {
+                        // On failure, stash the failed transaction for
+                        // later retry.
+                        retriableTransactions.push_back (txn);
+                    }
+                }
+                catch (...)
+                {
+                    WriteLog (lsWARNING, LedgerConsensus) << "  Throws";
+                }
+            }
+        }
+    }
+
+    int changes;
+    bool certainRetry = true;
+    // Attempt to apply all of the retriable transactions
+    for (int pass = 0; pass < LEDGER_TOTAL_PASSES; ++pass)
+    {
+        WriteLog (lsDEBUG, LedgerConsensus) << "Pass: " << pass << " Txns: "
+            << retriableTransactions.size ()
+            << (certainRetry ? " retriable" : " final");
+        changes = 0;
+
+        auto it = retriableTransactions.begin ();
+
+        while (it != retriableTransactions.end ())
+        {
+            try
+            {
+                switch (applyTransaction (engine, it->second,
+                        openLgr, certainRetry))
+                {
+                case LedgerConsensusImp::resultSuccess:
+                    it = retriableTransactions.erase (it);
+                    ++changes;
+                    break;
+
+                case LedgerConsensusImp::resultFail:
+                    it = retriableTransactions.erase (it);
+                    break;
+
+                case LedgerConsensusImp::resultRetry:
+                    ++it;
+                }
+            }
+            catch (...)
+            {
+                WriteLog (lsWARNING, LedgerConsensus)
+                    << "Transaction throws";
+                it = retriableTransactions.erase (it);
+            }
+        }
+
+        WriteLog (lsDEBUG, LedgerConsensus) << "Pass: "
+            << pass << " finished " << changes << " changes";
+
+        // A non-retry pass made no changes
+        if (!changes && !certainRetry)
+            return;
+
+        // Stop retriable passes
+        if ((!changes) || (pass >= LEDGER_RETRY_PASSES))
+            certainRetry = false;
+    }
+
+    // If there are any transactions left, we must have
+    // tried them in at least one final pass
+    assert (retriableTransactions.empty() || !certainRetry);
 }
 
 } // ripple

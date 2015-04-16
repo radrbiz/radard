@@ -17,7 +17,16 @@
 */
 //==============================================================================
 
-#include <ripple/common/jsonrpc_fields.h>
+#include <BeastConfig.h>
+#include <ripple/app/ledger/OrderBookDB.h>
+#include <ripple/app/ledger/LedgerMaster.h>
+#include <ripple/app/main/Application.h>
+#include <ripple/app/misc/NetworkOPs.h>
+#include <ripple/basics/Log.h>
+#include <ripple/core/Config.h>
+#include <ripple/core/JobQueue.h>
+#include <ripple/protocol/Indexes.h>
+#include <ripple/protocol/JsonFields.h>
 
 namespace ripple {
 
@@ -80,7 +89,7 @@ static void updateHelper (SLE::ref entry,
         book.out.account.copyFrom (entry->getFieldH160 (sfTakerGetsIssuer));
         book.out.currency.copyFrom (entry->getFieldH160 (sfTakerGetsCurrency));
 
-        uint256 index = Ledger::getBookBase (book);
+        uint256 index = getBookBase (book);
         if (seen.insert (index).second)
         {
             auto orderBook = std::make_shared<OrderBook> (index, book);
@@ -170,7 +179,7 @@ void OrderBookDB::addOrderBook(Book const& book)
             }
         }
     }
-    uint256 index = Ledger::getBookBase(book);
+    uint256 index = getBookBase(book);
     auto orderBook = std::make_shared<OrderBook> (index, book);
 
     mSourceMap[book.in].push_back (orderBook);

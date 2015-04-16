@@ -17,9 +17,16 @@
 */
 //==============================================================================
 
+#include <BeastConfig.h>
+#include <ripple/app/tx/Transaction.h>
+#include <ripple/basics/Log.h>
+#include <ripple/app/data/DatabaseCon.h>
+#include <ripple/app/ledger/LedgerMaster.h>
+#include <ripple/app/main/Application.h>
+
 namespace ripple {
 
-Transaction::Transaction (SerializedTransaction::ref sit, Validate validate)
+Transaction::Transaction (STTx::ref sit, Validate validate)
     : mInLedger (0),
       mStatus (INVALID),
       mResult (temUNCERTAIN),
@@ -56,7 +63,7 @@ Transaction::pointer Transaction::sharedTransaction (
 //        }
 
         return std::make_shared<Transaction> (
-            std::make_shared<SerializedTransaction> (sit),
+            std::make_shared<STTx> (sit),
             validate);
     }
     catch (...)
@@ -73,7 +80,7 @@ Transaction::pointer Transaction::sharedTransaction (
 bool Transaction::checkSign () const
 {
     if (mFromPubKey.isValid ())
-        return mTransaction->checkSign (mFromPubKey);
+        return mTransaction->checkSign();
 
     WriteLog (lsWARNING, Ledger) << "Transaction has bad source public key";
     return false;
@@ -109,7 +116,7 @@ Transaction::pointer Transaction::transactionFromSQL (
     rawTxn.resize (txSize);
 
     SerializerIterator it (rawTxn);
-    auto txn = std::make_shared<SerializedTransaction> (it);
+    auto txn = std::make_shared<STTx> (it);
     auto tr = std::make_shared<Transaction> (txn, validate);
 
     TransStatus st (INVALID);
@@ -181,7 +188,7 @@ Transaction::pointer Transaction::transactionFromSQL (std::string const& sql)
     rawTxn.resize (txSize);
 
     SerializerIterator it (rawTxn);
-    auto txn = std::make_shared<SerializedTransaction> (it);
+    auto txn = std::make_shared<STTx> (it);
     auto tr = std::make_shared<Transaction> (txn, Validate::YES);
 
     TransStatus st (INVALID);

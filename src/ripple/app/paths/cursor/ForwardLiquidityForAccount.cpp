@@ -17,8 +17,10 @@
 */
 //==============================================================================
 
+#include <BeastConfig.h>
 #include <ripple/app/book/Quality.h>
 #include <ripple/app/paths/cursor/RippleLiquidity.h>
+#include <ripple/basics/Log.h>
 
 namespace ripple {
 namespace path {
@@ -260,15 +262,45 @@ TER PathCursor::forwardLiquidityForAccount () const
             }
 
             STAmount saProvide = node().saFwdRedeem + node().saFwdIssue;
+            
+            if (saProvide)
+            {
+                STAmount saTotalSend = previousNode().saFwdRedeem + previousNode().saFwdIssue;
+                // Adjust prv --> cur balance : take all inbound
+                resultCode = ledger().rippleCredit (
+                                       previousAccountID,
+                                       node().account_,
+                                       saTotalSend,
+                                       false);
+                
+                STAmount saFee = saTotalSend - saProvide;
+                WriteLog (lsINFO, RippleCalc)
+                    << "\n--------------------"
+                    << "\npreviousNode():" << previousNode().account_
+                    << "\n\tpreviousNode().saFwdRedeem:" << previousNode().saFwdRedeem
+                    << "\n\tpreviousNode().saFwdIssue:" << previousNode().saFwdIssue
+                    << "\nnode():" << node().account_
+                    << "\n\tnode().saFwdRedeem:" << node().saFwdRedeem
+                    << "\n\tnode().saFwdIssue:" << node().saFwdIssue
+                    << "\nsaTotalSend:" << saTotalSend
+                    << "\nsaProvide:" << saProvide
+                    << "\nsaFee:"<< saFee
+                    << "\n--------------------";
 
-            // Adjust prv --> cur balance : take all inbound
-            resultCode = saProvide
-                ? ledger().rippleCredit (
-                    previousAccountID,
-                    node().account_,
-                    previousNode().saFwdRedeem + previousNode().saFwdIssue,
-                    false)
-                : tecPATH_DRY;
+                if (saFee > zero)
+                {
+                    // share fee with sender referee
+                    STAmount saShareRate = STAmount(saFee.issue(), 25, -2);
+                    STAmount saShareFee = multiply(saFee, saShareRate);
+                    Account sender = node(0).account_;
+                    Account issuer = node().account_;
+                    resultCode = ledger().shareFeeWithReferee(sender, issuer, saShareFee);
+                }
+            }
+            else
+            {
+                resultCode = tecPATH_DRY;
+            }
         }
     }
     else if (previousNode().isAccount() && !nextNode().isAccount())
@@ -375,7 +407,7 @@ TER PathCursor::forwardLiquidityForAccount () const
             {
                 resultCode   = tecPATH_DRY;
             }
-			else if (!isXRP(node().issue_) && !isVBC(node().issue_))
+            else if (!isNative(node().issue_))
             {
                 // Non-XRP & Non-VBC, current node is the issuer.
                 // We could be delivering to multiple accounts, so we don't know
@@ -391,26 +423,13 @@ TER PathCursor::forwardLiquidityForAccount () const
             }
             else
             {
-				if (isXRP(node().issue_))
-				{
-					WriteLog(lsTRACE, RippleCalc)
-						<< "forwardLiquidityForAccount: ^ --> "
-						<< "ACCOUNT -- XRP --> offer";
+                WriteLog (lsTRACE, RippleCalc)
+                    << "forwardLiquidityForAccount: ^ --> "
+                    << "ACCOUNT -- XRP --> offer";
 
-					// Deliver XRP to limbo.
-					resultCode = ledger().accountSend(
-						node().account_, xrpAccount(), node().saFwdDeliver);
-				}
-				else
-				{
-					WriteLog(lsTRACE, RippleCalc)
-						<< "forwardLiquidityForAccount: ^ --> "
-						<< "ACCOUNT -- VBC --> offer";
-
-					// Deliver VBC to limbo.
-					resultCode = ledger().accountSend(
-						node().account_, vbcAccount(), node().saFwdDeliver);
-				}
+                // Deliver XRP to limbo.
+                resultCode = ledger().accountSend (
+                      node().account_, isXRP(node().issue_)?xrpAccount():vbcAccount(), node().saFwdDeliver);
             }
         }
     }

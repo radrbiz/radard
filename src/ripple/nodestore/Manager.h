@@ -21,6 +21,9 @@
 #define RIPPLE_NODESTORE_MANAGER_H_INCLUDED
 
 #include <ripple/nodestore/Factory.h>
+#include <ripple/nodestore/DatabaseRotating.h>
+#include <ripple/basics/BasicConfig.h>
+#include <beast/utility/Journal.h>
 
 namespace ripple {
 namespace NodeStore {
@@ -29,22 +32,31 @@ namespace NodeStore {
 class Manager
 {
 public:
-    virtual ~Manager () = 0;
+    /** Returns the instance of the manager singleton. */
+    static
+    Manager&
+    instance();
 
-    /** Add the specified factory to the manager.
-        Thread safety:
-            Not thread-safe.
-    */
-    virtual void add_factory (std::unique_ptr <Factory> factory) = 0;
+    /** Add a factory. */
+    virtual
+    void
+    insert (Factory& factory) = 0;
+
+    /** Remove a factory. */
+    virtual
+    void
+    erase (Factory& factory) = 0;
 
     /** Return a pointer to the matching factory if it exists.
         @param  name The name to match, performed case-insensitive.
         @return `nullptr` if a match was not found.
     */
-    virtual Factory* find (std::string const& name) const = 0;
+    //virtual Factory* find (std::string const& name) const = 0;
 
     /** Create a backend. */
-    virtual std::unique_ptr <Backend> make_Backend (Parameters const& parameters,
+    virtual
+    std::unique_ptr <Backend>
+    make_Backend (Parameters const& parameters,
         Scheduler& scheduler, beast::Journal journal) = 0;
 
     /** Construct a NodeStore database.
@@ -71,20 +83,29 @@ public:
 
         @return The opened database.
     */
-    virtual std::unique_ptr <Database> make_Database (std::string const& name,
-        Scheduler& scheduler, beast::Journal journal, int readThreads,
+    virtual
+    std::unique_ptr <Database>
+    make_Database (std::string const& name, Scheduler& scheduler,
+        beast::Journal journal, int readThreads,
             Parameters const& backendParameters,
-                Parameters fastBackendParameters = Parameters ()) = 0;
+                Parameters fastBackendParameters = Parameters()) = 0;
+
+    virtual
+    std::unique_ptr <DatabaseRotating>
+    make_DatabaseRotating (std::string const& name,
+        Scheduler& scheduler, std::int32_t readThreads,
+            std::shared_ptr <Backend> writableBackend,
+                std::shared_ptr <Backend> archiveBackend,
+                std::unique_ptr <Backend> fastBackend,
+                    beast::Journal journal) = 0;
 };
 
 //------------------------------------------------------------------------------
 
-/** Create a Manager.
-    @param factories An optional array of additional factories to add.
-*/
-std::unique_ptr <Manager> make_Manager (
-    std::vector <std::unique_ptr <Factory>> factories =
-        std::vector <std::unique_ptr <Factory>>() );
+/** Create a Backend. */
+std::unique_ptr <Backend>
+make_Backend (Section const& config,
+    Scheduler& scheduler, beast::Journal journal);
 
 }
 }

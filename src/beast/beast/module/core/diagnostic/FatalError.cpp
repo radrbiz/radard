@@ -17,112 +17,59 @@
 */
 //==============================================================================
 
-#include <beast/unit_test/suite.h>
+#include <beast/module/core/diagnostic/FatalError.h>
+
+#include <atomic>
+#include <exception>
+#include <iostream>
+#include <mutex>
 
 namespace beast {
 
-//
-// FatalError::Reporter
-//
-void FatalError::Reporter::onFatalError (
-    char const* message, char const* stackBacktrace, char const* filePath, int lineNumber)
-{
-    String formattedMessage = formatMessage (
-        message, stackBacktrace, filePath, lineNumber);
-
-    reportMessage (formattedMessage);
-}
-
-void FatalError::Reporter::reportMessage (String& formattedMessage)
-{
-    std::cerr << formattedMessage.toRawUTF8 ();
-}
-
-String FatalError::Reporter::formatMessage (
-    char const* message, char const* stackBacktrace, char const* filePath, int lineNumber)
-{
-    String formattedMessage;
-    formattedMessage.preallocateBytes (16 * 1024);
-
-    formattedMessage << message;
-
-    if (filePath != nullptr && filePath [0] != 0)
-    {
-        formattedMessage << ", in " << formatFilePath (filePath)
-                         << " line " << String (lineNumber);
-    }
-
-    formattedMessage << newLine;
-
-    if (stackBacktrace != nullptr && stackBacktrace [0] != 0)
-    {
-        formattedMessage << "Stack:" << newLine;
-        formattedMessage << stackBacktrace;
-    }
-
-    return formattedMessage;
-}
-
-String FatalError::Reporter::formatFilePath (char const* filePath)
-{
-    return filePath;
-}
-
 //------------------------------------------------------------------------------
-
-FatalError::Reporter *FatalError::s_reporter;
-
-/** Returns the current fatal error reporter. */
-FatalError::Reporter* FatalError::getReporter ()
+void
+FatalError (char const* message, char const* file, int line)
 {
-    return s_reporter;
-}
+    static std::atomic <int> error_count (0);
+    static std::recursive_mutex gate;
 
-FatalError::Reporter* FatalError::setReporter (Reporter* reporter)
-{
-    Reporter* const previous (s_reporter);
-    s_reporter = reporter;
-    return previous;
-}
+    // We only allow one thread to report a fatal error. Other threads that
+    // encounter fatal errors while we are reporting get blocked here.
+    std::lock_guard<std::recursive_mutex> lock(gate);
 
-FatalError::FatalError (char const* message, char const* fileName, int lineNumber)
-{
-    typedef CriticalSection LockType;
+    // If we encounter a recursive fatal error, then we want to terminate
+    // unconditionally.
+    if (error_count++ != 0)
+        return std::terminate ();
 
-    static LockType s_mutex;
-
-    std::lock_guard <LockType> lock (s_mutex);
-
-    String const backtraceString = SystemStats::getStackBacktrace ();
-
-    char const* const szStackBacktrace = backtraceString.toRawUTF8 ();
-
-    String const fileNameString = fileName;
-
-    char const* const szFileName = fileNameString.toRawUTF8 ();
-
-    Reporter* const reporter (s_reporter);
-
-    if (reporter != nullptr)
+    // We protect this entire block of code since writing to cerr might trigger
+    // exceptions.
+    try
     {
-        reporter->onFatalError (message, szStackBacktrace, szFileName, lineNumber);
+        std::cerr << "An error has occurred. The application will terminate.\n";
+
+        if (message != nullptr && message [0] != 0)
+            std::cerr << "Message: " << message << '\n';
+
+        if (file != nullptr && file [0] != 0)
+            std::cerr << "   File: " << file << ":" << line << '\n';
+
+        auto const backtrace = SystemStats::getStackBacktrace ();
+
+        if (!backtrace.empty ())
+        {
+            std::cerr << "  Stack:" << std::endl;
+
+            for (auto const& frame : backtrace)
+                std::cerr << "    " << frame << '\n';
+        }
+    }
+    catch (...)
+    {
+        // nothing we can do - just fall through and terminate
     }
 
-    Process::terminate ();
+    return std::terminate ();
 }
-
-//------------------------------------------------------------------------------
-
-class FatalError_test : public unit_test::suite
-{
-public:
-    void run ()
-    {
-        int shouldBeZero (1);
-        check_invariant (shouldBeZero == 0);
-    }
-};
-
-BEAST_DEFINE_TESTSUITE_MANUAL(FatalError,beast_core,beast);
 
 } // beast

@@ -17,6 +17,11 @@
 */
 //==============================================================================
 
+#include <BeastConfig.h>
+#include <ripple/app/ledger/LedgerHistory.h>
+#include <ripple/basics/Log.h>
+#include <ripple/basics/seconds_clock.h>
+
 namespace ripple {
 
 // VFALCO TODO replace macros
@@ -289,6 +294,15 @@ void LedgerHistory::tune (int size, int age)
 {
     m_ledgers_by_hash.setTargetSize (size);
     m_ledgers_by_hash.setTargetAge (age);
+}
+
+void LedgerHistory::clearLedgerCachePrior (LedgerIndex seq)
+{
+    for (LedgerHash it: m_ledgers_by_hash.getKeys())
+    {
+        if (getLedgerByHash (it)->getLedgerSeq() < seq)
+            m_ledgers_by_hash.del (it, false);
+    }
 }
 
 } // ripple

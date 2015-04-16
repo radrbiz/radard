@@ -17,6 +17,7 @@
 */
 //==============================================================================
 
+#include <BeastConfig.h>
 #include <ripple/rpc/impl/AccountFromString.h>
 
 namespace ripple {
@@ -25,6 +26,8 @@ namespace RPC {
 // --> strIdent: public key, account ID, or regular seed.
 // --> bStrict: Only allow account id or public key.
 // <-- bIndex: true if iIndex > 0 and used the index.
+//
+// Returns a Json::objectValue, containing error information if there was one.
 Json::Value accountFromString (
     Ledger::ref lrLedger,
     RippleAddress& naAccount,

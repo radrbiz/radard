@@ -1,6 +1,9 @@
 #ifndef RIPPLE_APP_DIVIDEND_H_INCLUDED
 #define RIPPLE_APP_DIVIDEND_H_INCLUDED
 
+#include <ripple/app/ledger/Ledger.h>
+#include <ripple/shamap/SHAMap.h>
+
 namespace ripple {
 
 class DividendVote

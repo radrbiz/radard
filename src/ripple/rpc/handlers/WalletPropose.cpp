@@ -17,6 +17,7 @@
 */
 //==============================================================================
 
+#include <BeastConfig.h>
 
 namespace ripple {
 
@@ -28,10 +29,10 @@ Json::Value doWalletPropose (RPC::Context& context)
     RippleAddress   naSeed;
     RippleAddress   naAccount;
 
-    if (!context.params_.isMember ("passphrase"))
+    if (!context.params.isMember ("passphrase"))
         naSeed.setSeedRandom ();
 
-    else if (!naSeed.setSeedGeneric (context.params_["passphrase"].asString ()))
+    else if (!naSeed.setSeedGeneric (context.params["passphrase"].asString ()))
         return rpcError(rpcBAD_SEED);
 
     RippleAddress naGenerator = RippleAddress::createGeneratorPublic (naSeed);

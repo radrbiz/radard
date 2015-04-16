@@ -17,8 +17,11 @@
 */
 //==============================================================================
 
+#include <BeastConfig.h>
 #include <ripple/app/book/Quality.h>
+#include <ripple/app/paths/Credit.h>
 #include <ripple/app/paths/cursor/RippleLiquidity.h>
+#include <ripple/basics/Log.h>
 
 namespace ripple {
 namespace path {
@@ -46,8 +49,8 @@ TER PathCursor::reverseLiquidityForAccount () const
     auto const isFinalNode = (nodeIndex_ == lastNodeIndex);
 
     // 0 quality means none has yet been determined.
-    std::uint64_t uRateMax = 0;
-
+    std::uint64_t uRateMax = 0
+;
     // Current is allowed to redeem to next.
     const bool previousNodeIsAccount = !nodeIndex_ ||
             previousNode().isAccount();
@@ -80,7 +83,7 @@ TER PathCursor::reverseLiquidityForAccount () const
     // For previousNodeIsAccount:
     // Previous account is already owed.
     const STAmount saPrvOwed = (previousNodeIsAccount && nodeIndex_ != 0)
-        ? credit_balance (ledger(),
+        ? creditBalance (ledger(),
             node().account_,
             previousAccountID,
             node().issue_.currency)
@@ -88,7 +91,7 @@ TER PathCursor::reverseLiquidityForAccount () const
 
     // The limit amount that the previous account may owe.
     const STAmount saPrvLimit = (previousNodeIsAccount && nodeIndex_ != 0)
-        ? credit_limit (ledger(),
+        ? creditLimit (ledger(),
             node().account_,
             previousAccountID,
             node().issue_.currency)
@@ -96,7 +99,7 @@ TER PathCursor::reverseLiquidityForAccount () const
 
     // Next account is owed.
     const STAmount saNxtOwed = (nextNodeIsAccount && nodeIndex_ != lastNodeIndex)
-        ? credit_balance (ledger(),
+        ? creditBalance (ledger(),
             node().account_,
             nextAccountID,
             node().issue_.currency)
@@ -104,7 +107,7 @@ TER PathCursor::reverseLiquidityForAccount () const
 
     WriteLog (lsTRACE, RippleCalc)
         << "reverseLiquidityForAccount>"
-        << " nodeIndex_=%d/%d" << nodeIndex_ << "/" << lastNodeIndex
+        << " nodeIndex_=" << nodeIndex_ << "/" << lastNodeIndex
         << " previousAccountID=" << previousAccountID
         << " node.account_=" << node().account_
         << " nextAccountID=" << nextAccountID
@@ -150,7 +153,8 @@ TER PathCursor::reverseLiquidityForAccount () const
         << " node.saRevIssue:" << node().saRevIssue
         << " saNxtOwed:" << saNxtOwed;
 
-    WriteLog (lsTRACE, RippleCalc) << pathState_.getJson ();
+    // VFALCO-FIXME this generates errors
+    //WriteLog (lsTRACE, RippleCalc) << pathState_.getJson ();
 
     // Current redeem req can't be more than IOUs on hand.
     assert (!node().saRevRedeem || -saNxtOwed >= node().saRevRedeem);
@@ -204,7 +208,7 @@ TER PathCursor::reverseLiquidityForAccount () const
                     << " (available) previousNode.saRevRedeem="
                     << previousNode().saRevRedeem
                     << " uRateMax="
-                    << STAmount::saFromRate (uRateMax).getText ();
+                    << amountFromRate (uRateMax).getText ();
             }
             else
             {

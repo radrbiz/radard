@@ -17,6 +17,8 @@
 */
 //==============================================================================
 
+#include <BeastConfig.h>
+#include <ripple/server/Role.h>
 
 namespace ripple {
 
@@ -31,7 +33,7 @@ namespace ripple {
 // }
 Json::Value doAccountTx (RPC::Context& context)
 {
-    auto& params = context.params_;
+    auto& params = context.params;
 
     RippleAddress   raAccount;
     int limit = params.isMember (jss::limit) ?
@@ -42,7 +44,7 @@ Json::Value doAccountTx (RPC::Context& context)
     std::uint32_t   uLedgerMax;
     std::uint32_t   uValidatedMin;
     std::uint32_t   uValidatedMax;
-    bool bValidated = context.netOps_.getValidatedRange (
+    bool bValidated = context.netOps.getValidatedRange (
         uValidatedMin, uValidatedMax);
 
     if (!bValidated)
@@ -57,7 +59,7 @@ Json::Value doAccountTx (RPC::Context& context)
     if (!raAccount.setAccountID (params["account"].asString ()))
         return rpcError (rpcACT_MALFORMED);
 
-    context.loadType_ = Resource::feeMediumBurdenRPC;
+    context.loadType = Resource::feeMediumBurdenRPC;
 
     if (params.isMember ("ledger_index_min") ||
         params.isMember ("ledger_index_max"))
@@ -67,8 +69,10 @@ Json::Value doAccountTx (RPC::Context& context)
         std::int64_t iLedgerMax  = params.isMember ("ledger_index_max")
                 ? params["ledger_index_max"].asInt () : -1;
 
-        uLedgerMin  = iLedgerMin == -1 ? uValidatedMin : iLedgerMin;
-        uLedgerMax  = iLedgerMax == -1 ? uValidatedMax : iLedgerMax;
+        uLedgerMin  = iLedgerMin == -1 ? uValidatedMin :
+            ((iLedgerMin >= uValidatedMin) ? iLedgerMin : uValidatedMin);
+        uLedgerMax  = iLedgerMax == -1 ? uValidatedMax :
+            ((iLedgerMax <= uValidatedMax) ? iLedgerMax : uValidatedMax);
 
         if (uLedgerMax < uLedgerMin)
             return rpcError (rpcLGR_IDXS_INVALID);
@@ -76,7 +80,7 @@ Json::Value doAccountTx (RPC::Context& context)
     else
     {
         Ledger::pointer l;
-        Json::Value ret = RPC::lookupLedger (params, l, context.netOps_);
+        Json::Value ret = RPC::lookupLedger (params, l, context.netOps);
 
         if (!l)
             return ret;
@@ -116,30 +120,30 @@ Json::Value doAccountTx (RPC::Context& context)
 
         if (bBinary)
         {
-            auto txns = context.netOps_.getTxsAccountB (
+            auto txns = context.netOps.getTxsAccountB (
                 raAccount, uLedgerMin, uLedgerMax, bForward, resumeToken, limit,
-                context.role_ == Config::ADMIN, txType);
+                context.role == Role::ADMIN, txType);
 
             for (auto& it: txns)
             {
                 Json::Value& jvObj = jvTxns.append (Json::objectValue);
 
-                std::uint32_t uLedgerIndex = std::get<2> (it);
                 jvObj["tx_blob"] = std::get<0> (it);
                 jvObj["meta"] = std::get<1> (it);
-                jvObj["ledger_index"] = uLedgerIndex;
-                jvObj[jss::validated]
-                        = bValidated
-                        && uValidatedMin <= uLedgerIndex
-                        && uValidatedMax >= uLedgerIndex;
 
+                std::uint32_t uLedgerIndex = std::get<2> (it);
+
+                jvObj["ledger_index"] = uLedgerIndex;
+                jvObj[jss::validated] = bValidated &&
+                    uValidatedMin <= uLedgerIndex &&
+                    uValidatedMax >= uLedgerIndex;
             }
         }
         else
         {
-            auto txns = context.netOps_.getTxsAccount (
+            auto txns = context.netOps.getTxsAccount (
                 raAccount, uLedgerMin, uLedgerMax, bForward, resumeToken, limit,
-                context.role_ == Config::ADMIN, txType);
+                context.role == Role::ADMIN, txType);
 
             for (auto& it: txns)
             {
@@ -150,13 +154,15 @@ Json::Value doAccountTx (RPC::Context& context)
 
                 if (it.second)
                 {
+                    auto meta = it.second->getJson (1);
+                    addPaymentDeliveredAmount (meta, context, it.first, it.second);
+                    jvObj[jss::meta] = meta;
+
                     std::uint32_t uLedgerIndex = it.second->getLgrSeq ();
 
-                    jvObj[jss::meta] = it.second->getJson (0);
-                    jvObj[jss::validated]
-                            = bValidated
-                            && uValidatedMin <= uLedgerIndex
-                            && uValidatedMax >= uLedgerIndex;
+                    jvObj[jss::validated] = bValidated &&
+                        uValidatedMin <= uLedgerIndex &&
+                        uValidatedMax >= uLedgerIndex;
                 }
 
             }

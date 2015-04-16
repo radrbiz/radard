@@ -20,8 +20,10 @@
 #ifndef RIPPLE_RPC_REQUEST_H_INCLUDED
 #define RIPPLE_RPC_REQUEST_H_INCLUDED
 
-#include <ripple/unity/json.h>
-#include <ripple/unity/resource.h>
+#include <ripple/resource/Charge.h>
+#include <ripple/resource/Fees.h>
+#include <ripple/json/json_value.h>
+#include <beast/utility/Journal.h>
 
 namespace ripple {
 

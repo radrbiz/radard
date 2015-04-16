@@ -17,6 +17,11 @@
 */
 //==============================================================================
 
+#include <BeastConfig.h>
+#include <ripple/app/data/DatabaseCon.h>
+#include <ripple/app/data/SqliteDatabase.h>
+#include <ripple/app/ledger/AcceptedLedger.h>
+#include <ripple/basics/UptimeTimer.h>
 #include <ripple/nodestore/Database.h>
 #include <boost/foreach.hpp>
 
@@ -31,8 +36,8 @@ Json::Value doGetCounts (RPC::Context& context)
 
     int minCount = 10;
 
-    if (context.params_.isMember ("min_count"))
-        minCount = context.params_["min_count"].asUInt ();
+    if (context.params.isMember ("min_count"))
+        minCount = context.params["min_count"].asUInt ();
 
     auto objectCounts = CountedObjects::getInstance ().getCounts (minCount);
 
@@ -84,7 +89,8 @@ Json::Value doGetCounts (RPC::Context& context)
     textTime (uptime, s, "hour", 60 * 60);
     textTime (uptime, s, "minute", 60);
     textTime (uptime, s, "second", 1);
-    ret["uptime"] = uptime;
+    ret["uptime"] = s;
+    ret["uptime_human"] = uptime;
 
     ret["node_writes"] = app.getNodeStore().getStoreCount();
     ret["node_reads_total"] = app.getNodeStore().getFetchTotalCount();

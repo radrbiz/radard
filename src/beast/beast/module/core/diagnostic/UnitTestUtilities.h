@@ -20,6 +20,9 @@
 #ifndef BEAST_UNITTESTUTILITIES_H_INCLUDED
 #define BEAST_UNITTESTUTILITIES_H_INCLUDED
 
+#include <beast/module/core/files/File.h>
+#include <beast/module/core/maths/Random.h>
+
 namespace beast {
 namespace UnitTestUtilities {
 
@@ -97,6 +100,31 @@ public:
 
     int bytes;
     HeapBlock <char> data;
+};
+
+class TempDirectory
+{
+public:
+    explicit TempDirectory (std::string const& root)
+            : directory (File::createTempFile (root))
+    {
+    }
+
+    ~TempDirectory()
+    {
+        directory.deleteRecursively();
+    }
+
+    String const& getFullPathName() const
+    {
+        return directory.getFullPathName();
+    }
+
+    TempDirectory(const TempDirectory&) = delete;
+    TempDirectory& operator=(const TempDirectory&) = delete;
+
+private:
+    File const directory;
 };
 
 } // UnitTestUtilities

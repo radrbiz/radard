@@ -17,6 +17,11 @@
 */
 //==============================================================================
 
+#include <BeastConfig.h>
+#include <ripple/nodestore/impl/DecodedBlob.h>
+#include <beast/ByteOrder.h>
+#include <algorithm>
+
 namespace ripple {
 namespace NodeStore {
 
@@ -35,16 +40,9 @@ DecodedBlob::DecodedBlob (void const* key, void const* value, int valueBytes)
     m_success = false;
     m_key = key;
     // VFALCO NOTE Ledger indexes should have started at 1
-    m_ledgerIndex = LedgerIndex (-1);
     m_objectType = hotUNKNOWN;
     m_objectData = nullptr;
-    m_dataBytes = beast::bmax (0, valueBytes - 9);
-
-    if (valueBytes > 4)
-    {
-        LedgerIndex const* index = static_cast <LedgerIndex const*> (value);
-        m_ledgerIndex = beast::ByteOrder::swapIfLittleEndian (*index);
-    }
+    m_dataBytes = std::max (0, valueBytes - 9);
 
     // VFALCO NOTE What about bytes 4 through 7 inclusive?
 
@@ -60,10 +58,10 @@ DecodedBlob::DecodedBlob (void const* key, void const* value, int valueBytes)
 
         switch (m_objectType)
         {
-        case hotUNKNOWN:
         default:
             break;
 
+        case hotUNKNOWN:
         case hotLEDGER:
         case hotTRANSACTION:
         case hotACCOUNT_NODE:
@@ -82,12 +80,10 @@ NodeObject::Ptr DecodedBlob::createObject ()
 
     if (m_success)
     {
-        Blob data (m_dataBytes);
-
-        memcpy (data.data (), m_objectData, m_dataBytes);
+        Blob data(m_objectData, m_objectData + m_dataBytes);
 
         object = NodeObject::createObject (
-            m_objectType, m_ledgerIndex, std::move(data), uint256::fromVoid(m_key));
+            m_objectType, std::move(data), uint256::fromVoid(m_key));
     }
 
     return object;

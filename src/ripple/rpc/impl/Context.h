@@ -21,19 +21,25 @@
 #define RIPPLE_RPC_CONTEXT
 
 #include <ripple/core/Config.h>
+#include <ripple/net/InfoSub.h>
+#include <ripple/rpc/Yield.h>
+#include <ripple/server/Role.h>
 
 namespace ripple {
+
+class NetworkOPs;
+
 namespace RPC {
 
 /** The context of information needed to call an RPC. */
 struct Context
 {
-    // VFALCO NOTE Public members should not have underscores appended
-    Json::Value params_;
-    Resource::Charge& loadType_;
-    NetworkOPs& netOps_;
-    InfoSub::pointer infoSub_;
-    Config::Role role_;
+    Json::Value params;
+    Resource::Charge& loadType;
+    NetworkOPs& netOps;
+    Role role;
+    InfoSub::pointer infoSub;
+    RPC::Yield yield;
 };
 
 } // RPC

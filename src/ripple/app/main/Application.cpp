@@ -17,28 +17,59 @@
 */
 //==============================================================================
 
+#include <BeastConfig.h>
+#include <ripple/app/main/Application.h>
+#include <ripple/app/data/DatabaseCon.h>
+#ifdef USE_MYSQL
+#include <ripple/app/data/MySQLDatabase.h>
+#endif
+#include <ripple/app/data/NullDatabase.h>
+#include <ripple/app/data/DBInit.h>
+#include <ripple/app/impl/BasicApp.h>
+#include <ripple/app/main/Tuning.h>
+#include <ripple/app/ledger/AcceptedLedger.h>
+#include <ripple/app/ledger/InboundLedgers.h>
+#include <ripple/app/ledger/LedgerMaster.h>
+#include <ripple/app/ledger/OrderBookDB.h>
+#include <ripple/app/main/CollectorManager.h>
+#include <ripple/app/main/LoadManager.h>
+#include <ripple/app/main/LocalCredentials.h>
+#include <ripple/app/main/NodeStoreScheduler.h>
+#include <ripple/app/misc/AmendmentTable.h>
+#include <ripple/app/misc/IHashRouter.h>
+#include <ripple/app/misc/NetworkOPs.h>
+#include <ripple/app/misc/SHAMapStore.h>
+#include <ripple/app/misc/Validations.h>
+#include <ripple/app/paths/FindPaths.h>
+#include <ripple/app/paths/PathRequests.h>
+#include <ripple/app/peers/UniqueNodeList.h>
+#include <ripple/app/tx/TransactionMaster.h>
+#include <ripple/app/websocket/WSDoor.h>
 #include <ripple/basics/Log.h>
 #include <ripple/basics/LoggedTimings.h>
+#include <ripple/basics/ResolverAsio.h>
 #include <ripple/basics/Sustain.h>
-#include <ripple/common/seconds_clock.h>
-#include <ripple/app/main/Tuning.h>
-#include <ripple/app/misc/ProofOfWorkFactory.h>
+#include <ripple/basics/seconds_clock.h>
+#include <ripple/basics/make_SSLContext.h>
+#include <ripple/json/json_reader.h>
+#include <ripple/json/to_string.h>
 #include <ripple/core/LoadFeeTrack.h>
-#include <ripple/rpc/Manager.h>
+#include <ripple/net/SNTPClient.h>
 #include <ripple/nodestore/Database.h>
 #include <ripple/nodestore/DummyScheduler.h>
 #include <ripple/nodestore/Manager.h>
 #include <ripple/overlay/make_Overlay.h>
-#include <ripple/validators/Manager.h>
+#include <ripple/protocol/STParsedJSON.h>
+#include <ripple/rpc/Manager.h>
+#include <ripple/server/make_ServerHandler.h>
+#include <ripple/validators/make_Manager.h>
+#include <ripple/unity/git_id.h>
 #include <beast/asio/io_latency_probe.h>
 #include <beast/module/core/thread/DeadlineTimer.h>
-#include <beast/module/core/system/SystemStats.h>
+#include <boost/asio/signal_set.hpp>
 #include <fstream>
 
 namespace ripple {
-
-// VFALCO TODO Clean this global up
-static bool volatile doShutdown = false;
 
 // 204/256 about 80%
 static int const MAJORITY_FRACTION (204);
@@ -78,6 +109,7 @@ class ApplicationImp
     , public beast::RootStoppable
     , public beast::DeadlineTimer::Listener
     , public beast::LeakChecked <ApplicationImp>
+    , public BasicApp
 {
 private:
     class io_latency_sampler
@@ -148,9 +180,11 @@ public:
     beast::Journal m_journal;
     Application::LockType m_masterMutex;
 
-    // These are not Stoppable-derived
-    std::unique_ptr <NodeStore::Manager> m_nodeStoreManager;
+    NodeStoreScheduler m_nodeStoreScheduler;
+    std::unique_ptr <SHAMapStore> m_shaMapStore;
+    std::unique_ptr <NodeStore::Database> m_nodeStore;
 
+    // These are not Stoppable-derived
     NodeCache m_tempNodeCache;
     TreeNodeCache m_treeNodeCache;
     SLECache m_sleCache;
@@ -162,10 +196,7 @@ public:
     std::unique_ptr <FullBelowCache> m_fullBelowCache;
 
     // These are Stoppable-related
-    NodeStoreScheduler m_nodeStoreScheduler;
     std::unique_ptr <JobQueue> m_jobQueue;
-    IoServicePool m_mainIoPool;
-    std::unique_ptr <SiteFiles::Manager> m_siteFiles;
     std::unique_ptr <RPC::Manager> m_rpcManager;
     // VFALCO TODO Make OrderBookDB abstract
     OrderBookDB m_orderBookDB;
@@ -174,34 +205,24 @@ public:
     std::unique_ptr <InboundLedgers> m_inboundLedgers;
     std::unique_ptr <NetworkOPs> m_networkOPs;
     std::unique_ptr <UniqueNodeList> m_deprecatedUNL;
-    std::unique_ptr <RPCHTTPServer> m_rpcHTTPServer;
-    RPCServerHandler m_rpcServerHandler;
-    std::unique_ptr <NodeStore::Database> m_nodeStore;
+    std::unique_ptr <ServerHandler> serverHandler_;
     std::unique_ptr <SNTPClient> m_sntpClient;
-    std::unique_ptr <TxQueue> m_txQueue;
     std::unique_ptr <Validators::Manager> m_validators;
     std::unique_ptr <AmendmentTable> m_amendmentTable;
     std::unique_ptr <LoadFeeTrack> mFeeTrack;
     std::unique_ptr <IHashRouter> mHashRouter;
     std::unique_ptr <Validations> mValidations;
-    std::unique_ptr <ProofOfWorkFactory> mProofOfWorkFactory;
     std::unique_ptr <LoadManager> m_loadManager;
     beast::DeadlineTimer m_sweepTimer;
-    bool volatile mShutdown;
 
     std::unique_ptr <DatabaseCon> mRpcDB;
     std::unique_ptr <DatabaseCon> mTxnDB;
     std::unique_ptr <DatabaseCon> mLedgerDB;
     std::unique_ptr <DatabaseCon> mWalletDB;
+    std::unique_ptr <Overlay> m_overlay;
+    std::vector <std::unique_ptr<WSDoor>> wsDoors_;
 
-    std::unique_ptr <beast::asio::SSLContext> m_peerSSLContext;
-    std::unique_ptr <beast::asio::SSLContext> m_wsSSLContext;
-    std::unique_ptr <Overlay> m_peers;
-    std::unique_ptr <RPCDoor>  m_rpcDoor;
-    std::unique_ptr <WSDoor> m_wsPublicDoor;
-    std::unique_ptr <WSDoor> m_wsPrivateDoor;
-    std::unique_ptr <WSDoor> m_wsProxyDoor;
-
+    boost::asio::signal_set m_signals;
     beast::WaitableEvent m_stop;
 
     std::unique_ptr <ResolverAsio> m_resolver;
@@ -211,41 +232,32 @@ public:
     //--------------------------------------------------------------------------
 
     static
-    std::vector <std::unique_ptr <NodeStore::Factory>>
-    make_Factories (int hashnode_cache_size)
-    {
-        std::vector <std::unique_ptr <NodeStore::Factory>> list;
-
-        // VFALCO NOTE SqliteFactory is here because it has
-        //             dependencies like SqliteDatabase and DatabaseCon
-        //
-        list.emplace_back (make_SqliteFactory (hashnode_cache_size));
-
-        return list;
-    }
-
-    //--------------------------------------------------------------------------
-
-    static
-    int
-    calculateNumberOfIoServiceThreads()
+    std::size_t numberOfThreads()
     {
     #if RIPPLE_SINGLE_IO_SERVICE_THREAD
         return 1;
     #else
-        return (getConfig ().NODE_SIZE >= 2) ? 2 : 1;
+        return (getConfig().NODE_SIZE >= 2) ? 2 : 1;
     #endif
     }
 
+    //--------------------------------------------------------------------------
+
     ApplicationImp (Logs& logs)
         : RootStoppable ("Application")
+        , BasicApp (numberOfThreads())
         , m_logs (logs)
 
         , m_journal (m_logs.journal("Application"))
 
-        , m_nodeStoreManager (NodeStore::make_Manager (
-            std::move (make_Factories (
-                getConfig ().getSize(siHashNodeDBCache) * 1024))))
+        , m_nodeStoreScheduler (*this)
+
+        , m_shaMapStore (make_SHAMapStore (setup_SHAMapStore (
+                getConfig()), *this, m_nodeStoreScheduler,
+                m_logs.journal ("SHAMapStore"), m_logs.journal ("NodeObject"),
+                    m_txMaster))
+
+        , m_nodeStore (m_shaMapStore->makeDatabase ("NodeStore.main", 4))
 
         , m_tempNodeCache ("NodeCache", 16384, 90, get_seconds_clock (),
             m_logs.journal("TaggedCache"))
@@ -266,25 +278,15 @@ public:
             "full_below", get_seconds_clock (), m_collectorManager->collector (),
                 fullBelowTargetSize, fullBelowExpirationSeconds))
 
-        , m_nodeStoreScheduler (*this)
-
         // The JobQueue has to come pretty early since
         // almost everything is a Stoppable child of the JobQueue.
         //
         , m_jobQueue (make_JobQueue (m_collectorManager->group ("jobq"),
             m_nodeStoreScheduler, m_logs.journal("JobQueue")))
 
-        // The io_service must be a child of the JobQueue since we call addJob
-        // in response to newtwork data from peers and also client requests.
-        //
-        , m_mainIoPool (*m_jobQueue, "io", calculateNumberOfIoServiceThreads())
-
         //
         // Anything which calls addJob must be a descendant of the JobQueue
         //
-
-        , m_siteFiles (SiteFiles::Manager::New (
-            *this, m_logs.journal("SiteFiles")))
 
         , m_rpcManager (RPC::make_Manager (m_logs.journal("RPCManager")))
 
@@ -293,9 +295,7 @@ public:
         , m_pathRequests (new PathRequests (
             m_logs.journal("PathRequest"), m_collectorManager->collector ()))
 
-        , m_ledgerMaster (make_LedgerMaster (getConfig ().RUN_STANDALONE,
-            getConfig ().FETCH_DEPTH, getConfig ().LEDGER_HISTORY,
-            getConfig ().getSize (siLedgerFetch), *m_jobQueue,
+        , m_ledgerMaster (make_LedgerMaster (getConfig (), *m_jobQueue,
             m_collectorManager->collector (), m_logs.journal("LedgerMaster")))
 
         // VFALCO NOTE must come before NetworkOPs to prevent a crash due
@@ -312,26 +312,14 @@ public:
         // VFALCO NOTE LocalCredentials starts the deprecated UNL service
         , m_deprecatedUNL (make_UniqueNodeList (*m_jobQueue))
 
-        , m_rpcHTTPServer (make_RPCHTTPServer (*m_networkOPs,
-            *m_jobQueue, *m_networkOPs, *m_resourceManager,
-                setup_RPC(getConfig()["rpc"])))
-
-        // passive object, not a Service
-        , m_rpcServerHandler (*m_networkOPs, *m_resourceManager)
-
-        , m_nodeStore (m_nodeStoreManager->make_Database ("NodeStore.main",
-            m_nodeStoreScheduler, m_logs.journal("NodeObject"),
-            4, // four read threads for now
-            getConfig ().nodeDatabase, getConfig ().ephemeralNodeDatabase))
+        , serverHandler_ (make_ServerHandler (*m_networkOPs,
+            get_io_service(), *m_jobQueue, *m_networkOPs,
+                *m_resourceManager))
 
         , m_sntpClient (SNTPClient::New (*this))
 
-        , m_txQueue (TxQueue::New ())
-
-        , m_validators (add (Validators::Manager::New (
-            *this,
-            getConfig ().getModuleDatabasePath (),
-            m_logs.journal("Validators"))))
+        , m_validators (Validators::make_Manager(*this, get_io_service(),
+            getConfig ().getModuleDatabasePath (), m_logs.journal("UVL")))
 
         , m_amendmentTable (make_AmendmentTable (weeks(2), MAJORITY_FRACTION,
             m_logs.journal("AmendmentTable")))
@@ -342,20 +330,19 @@ public:
 
         , mValidations (make_Validations ())
 
-        , mProofOfWorkFactory (make_ProofOfWorkFactory ())
-
-        , m_loadManager (LoadManager::New (*this, m_logs.journal("LoadManager")))
+        , m_loadManager (make_LoadManager (*this, m_logs.journal("LoadManager")))
 
         , m_sweepTimer (this)
 
-        , mShutdown (false)
+        , m_signals(get_io_service(), SIGINT)
 
-        , m_resolver (ResolverAsio::New (m_mainIoPool.getService (), beast::Journal ()))
+        , m_resolver (ResolverAsio::New (get_io_service(), m_logs.journal("Resolver")))
 
         , m_io_latency_sampler (m_collectorManager->collector()->make_event ("ios_latency"),
-            m_logs.journal("Application"), std::chrono::milliseconds (100), m_mainIoPool.getService())
+            m_logs.journal("Application"), std::chrono::milliseconds (100), get_io_service())
     {
-        add (m_resourceManager.get ());        
+        add (m_resourceManager.get ());
+
         //
         // VFALCO - READ THIS!
         //
@@ -374,8 +361,9 @@ public:
         // VFALCO HACK
         m_nodeStoreScheduler.setJobQueue (*m_jobQueue);
 
+        add (*m_validators);
         add (m_ledgerMaster->getPropertySource ());
-        add (*m_rpcHTTPServer);
+        add (*serverHandler_);
     }
 
     //--------------------------------------------------------------------------
@@ -400,11 +388,6 @@ public:
         return *m_rpcManager;
     }
 
-    SiteFiles::Manager& getSiteFiles()
-    {
-        return *m_siteFiles;
-    }
-
     LocalCredentials& getLocalCredentials ()
     {
         return m_localCredentials ;
@@ -417,7 +400,7 @@ public:
 
     boost::asio::io_service& getIOService ()
     {
-        return m_mainIoPool;
+        return get_io_service();
     }
 
     std::chrono::milliseconds getIOLatency ()
@@ -472,11 +455,6 @@ public:
         return *m_resourceManager;
     }
 
-    TxQueue& getTxQueue ()
-    {
-        return *m_txQueue;
-    }
-
     OrderBookDB& getOrderBookDB ()
     {
         return m_orderBookDB;
@@ -522,14 +500,14 @@ public:
         return *m_deprecatedUNL;
     }
 
-    ProofOfWorkFactory& getProofOfWorkFactory ()
+    SHAMapStore& getSHAMapStore () override
     {
-        return *mProofOfWorkFactory;
+        return *m_shaMapStore;
     }
 
     Overlay& overlay ()
     {
-        return *m_peers;
+        return *m_overlay;
     }
 
     // VFALCO TODO Move these to the .cpp
@@ -565,7 +543,8 @@ public:
 
     bool isShutdown ()
     {
-        return mShutdown;
+        // from Stoppable mixin
+        return isStopped();
     }
 
     //--------------------------------------------------------------------------
@@ -575,11 +554,13 @@ public:
         assert (mTxnDB.get () == nullptr);
         assert (mLedgerDB.get () == nullptr);
         assert (mWalletDB.get () == nullptr);
-        
 
-        mRpcDB = std::make_unique <DatabaseCon> ("rpc.db", RpcDBInit, RpcDBCount);
+        DatabaseCon::Setup setup = setup_DatabaseCon (getConfig());
+        mRpcDB = std::make_unique <DatabaseCon> (setup, "rpc.db", RpcDBInit,
+                RpcDBCount);
         if (getConfig().transactionDatabase[beast::String("type")] == beast::String::empty)
-            mTxnDB = std::make_unique <DatabaseCon> ("transaction.db", TxnDBInit, TxnDBCount);
+            mTxnDB = std::make_unique <DatabaseCon> (setup, "transaction.db",
+                TxnDBInit, TxnDBCount);
         else if (getConfig().transactionDatabase[beast::String("type")] == beast::String("mysql"))
         {
 #ifdef  USE_MYSQL
@@ -589,13 +570,28 @@ public:
             return false;
 #endif  // USE_MYSQL
         }
-        else if (getConfig().transactionDatabase[beast::String("type")] == beast::String("none"))
-        {
+        else if (getConfig().transactionDatabase[beast::String("type")] == beast::String("none")) {
             mTxnDB = std::make_unique <NullDatabaseCon> ();
         }
+        mLedgerDB = std::make_unique <DatabaseCon> (setup, "ledger.db",
+                LedgerDBInit, LedgerDBCount);
+        mWalletDB = std::make_unique <DatabaseCon> (setup, "wallet.db",
+                WalletDBInit, WalletDBCount);
 
-        mLedgerDB = std::make_unique <DatabaseCon> ("ledger.db", LedgerDBInit, LedgerDBCount);
-        mWalletDB = std::make_unique <DatabaseCon> ("wallet.db", WalletDBInit, WalletDBCount);
+        if (setup.onlineDelete && mTxnDB && mLedgerDB)
+        {
+            if (mTxnDB->getDB()->getDBType() == Database::Type::Sqlite)
+            {
+                std::lock_guard <std::recursive_mutex> lock (
+                        mTxnDB->peekMutex());
+                mTxnDB->getDB()->executeSQL ("VACUUM;");
+            }
+            {
+                std::lock_guard <std::recursive_mutex> lock (
+                        mLedgerDB->peekMutex());
+                mLedgerDB->getDB()->executeSQL ("VACUUM;");
+            }
+        }
 
         return
             mRpcDB.get() != nullptr &&
@@ -604,12 +600,24 @@ public:
             mWalletDB.get () != nullptr;
     }
 
-#ifdef SIGINT
-    static void sigIntHandler (int)
+    void signalled(const boost::system::error_code& ec, int signal_number)
     {
-        doShutdown = true;
+        if (ec == boost::asio::error::operation_aborted)
+        {
+            // Indicates the signal handler has been aborted
+            // do nothing
+        }
+        else if (ec)
+        {
+            m_journal.error << "Received signal: " << signal_number
+                            << " with error: " << ec.message();
+        }
+        else
+        {
+            m_journal.debug << "Received signal: " << signal_number;
+            signalStop();
+        }
     }
-#endif
 
     // VFALCO TODO Break this function up into many small initialization segments.
     //             Or better yet refactor these initializations into RAII classes
@@ -620,19 +628,9 @@ public:
         // VFALCO NOTE: 0 means use heuristics to determine the thread count.
         m_jobQueue->setThreadCount (0, getConfig ().RUN_STANDALONE);
 
-    #if ! BEAST_WIN32
-    #ifdef SIGINT
-
-        if (!getConfig ().RUN_STANDALONE)
-        {
-            struct sigaction sa;
-            memset (&sa, 0, sizeof (sa));
-            sa.sa_handler = &ApplicationImp::sigIntHandler;
-            sigaction (SIGINT, &sa, nullptr);
-        }
-
-    #endif
-    #endif
+        m_signals.async_wait(std::bind(&ApplicationImp::signalled, this,
+                                      std::placeholders::_1,
+                                      std::placeholders::_2));
 
         assert (mTxnDB == nullptr);
 
@@ -656,7 +654,7 @@ public:
         if (!initSqliteDbs ())
         {
             m_journal.fatal << "Can not create database connections!";
-            exit (3);
+            exitWithCode(3);
         }
 
         getApp().getLedgerDB ().getDB ()->executeSQL (boost::str (boost::format ("PRAGMA cache_size=-%d;") %
@@ -674,7 +672,7 @@ public:
             updateTables ();
 
         m_amendmentTable->addInitial();
-        Pathfinder::initPathTable ();
+        initializePathfinding ();
 
         m_ledgerMaster->setMinValidations (getConfig ().VALIDATION_QUORUM);
 
@@ -695,9 +693,7 @@ public:
                                 startUp == Config::REPLAY,
                                 startUp == Config::LOAD_FILE))
             {
-                // wtf?
-                getApp().signalStop ();
-                exit (-1);
+                exitWithCode(-1);
             }
         }
         else if (startUp == Config::NETWORK)
@@ -735,132 +731,47 @@ public:
         m_treeNodeCache.setTargetSize (getConfig ().getSize (siTreeCacheSize));
         m_treeNodeCache.setTargetAge (getConfig ().getSize (siTreeCacheAge));
 
-
         //----------------------------------------------------------------------
         //
+        // Server
         //
-
-        // SSL context used for Peer connections.
-        {
-            m_peerSSLContext.reset (RippleSSLContext::createAnonymous (
-                getConfig ().PEER_SSL_CIPHER_LIST));
-
-            // VFALCO NOTE, It seems the WebSocket context never has
-            // set_verify_mode called, for either setting of WEBSOCKET_SECURE
-            m_peerSSLContext->get().set_verify_mode (boost::asio::ssl::verify_none);
-        }
+        //----------------------------------------------------------------------
 
         // VFALCO NOTE Unfortunately, in stand-alone mode some code still
         //             foolishly calls overlay(). When this is fixed we can
         //             move the instantiation inside a conditional:
         //
         //             if (!getConfig ().RUN_STANDALONE)
-        m_peers = make_Overlay (m_mainIoPool, *m_resourceManager,
-            *m_siteFiles, getConfig ().getModuleDatabasePath (),
-                *m_resolver, m_mainIoPool, m_peerSSLContext->get ());
-        add (*m_peers); // add to Stoppable
+        m_overlay = make_Overlay (setup_Overlay(getConfig()), *m_jobQueue,
+            *serverHandler_, *m_resourceManager,
+                getConfig ().getModuleDatabasePath (), *m_resolver,
+                    get_io_service());
+        add (*m_overlay); // add to PropertyStream
 
-        // SSL context used for WebSocket connections.
-        if (getConfig ().WEBSOCKET_SECURE)
         {
-            m_wsSSLContext.reset (RippleSSLContext::createAuthenticated (
-                getConfig ().WEBSOCKET_SSL_KEY,
-                getConfig ().WEBSOCKET_SSL_CERT,
-                getConfig ().WEBSOCKET_SSL_CHAIN));
-        }
-        else
-        {
-            m_wsSSLContext.reset (RippleSSLContext::createWebSocket ());
+            auto setup = setup_ServerHandler(getConfig(), std::cerr);
+            setup.makeContexts();
+            serverHandler_->setup (setup, m_journal);
         }
 
-        // Create private listening WebSocket socket
-        //
-        if (!getConfig ().WEBSOCKET_IP.empty () && getConfig ().WEBSOCKET_PORT)
+        // Create websocket doors
+        for (auto const& port : serverHandler_->setup().ports)
         {
-            m_wsPrivateDoor.reset (WSDoor::New (*m_resourceManager,
-                getOPs(), getConfig ().WEBSOCKET_IP,
-                    getConfig ().WEBSOCKET_PORT, false, false,
-                        m_wsSSLContext->get ()));
-
-            if (m_wsPrivateDoor == nullptr)
+            if (! port.websockets())
+                continue;
+            auto door = make_WSDoor(port, *m_resourceManager, getOPs());
+            if (door == nullptr)
             {
-                beast::FatalError ("Could not open the WebSocket private interface.",
-                    __FILE__, __LINE__);
+                m_journal.fatal << "Could not create Websocket for [" <<
+                    port.name << "]";
+                throw std::exception();
             }
-        }
-        else
-        {
-            m_journal.info << "WebSocket private interface: disabled";
+            wsDoors_.emplace_back(std::move(door));
         }
 
-        // Create public listening WebSocket socket
-        //
-        if (!getConfig ().WEBSOCKET_PUBLIC_IP.empty () && getConfig ().WEBSOCKET_PUBLIC_PORT)
-        {
-            m_wsPublicDoor.reset (WSDoor::New (*m_resourceManager,
-                getOPs(), getConfig ().WEBSOCKET_PUBLIC_IP,
-                    getConfig ().WEBSOCKET_PUBLIC_PORT, true, false,
-                        m_wsSSLContext->get ()));
-
-            if (m_wsPublicDoor == nullptr)
-            {
-                beast::FatalError ("Could not open the WebSocket public interface.",
-                    __FILE__, __LINE__);
-            }
-        }
-        else
-        {
-            m_journal.info << "WebSocket public interface: disabled";
-        }
-        if (!getConfig ().WEBSOCKET_PROXY_IP.empty () && getConfig ().WEBSOCKET_PROXY_PORT)
-        {
-            m_wsProxyDoor.reset (WSDoor::New (*m_resourceManager,
-                getOPs(), getConfig ().WEBSOCKET_PROXY_IP,
-                    getConfig ().WEBSOCKET_PROXY_PORT, true, true,
-                        m_wsSSLContext->get ()));
-
-            if (m_wsProxyDoor == nullptr)
-            {
-                beast::FatalError ("Could not open the WebSocket public interface.",
-                    __FILE__, __LINE__);
-            }
-        }
-
-        //
-        //
         //----------------------------------------------------------------------
 
-        //
-        // Allow RPC connections.
-        //
-#if RIPPLE_ASYNC_RPC_HANDLER
-        m_rpcHTTPServer->setup (m_journal);
-
-#else
-        if (! getConfig ().getRpcIP().empty () && getConfig ().getRpcPort() != 0)
-        {
-            try
-            {
-                m_rpcDoor.reset (RPCDoor::New (m_mainIoPool, m_rpcServerHandler));
-            }
-            catch (const std::exception& e)
-            {
-                // Must run as directed or exit.
-                m_journal.fatal <<
-                    "Can not open RPC service: " << e.what ();
-
-                exit (3);
-            }
-        }
-        else
-        {
-            m_journal.info << "RPC interface: disabled";
-        }
-#endif
-
-        //
         // Begin connecting to network.
-        //
         if (!getConfig ().RUN_STANDALONE)
         {
             // Should this message be here, conceptually? In theory this sort
@@ -881,36 +792,17 @@ public:
     }
 
     //--------------------------------------------------------------------------
-
-    // Initialize the Validators object with Config information.
-    void prepareValidators ()
-    {
-        m_validators->addStrings ("radard.cfg", getConfig().validators);
-
-        if (! getConfig().getValidatorsURL().empty())
-            m_validators->addURL (getConfig().getValidatorsURL());
-
-        if (getConfig().getValidatorsFile() != beast::File::nonexistent ())
-            m_validators->addFile (getConfig().getValidatorsFile());
-    }
-
-    //--------------------------------------------------------------------------
     //
     // Stoppable
     //
 
-    void onPrepare ()
+    void onPrepare() override
     {
-        prepareValidators ();
     }
 
     void onStart ()
     {
-#ifdef GIT_COMMIT_ID
-        m_journal.info << "Application starting. Build is " << GIT_COMMIT_ID;
-#else
-        m_journal.info << "Application starting.";
-#endif
+        m_journal.info << "Application starting. Build is " << gitCommitID();
 
         m_sweepTimer.setExpiration (10);
 
@@ -943,12 +835,9 @@ public:
 
         m_sweepTimer.cancel ();
 
-        // VFALCO TODO get rid of this flag
-        mShutdown = true;
-
         mValidations->flush ();
-        mShutdown = false;
 
+        RippleAddress::clearCache ();
         stopped ();
     }
 
@@ -984,57 +873,22 @@ public:
             }
         }
 
-        // Wait for the stop signal
-#ifdef SIGINT
-        for(;;)
-        {
-            bool const signaled (m_stop.wait (100));
-            if (signaled)
-                break;
-            // VFALCO NOTE It is unfortunate that we have to resort to
-            //             polling but thats what the signal() interface
-            //             forces us to do.
-            //
-            if (doShutdown)
-                break;
-        }
-#else
         m_stop.wait ();
-#endif
 
         // Stop the server. When this returns, all
         // Stoppable objects should be stopped.
-
-        doStop ();
-
-        {
-            // These two asssignment should no longer be necessary
-            // once the WSDoor cancels its pending I/O correctly
-            //m_wsPublicDoor = nullptr;
-            //m_wsPrivateDoor = nullptr;
-            //m_wsProxyDoor = nullptr;
-
-            // VFALCO TODO Try to not have to do this early, by using observers to
-            //             eliminate LoadManager's dependency inversions.
-            //
-            // This deletes the object and therefore, stops the thread.
-            //m_loadManager = nullptr;
-
-            m_journal.info << "Done.";
-
-            // VFALCO NOTE This is a sign that something is wrong somewhere, it
-            //             shouldn't be necessary to sleep until some flag is set.
-            while (mShutdown)
-                std::this_thread::sleep_for (std::chrono::milliseconds (100));
-        }
+        m_journal.info << "Received shutdown request";
+        stop (m_journal);
+        m_journal.info << "Done.";
+        StopSustain();
     }
 
-    void doStop ()
+    void exitWithCode(int code)
     {
-        m_journal.info << "Received shutdown request";
-        StopSustain ();
-
-        stop (m_journal);
+        StopSustain();
+        // VFALCO This breaks invariants: automatic objects
+        //        will not have destructors called.
+        std::exit(code);
     }
 
     void signalStop ()
@@ -1079,7 +933,7 @@ public:
             &TransactionMaster::sweep, &m_txMaster));
 
         logTimedCall (m_journal.warning, "NodeStore::sweep", __FILE__, __LINE__, std::bind (
-            &NodeStore::Database::sweep, m_nodeStore.get ()));
+            &NodeStore::Database::sweep, m_nodeStore.get()));
 
         logTimedCall (m_journal.warning, "LedgerMaster::sweep", __FILE__, __LINE__, std::bind (
             &LedgerMaster::sweep, m_ledgerMaster.get()));
@@ -1247,7 +1101,7 @@ bool ApplicationImp::loadOldLedger (
 
                              if (stp.object && (uIndex.isNonZero()))
                              {
-                                 SerializedLedgerEntry sle (*stp.object, uIndex);
+                                 STLedgerEntry sle (*stp.object, uIndex);
                                  bool ok = loadLedger->addSLE (sle);
                                  if (!ok)
                                      m_journal.warning << "Couldn't add serialized ledger: " << uIndex;
@@ -1548,15 +1402,26 @@ static void addTxnSeqField ()
     db->endTransaction();
 }
 
+static void addCloseTimeField()
+{
+    auto db = getApp().getTxnDB ().getDB ();
+    if (!db->hasField("Transactions", "CloseTime"))
+    {
+        db->beginTransaction();
+        db->executeSQL("ALTER TABLE Transactions ADD COLUMN CloseTime INTEGER NOT NULL DEFAULT 0");
+        db->endTransaction();
+    }
+}
+    
 void ApplicationImp::updateTables ()
 {
     if (getConfig ().nodeDatabase.size () <= 0)
     {
         WriteLog (lsFATAL, Application) << "The [node_db] configuration setting has been updated and must be set";
-        StopSustain ();
-        exit (1);
+        exitWithCode(1);
     }
 
+    addCloseTimeField();
     // perform any needed table updates
     //assert (schemaHas (getApp().getTxnDB (), "AccountTransactions", 0, "TransID"));
     //assert (!schemaHas (getApp().getTxnDB (), "AccountTransactions", 0, "foobar"));
@@ -1566,18 +1431,17 @@ void ApplicationImp::updateTables ()
     if (schemaHas (getApp().getTxnDB (), "AccountTransactions", 0, "PRIMARY"))
     {
         WriteLog (lsFATAL, Application) << "AccountTransactions database should not have a primary key";
-        StopSustain ();
-        exit (1);
+        exitWithCode(1);
     }
      */
 
     if (getConfig ().doImport)
     {
         NodeStore::DummyScheduler scheduler;
-        std::unique_ptr <NodeStore::Database> source (
-            m_nodeStoreManager->make_Database ("NodeStore.import", scheduler,
+        std::unique_ptr <NodeStore::Database> source =
+            NodeStore::Manager::instance().make_Database ("NodeStore.import", scheduler,
                 deprecatedLogs().journal("NodeObject"), 0,
-                    getConfig ().importNodeDatabase));
+                    getConfig ().importNodeDatabase);
 
         WriteLog (lsWARNING, NodeObject) <<
             "Node import from '" << source->getName () << "' to '"

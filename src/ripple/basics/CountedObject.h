@@ -17,11 +17,12 @@
 */
 //==============================================================================
 
-#ifndef RIPPLE_COUNTEDOBJECT_H_INCLUDED
-#define RIPPLE_COUNTEDOBJECT_H_INCLUDED
+#ifndef RIPPLE_BASICS_COUNTEDOBJECT_H_INCLUDED
+#define RIPPLE_BASICS_COUNTEDOBJECT_H_INCLUDED
 
 #include <beast/utility/LeakChecked.h>
 #include <atomic>
+#include <string>
 #include <utility>
 #include <vector>
 

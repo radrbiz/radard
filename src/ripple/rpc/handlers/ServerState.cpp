@@ -17,6 +17,8 @@
 */
 //==============================================================================
 
+#include <BeastConfig.h>
+#include <ripple/server/Role.h>
 
 namespace ripple {
 
@@ -25,8 +27,8 @@ Json::Value doServerState (RPC::Context& context)
     auto lock = getApp().masterLock();
     Json::Value ret (Json::objectValue);
 
-    ret["state"] = context.netOps_.getServerInfo (
-        false, context.role_ == Config::ADMIN);
+    ret["state"] = context.netOps.getServerInfo (
+        false, context.role == Role::ADMIN);
 
     return ret;
 }

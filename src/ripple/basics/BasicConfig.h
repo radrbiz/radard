@@ -20,6 +20,7 @@
 #ifndef RIPPLE_BASICS_BASICCONFIG_H_INCLUDED
 #define RIPPLE_BASICS_BASICCONFIG_H_INCLUDED
 
+#include <beast/container/const_container.h>
 #include <beast/utility/ci_char_traits.h>
 #include <boost/lexical_cast.hpp>
 #include <map>
@@ -37,21 +38,24 @@ using IniFileSections = std::map<std::string, std::vector<std::string>>;
     A configuration file contains zero or more sections.
 */
 class Section
+    : public beast::const_container <
+        std::map <std::string, std::string, beast::ci_less>>
 {
 private:
+    std::string name_;
     std::vector <std::string> lines_;
     std::vector <std::string> values_;
-    std::map <std::string, std::string, beast::ci_less> map_;
 
 public:
     /** Create an empty section. */
-    Section() = default;
+    explicit
+    Section (std::string const& name = "");
 
-    /** Returns the number of key/value pairs. */
-    std::size_t
-    keys() const
+    /** Returns the name of this section. */
+    std::string const&
+    name() const
     {
-        return map_.size();
+        return name_;
     }
 
     /** Returns all the lines in the section.

@@ -21,17 +21,21 @@
 #define RIPPLE_PEERFINDER_LOGIC_H_INCLUDED
 
 #include <ripple/peerfinder/Manager.h>
+#include <ripple/peerfinder/impl/Bootcache.h>
 #include <ripple/peerfinder/impl/Counts.h>
 #include <ripple/peerfinder/impl/Fixed.h>
 #include <ripple/peerfinder/impl/iosformat.h>
 #include <ripple/peerfinder/impl/Handouts.h>
+#include <ripple/peerfinder/impl/Livecache.h>
 #include <ripple/peerfinder/impl/Reporting.h>
 #include <ripple/peerfinder/impl/SlotImp.h>
 #include <ripple/peerfinder/impl/Source.h>
+#include <ripple/peerfinder/impl/Store.h>
 #include <beast/container/aged_container_utility.h>
 #include <beast/smart_ptr/SharedPtr.h>
 #include <functional>
 #include <map>
+#include <set>
 
 namespace ripple {
 namespace PeerFinder {
@@ -175,6 +179,13 @@ public:
         state->counts.onConfig (state->config);
     }
 
+    Config
+    config()
+    {
+        typename SharedState::Access state (m_state);
+        return state->config;
+    }
+
     void
     addFixedPeer (std::string const& name,
         std::vector <beast::IP::Endpoint> const& addresses)
@@ -197,7 +208,7 @@ public:
             if (result.second)
             {
                 if (m_journal.debug) m_journal.debug << beast::leftw (18) <<
-                    "Logic add fixed" << "'" << name <<
+                    "Logic add fixed '" << name <<
                     "' at " << remote_address;
                 return;
             }
@@ -216,8 +227,6 @@ public:
 
         typename SharedState::Access state (m_state);
         Slots::iterator const iter (state->slots.find (remoteAddress));
-        SlotImp& slot (*iter->second);
-
         if (iter == state->slots.end())
         {
             // The slot disconnected before we finished the check
@@ -227,6 +236,7 @@ public:
             return;
         }
 
+        SlotImp& slot (*iter->second);
         slot.checked = true;
         slot.connectivityCheckInProgress = false;
 
@@ -360,7 +370,7 @@ public:
     }
 
     bool
-    connected (SlotImp::ptr const& slot,
+    onConnected (SlotImp::ptr const& slot,
         beast::IP::Endpoint const& local_endpoint)
     {
         if (m_journal.trace) m_journal.trace << beast::leftw (18) <<
@@ -438,6 +448,7 @@ public:
             state->keys.insert (key));
         // Public key must not already exist
         assert (result.second);
+        (void) result.second;
 
         // Change state and update counts
         state->counts.remove (*slot);
@@ -480,6 +491,9 @@ public:
     /** Create new outbound connection attempts as needed.
         This implements PeerFinder's "Outbound Connection Strategy"
     */
+    // VFALCO TODO This should add the returned addresses to the
+    //             squelch list in one go once the list is built,
+    //             rather than having each module add to the squelch list.
     std::vector <beast::IP::Endpoint>
     autoconnect()
     {
@@ -505,7 +519,7 @@ public:
         //
         if (state->counts.fixed_active() < state->fixed.size ())
         {
-            get_fixed (needed, h.list(), state);
+            get_fixed (needed, h.list(), m_squelches, state);
 
             if (! h.list().empty ())
             {
@@ -588,7 +602,7 @@ public:
     }
 
     std::vector<std::pair<Slot::ptr, std::vector<Endpoint>>>
-    sendpeers()
+    buildEndpointsForPeers()
     {
         std::vector<std::pair<Slot::ptr, std::vector<Endpoint>>> result;
 
@@ -923,6 +937,12 @@ public:
         }
     }
 
+    // Insert a set of redirect IP addresses into the Bootcache
+    template <class FwdIter>
+    void
+    onRedirects (FwdIter first, FwdIter last,
+        boost::asio::ip::tcp::endpoint const& remote_address);
+
     //--------------------------------------------------------------------------
 
     // Returns `true` if the address matches a fixed slot address
@@ -953,6 +973,7 @@ public:
     /** Adds eligible Fixed addresses for outbound attempts. */
     template <class Container>
     void get_fixed (std::size_t needed, Container& c,
+        typename ConnectHandouts::Squelches& squelches,
         typename SharedState::Access& state)
     {
         auto const now (m_clock.now());
@@ -960,13 +981,15 @@ public:
             needed && iter != state->fixed.end (); ++iter)
         {
             auto const& address (iter->first.address());
-            if (iter->second.when() <= now && std::none_of (
-                state->slots.cbegin(), state->slots.cend(),
+            if (iter->second.when() <= now && squelches.find(address) ==
+                    squelches.end() && std::none_of (
+                        state->slots.cbegin(), state->slots.cend(),
                     [address](Slots::value_type const& v)
                     {
                         return address == v.first.address();
                     }))
             {
+                squelches.insert(iter->first.address());
                 c.push_back (iter->first);
                 --needed;
             }
@@ -1084,8 +1107,8 @@ public:
     {
         if (is_unspecified (address))
             return false;
-        //if (! is_public (address))
-        //    return false;
+        if (! is_public (address))
+            return false;
         if (address.port() == 0)
             return false;
         return true;
@@ -1184,6 +1207,24 @@ public:
         return "?";
     }
 };
+
+//------------------------------------------------------------------------------
+
+template <class Checker>
+template <class FwdIter>
+void
+Logic<Checker>::onRedirects (FwdIter first, FwdIter last,
+    boost::asio::ip::tcp::endpoint const& remote_address)
+{
+    typename SharedState::Access state (m_state);
+    std::size_t n = 0;
+    for(;first != last && n < Tuning::maxRedirects; ++first, ++n)
+        state->bootcache.insert(
+            beast::IPAddressConversion::from_asio(*first));
+    if (n > 0)
+        if (m_journal.trace) m_journal.trace << beast::leftw (18) <<
+            "Logic add " << n << " redirect IPs from " << remote_address;
+}
 
 }
 }

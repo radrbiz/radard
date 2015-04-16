@@ -20,6 +20,8 @@
 #ifndef RIPPLE_ACCEPTEDLEDGERTX_H
 #define RIPPLE_ACCEPTEDLEDGERTX_H
 
+#include <ripple/app/ledger/Ledger.h>
+
 namespace ripple {
 
 /**
@@ -49,11 +51,11 @@ public:
 
 public:
     AcceptedLedgerTx (Ledger::ref ledger, SerializerIterator& sit);
-    AcceptedLedgerTx (Ledger::ref ledger, SerializedTransaction::ref,
+    AcceptedLedgerTx (Ledger::ref ledger, STTx::ref,
         TransactionMetaSet::ref);
-    AcceptedLedgerTx (Ledger::ref ledger, SerializedTransaction::ref, TER result);
+    AcceptedLedgerTx (Ledger::ref ledger, STTx::ref, TER result);
 
-    SerializedTransaction::ref getTxn () const
+    STTx::ref getTxn () const
     {
         return mTxn;
     }
@@ -101,7 +103,7 @@ public:
 
 private:
     Ledger::pointer                 mLedger;
-    SerializedTransaction::pointer  mTxn;
+    STTx::pointer  mTxn;
     TransactionMetaSet::pointer     mMeta;
     TER                             mResult;
     std::vector <RippleAddress>     mAffected;

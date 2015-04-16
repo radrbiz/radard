@@ -20,6 +20,8 @@
 #ifndef RIPPLE_INBOUNDLEDGERS_H
 #define RIPPLE_INBOUNDLEDGERS_H
 
+#include <ripple/app/ledger/InboundLedger.h>
+#include <ripple/protocol/RippleLedgerHash.h>
 #include <beast/threads/Stoppable.h>
 #include <beast/cxx14/memory.h> // <memory>
 
@@ -32,7 +34,7 @@ namespace ripple {
 class InboundLedgers
 {
 public:
-    typedef beast::abstract_clock <std::chrono::seconds> clock_type;
+    typedef beast::abstract_clock <std::chrono::steady_clock> clock_type;
 
     virtual ~InboundLedgers() = 0;
 

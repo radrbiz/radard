@@ -17,6 +17,11 @@
 */
 //==============================================================================
 
+#include <BeastConfig.h>
+#include <ripple/app/transactors/Transactor.h>
+#include <ripple/basics/Log.h>
+#include <ripple/protocol/TxFlags.h>
+
 namespace ripple {
 
 class SetRegularKey
@@ -37,7 +42,7 @@ class SetRegularKey
 
 public:
     SetRegularKey (
-        SerializedTransaction const& txn,
+        STTx const& txn,
         TransactionEngineParams params,
         TransactionEngine* engine)
         : Transactor (
@@ -84,7 +89,7 @@ public:
 
 TER
 transact_SetRegularKey (
-    SerializedTransaction const& txn,
+    STTx const& txn,
     TransactionEngineParams params,
     TransactionEngine* engine)
 {

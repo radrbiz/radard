@@ -17,7 +17,11 @@
 */
 //==============================================================================
 
+#include <BeastConfig.h>
+#include <ripple/app/paths/FindPaths.h>
 #include <ripple/basics/StringUtilities.h>
+#include <ripple/json/json_reader.h>
+#include <ripple/protocol/TxFlags.h>
 #include <ripple/rpc/impl/TransactionSign.h>
 #include <beast/unit_test.h>
 
@@ -25,8 +29,151 @@ namespace ripple {
 
 //------------------------------------------------------------------------------
 
-
 namespace RPC {
+namespace RPCDetail {
+
+// LedgerFacade methods
+
+void LedgerFacade::snapshotAccountState (RippleAddress const& accountID)
+{
+    if (!netOPs_) // Unit testing.
+        return;
+
+    ledger_ = netOPs_->getCurrentLedger ();
+    accountID_ = accountID;
+    accountState_ = netOPs_->getAccountState (ledger_, accountID_);
+}
+
+bool LedgerFacade::isValidAccount () const
+{
+    if (!ledger_) // Unit testing.
+        return true;
+
+    return static_cast <bool> (accountState_);
+}
+
+std::uint32_t LedgerFacade::getSeq () const
+{
+    if (!ledger_) // Unit testing.
+        return 0;
+
+    return accountState_->getSeq ();
+}
+
+Transaction::pointer LedgerFacade::submitTransactionSync (
+    Transaction::ref tpTrans,
+    bool bAdmin,
+    bool bLocal,
+    bool bFailHard,
+    bool bSubmit)
+{
+    if (!netOPs_) // Unit testing.
+        return tpTrans;
+
+    return netOPs_->submitTransactionSync (
+        tpTrans, bAdmin, bLocal, bFailHard, bSubmit);
+}
+
+bool LedgerFacade::findPathsForOneIssuer (
+    RippleAddress const& dstAccountID,
+    Issue const& srcIssue,
+    STAmount const& dstAmount,
+    int searchLevel,
+    unsigned int const maxPaths,
+    STPathSet& pathsOut,
+    STPath& fullLiquidityPath) const
+{
+    if (!ledger_) // Unit testing.
+        // Note that unit tests don't (yet) need pathsOut or fullLiquidityPath.
+        return true;
+
+    auto cache = std::make_shared<RippleLineCache> (ledger_);
+    return ripple::findPathsForOneIssuer (
+        cache,
+        accountID_.getAccountID (),
+        dstAccountID.getAccountID (),
+        srcIssue,
+        dstAmount,
+        searchLevel,
+        maxPaths,
+        pathsOut,
+        fullLiquidityPath);
+}
+
+std::uint64_t LedgerFacade::scaleFeeBase (std::uint64_t fee) const
+{
+    if (!ledger_) // Unit testing.
+        return fee;
+
+    return ledger_->scaleFeeBase (fee);
+}
+
+std::uint64_t LedgerFacade::scaleFeeLoad (std::uint64_t fee, bool bAdmin) const
+{
+    if (!ledger_) // Unit testing.
+        return fee;
+
+    return ledger_->scaleFeeLoad (fee, bAdmin);
+}
+
+bool LedgerFacade::hasAccountRoot () const
+{
+    if (!netOPs_) // Unit testing.
+        return true;
+
+    SLE::pointer const sleAccountRoot =
+        netOPs_->getSLEi (ledger_, getAccountRootIndex (accountID_));
+
+    return static_cast <bool> (sleAccountRoot);
+}
+
+bool LedgerFacade::isAccountExist (const Account& account) const
+{
+    if (!ledger_)
+    {
+        return false;
+    }
+    
+    return ledger_->getAccountRoot(account) != nullptr;
+}
+    
+bool LedgerFacade::accountMasterDisabled () const
+{
+    if (!accountState_) // Unit testing.
+        return false;
+
+    STLedgerEntry const& sle = accountState_->peekSLE ();
+    return sle.isFlag(lsfDisableMaster);
+}
+
+bool LedgerFacade::accountMatchesRegularKey (Account account) const
+{
+    if (!accountState_) // Unit testing.
+        return true;
+
+    STLedgerEntry const& sle = accountState_->peekSLE ();
+    return ((sle.isFieldPresent (sfRegularKey)) &&
+        (account == sle.getFieldAccount160 (sfRegularKey)));
+}
+
+int LedgerFacade::getValidatedLedgerAge () const
+{
+    if (!netOPs_) // Unit testing.
+        return 0;
+
+    return getApp( ).getLedgerMaster ().getValidatedLedgerAge ();
+}
+
+bool LedgerFacade::isLoadedCluster () const
+{
+    if (!netOPs_) // Unit testing.
+        return false;
+
+    return getApp().getFeeTrack().isLoadedCluster();
+}
+} // namespace RPCDetail
+
+//------------------------------------------------------------------------------
 
 /** Fill in the fee on behalf of the client.
     This is called when the client does not explicitly specify the fee.
@@ -50,7 +197,7 @@ namespace RPC {
 */
 static void autofill_fee (
     Json::Value& request,
-    Ledger::pointer ledger,
+    RPCDetail::LedgerFacade& ledgerFacade,
     Json::Value& result,
     bool admin)
 {
@@ -76,7 +223,7 @@ static void autofill_fee (
         }
 
         //dst account not exist yet, charge a fix amount of fee(0.01) for creating
-        if (!ledger->getAccountRoot(dstAddress.getAccountID()))
+        if (!ledgerFacade.isAccountExist(dstAddress.getAccountID()))
         {
             feeByTrans = d.FEE_DEFAULT_CREATE;
         }
@@ -110,12 +257,12 @@ static void autofill_fee (
         }
     }
 
-    // Default fee in fee units
+    // Default fee in fee units.
     std::uint64_t const feeDefault = getConfig().TRANSACTION_FEE_BASE;
 
-    // Administrative endpoints are exempt from local fees
-    std::uint64_t const fee = ledger->scaleFeeLoad (feeDefault, admin);
-    std::uint64_t const limit = mult * ledger->scaleFeeBase (feeDefault);
+    // Administrative endpoints are exempt from local fees.
+    std::uint64_t const fee = ledgerFacade.scaleFeeLoad (feeDefault, admin);
+    std::uint64_t const limit = mult * ledgerFacade.scaleFeeBase (feeDefault);
 
     if (fee > limit)
     {
@@ -136,8 +283,8 @@ static Json::Value signPayment(
     Json::Value const& params,
     Json::Value& tx_json,
     RippleAddress const& raSrcAddressID,
-    Ledger::pointer lSnapshot,
-    int role)
+    RPCDetail::LedgerFacade& ledgerFacade,
+    Role role)
 {
     RippleAddress dstAccountID;
 
@@ -157,14 +304,13 @@ static Json::Value signPayment(
 
     if (tx_json.isMember ("Paths") && params.isMember ("build_path"))
         return RPC::make_error (rpcINVALID_PARAMS,
-            "Cannot specify both 'tx_json.Paths' and 'tx_json.build_path'");
+            "Cannot specify both 'tx_json.Paths' and 'build_path'");
 
     if (!tx_json.isMember ("Paths")
         && tx_json.isMember ("Amount")
         && params.isMember ("build_path"))
     {
         // Need a ripple path.
-        STPathSet   spsPaths;
         Currency uSrcCurrencyID;
         Account uSrcIssuerID;
 
@@ -187,26 +333,23 @@ static Json::Value signPayment(
                 "Cannot build XRP to XRP paths.");
 
         {
-            LegacyPathFind lpf (role == Config::ADMIN);
+            LegacyPathFind lpf (role == Role::ADMIN);
             if (!lpf.isOk ())
                 return rpcError (rpcTOO_BUSY);
 
-            bool bValid;
-            auto cache = std::make_shared<RippleLineCache> (lSnapshot);
-            Pathfinder pf (
-                cache,
-                raSrcAddressID,
+            STPathSet spsPaths;
+            STPath fullLiquidityPath;
+            bool valid = ledgerFacade.findPathsForOneIssuer (
                 dstAccountID,
-                saSendMax.getCurrency (),
-                saSendMax.getIssuer (),
-                amount, bValid);
+                saSendMax.issue (),
+                amount,
+                getConfig ().PATH_SEARCH_OLD,
+                4,  // iMaxPaths
+                spsPaths,
+                fullLiquidityPath);
 
-            STPath extraPath;
-            if (!bValid ||
-                !pf.findPaths (getConfig ().PATH_SEARCH_OLD,
-                               4,
-                               spsPaths,
-                               extraPath))
+
+            if (!valid)
             {
                 WriteLog (lsDEBUG, RPCHandler)
                         << "transactionSign: build_path: No paths found.";
@@ -227,14 +370,15 @@ static Json::Value signPayment(
 
 // VFALCO TODO This function should take a reference to the params, modify it
 //             as needed, and then there should be a separate function to
-//             submit the tranaction
+//             submit the transaction.
 //
-Json::Value transactionSign (
+Json::Value
+transactionSign (
     Json::Value params,
     bool bSubmit,
     bool bFailHard,
-    NetworkOPs& netOps,
-    int role)
+    RPCDetail::LedgerFacade& ledgerFacade,
+    Role role)
 {
     Json::Value jvResult;
 
@@ -278,21 +422,19 @@ Json::Value transactionSign (
     if (!tx_json.isMember ("Sequence") && !verify)
         return RPC::missing_field_error ("tx_json.Sequence");
 
-    // Check for current ledger
+    // Check for current ledger.
     if (verify && !getConfig ().RUN_STANDALONE &&
-        (getApp().getLedgerMaster().getValidatedLedgerAge() > 120))
+        (ledgerFacade.getValidatedLedgerAge () > 120))
         return rpcError (rpcNO_CURRENT);
 
-    // Check for load
-    if (getApp().getFeeTrack().isLoadedCluster() && (role != Config::ADMIN))
-        return rpcError(rpcTOO_BUSY);
+    // Check for load.
+    if (ledgerFacade.isLoadedCluster () && (role != Role::ADMIN))
+        return rpcError (rpcTOO_BUSY);
 
-    Ledger::pointer lSnapshot = netOps.getCurrentLedger ();
-    AccountState::pointer asSrc;
+    ledgerFacade.snapshotAccountState (raSrcAddressID);
+
     if (verify) {
-        asSrc = netOps.getAccountState (lSnapshot, raSrcAddressID);
-
-        if (!asSrc)
+        if (!ledgerFacade.isValidAccount ())
         {
             // If not offline and did not find account, error.
             WriteLog (lsDEBUG, RPCHandler)
@@ -304,7 +446,7 @@ Json::Value transactionSign (
         }
     }
 
-    autofill_fee (params, lSnapshot, jvResult, role == Config::ADMIN);
+    autofill_fee (params, ledgerFacade, jvResult, role == Role::ADMIN);
     if (RPC::contains_error (jvResult))
         return jvResult;
 
@@ -314,24 +456,21 @@ Json::Value transactionSign (
             params,
             tx_json,
             raSrcAddressID,
-            lSnapshot,
+            ledgerFacade,
             role);
         if (contains_error(e))
             return e;
     }
 
     if (!tx_json.isMember ("Sequence"))
-        tx_json["Sequence"] = asSrc->getSeq ();
+        tx_json["Sequence"] = ledgerFacade.getSeq ();
 
     if (!tx_json.isMember ("Flags"))
         tx_json["Flags"] = tfFullyCanonicalSig;
 
     if (verify)
     {
-        SLE::pointer sleAccountRoot = netOps.getSLEi (lSnapshot,
-            Ledger::getAccountRootIndex (raSrcAddressID.getAccountID ()));
-
-        if (!sleAccountRoot)
+        if (!ledgerFacade.hasAccountRoot ())
             // XXX Ignore transactions for accounts not created.
             return rpcError (rpcSRC_ACT_NOT_FOUND);
     }
@@ -345,19 +484,17 @@ Json::Value transactionSign (
 
     if (verify)
     {
-        auto account = masterAccountPublic.getAccountID();
-        auto const& sle = asSrc->peekSLE();
-
-        WriteLog (lsWARNING, RPCHandler) <<
+        WriteLog (lsTRACE, RPCHandler) <<
                 "verify: " << masterAccountPublic.humanAccountID () <<
                 " : " << raSrcAddressID.humanAccountID ();
-        if (raSrcAddressID.getAccountID () == account)
+
+        auto const secretAccountID = masterAccountPublic.getAccountID();
+        if (raSrcAddressID.getAccountID () == secretAccountID)
         {
-            if (sle.isFlag(lsfDisableMaster))
+            if (ledgerFacade.accountMasterDisabled ())
                 return rpcError (rpcMASTER_DISABLED);
         }
-        else if (!sle.isFieldPresent(sfRegularKey) ||
-                 account != sle.getFieldAccount160 (sfRegularKey))
+        else if (!ledgerFacade.accountMatchesRegularKey (secretAccountID))
         {
             return rpcError (rpcBAD_SECRET);
         }
@@ -376,11 +513,11 @@ Json::Value transactionSign (
         sfSigningPubKey,
         masterAccountPublic.getAccountPublic ());
 
-    SerializedTransaction::pointer stpTrans;
+    STTx::pointer stpTrans;
 
     try
     {
-        stpTrans = std::make_shared<SerializedTransaction> (*sopTrans);
+        stpTrans = std::make_shared<STTx> (*sopTrans);
         //WriteLog(lsINFO, RPCHandler) << "radar: before sign " << stpTrans->getFieldAmount(sfAmount);
     }
     catch (std::exception&)
@@ -423,9 +560,9 @@ Json::Value transactionSign (
 
     try
     {
-        // FIXME: For performance, should use asynch interface
-        tpTrans = netOps.submitTransactionSync (tpTrans,
-            role == Config::ADMIN, true, bFailHard, bSubmit);
+        // FIXME: For performance, should use asynch interface.
+        tpTrans = ledgerFacade.submitTransactionSync (tpTrans,
+            role == Role::ADMIN, true, bFailHard, bSubmit);
 
         if (!tpTrans)
         {
@@ -465,53 +602,6 @@ Json::Value transactionSign (
             "Exception occurred during JSON handling.");
     }
 }
-
-class JSONRPC_test : public beast::unit_test::suite
-{
-public:
-    void testAutoFillFees ()
-    {
-        RippleAddress rootSeedMaster
-                = RippleAddress::createSeedGeneric ("masterpassphrase");
-        RippleAddress rootGeneratorMaster
-                = RippleAddress::createGeneratorPublic (rootSeedMaster);
-        RippleAddress rootAddress
-                = RippleAddress::createAccountPublic (rootGeneratorMaster, 0);
-        std::uint64_t startAmount (100000);
-        std::uint64_t startAmountVBC(100000);
-        Ledger::pointer ledger (std::make_shared <Ledger> (
-            rootAddress, startAmount, startAmountVBC));
-
-        {
-            Json::Value req;
-            Json::Value result;
-            Json::Reader ().parse (
-                "{ \"fee_mult_max\" : 1, \"tx_json\" : { } } "
-                , req);
-            autofill_fee (req, ledger, result, true);
-
-            expect (! contains_error (result));
-        }
-
-        {
-            Json::Value req;
-            Json::Value result;
-            Json::Reader ().parse (
-                "{ \"fee_mult_max\" : 0, \"tx_json\" : { } } "
-                , req);
-            autofill_fee (req, ledger, result, true);
-
-            expect (contains_error (result));
-        }
-    }
-
-    void run ()
-    {
-        testAutoFillFees ();
-    }
-};
-
-BEAST_DEFINE_TESTSUITE(JSONRPC,ripple_app,ripple);
 
 } // RPC
 } // ripple

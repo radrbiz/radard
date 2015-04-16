@@ -21,11 +21,9 @@
 #define RIPPLE_OVERLAY_PEER_H_INCLUDED
 
 #include <ripple/overlay/Message.h>
-
-#include <ripple/unity/json.h>
-#include <ripple/types/base_uint.h>
-#include <ripple/data/protocol/RippleAddress.h>
-
+#include <ripple/basics/base_uint.h>
+#include <ripple/json/json_value.h>
+#include <ripple/protocol/RippleAddress.h>
 #include <beast/net/IPEndpoint.h>
 
 namespace ripple {
@@ -38,33 +36,53 @@ class Charge;
 class Peer
 {
 public:
-    typedef std::shared_ptr <Peer> ptr;
+    using ptr = std::shared_ptr<Peer>;
 
-    /** Uniquely identifies a particular connection of a peer. */
-    typedef std::uint32_t ShortId;
+    /** Uniquely identifies a peer.
+        This can be stored in tables to find the peer later. Callers
+        can discover if the peer is no longer connected and make
+        adjustments as needed.
+    */
+    using id_t = std::uint32_t;
+
+    virtual ~Peer() = default;
 
     //
     // Network
     //
 
-    virtual void send (Message::pointer const& m) = 0;
-    virtual beast::IP::Endpoint getRemoteAddress() const = 0;
+    virtual
+    void
+    send (Message::pointer const& m) = 0;
+
+    virtual
+    beast::IP::Endpoint
+    getRemoteAddress() const = 0;
 
     /** Adjust this peer's load balance based on the type of load imposed. */
-    virtual void charge (Resource::Charge const& fee) = 0;
+    virtual
+    void
+    charge (Resource::Charge const& fee) = 0;
 
     //
     // Identity
     //
 
-    virtual ShortId getShortId () const = 0;
-    virtual RippleAddress const& getNodePublic () const = 0;
-    virtual Json::Value json () = 0;
-    // VFALCO TODO Replace both with
-    //             boost::optional<std::string> const& cluster_id();
-    //
-    virtual bool isInCluster () const = 0;
-    virtual std::string const& getClusterNodeName() const = 0;
+    virtual
+    id_t
+    id() const = 0;
+
+    /** Returns `true` if this connection is a member of the cluster. */
+    virtual
+    bool
+    cluster() const = 0;
+
+    virtual
+    RippleAddress const&
+    getNodePublic() const = 0;
+
+    virtual
+    Json::Value json() = 0;
 
     //
     // Ledger

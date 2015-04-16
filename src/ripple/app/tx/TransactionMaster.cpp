@@ -17,6 +17,12 @@
 */
 //==============================================================================
 
+#include <BeastConfig.h>
+#include <ripple/app/tx/TransactionMaster.h>
+#include <ripple/app/main/Application.h>
+#include <ripple/basics/Log.h>
+#include <ripple/basics/seconds_clock.h>
+
 namespace ripple {
 
 TransactionMaster::TransactionMaster ()
@@ -53,11 +59,11 @@ Transaction::pointer TransactionMaster::fetch (uint256 const& txnID, bool checkD
     return txn;
 }
 
-SerializedTransaction::pointer TransactionMaster::fetch (SHAMapItem::ref item,
+STTx::pointer TransactionMaster::fetch (SHAMapItem::ref item,
         SHAMapTreeNode::TNType type,
         bool checkDisk, std::uint32_t uCommitLedger)
 {
-    SerializedTransaction::pointer  txn;
+    STTx::pointer  txn;
     Transaction::pointer            iTx = getApp().getMasterTransaction ().fetch (item->getTag (), false);
 
     if (!iTx)
@@ -66,7 +72,7 @@ SerializedTransaction::pointer TransactionMaster::fetch (SHAMapItem::ref item,
         if (type == SHAMapTreeNode::tnTRANSACTION_NM)
         {
             SerializerIterator sit (item->peekSerializer ());
-            txn = std::make_shared<SerializedTransaction> (std::ref (sit));
+            txn = std::make_shared<STTx> (std::ref (sit));
         }
         else if (type == SHAMapTreeNode::tnTRANSACTION_MD)
         {
@@ -75,7 +81,7 @@ SerializedTransaction::pointer TransactionMaster::fetch (SHAMapItem::ref item,
             item->peekSerializer ().getVL (s.modData (), 0, length);
             SerializerIterator sit (s);
 
-            txn = std::make_shared<SerializedTransaction> (std::ref (sit));
+            txn = std::make_shared<STTx> (std::ref (sit));
         }
     }
     else
@@ -113,6 +119,11 @@ bool TransactionMaster::canonicalize (Transaction::pointer* pTransaction)
 void TransactionMaster::sweep (void)
 {
     mCache.sweep ();
+}
+
+TaggedCache <uint256, Transaction>& TransactionMaster::getCache()
+{
+    return mCache;
 }
 
 } // ripple

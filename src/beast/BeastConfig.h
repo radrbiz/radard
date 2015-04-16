@@ -55,18 +55,6 @@
 //#define BEAST_FORCE_DEBUG 1
 #endif
 
-/** Config: BEAST_LOG_ASSERTIONS
-    If this flag is enabled, the the bassert and bassertfalse macros will always
-    use Logger::writeToLog() to write a message when an assertion happens.
-    Enabling it will also leave this turned on in release builds. When it's
-    disabled, however, the bassert and bassertfalse macros will not be compiled
-    in a release build.
-    @see bassert, bassertfalse, Logger
-*/
-#ifndef   BEAST_LOG_ASSERTIONS
-//#define BEAST_LOG_ASSERTIONS 1
-#endif
-
 /** Config: BEAST_CHECK_MEMORY_LEAKS
     Enables a memory-leak check for certain objects when the app terminates.
     See the LeakChecked class for more details about enabling leak checking for
@@ -74,17 +62,6 @@
 */
 #ifndef   BEAST_CHECK_MEMORY_LEAKS
 //#define BEAST_CHECK_MEMORY_LEAKS 0
-#endif
-
-/** Config: BEAST_COMPILER_CHECKS_SOCKET_OVERRIDES
-    Setting this option makes Socket-derived classes generate compile errors
-    if they forget any of the virtual overrides As some Socket-derived classes
-    intentionally omit member functions that are not applicable, this macro
-    should only be enabled temporarily when writing your own Socket-derived
-    class, to make sure that the function signatures match as expected.
-*/
-#ifndef   BEAST_COMPILER_CHECKS_SOCKET_OVERRIDES
-//#define BEAST_COMPILER_CHECKS_SOCKET_OVERRIDES 1
 #endif
 
 //------------------------------------------------------------------------------

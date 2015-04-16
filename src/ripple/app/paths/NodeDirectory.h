@@ -20,7 +20,12 @@
 #ifndef RIPPLED_RIPPLE_MODULE_APP_PATHS_NODEDIRECTORY_H
 #define RIPPLED_RIPPLE_MODULE_APP_PATHS_NODEDIRECTORY_H
 
+#include <ripple/app/ledger/LedgerEntrySet.h>
+#include <ripple/protocol/Indexes.h>
+
 namespace ripple {
+
+// VFALCO TODO de-inline these function definitions
 
 class NodeDirectory {
   public:
@@ -52,8 +57,8 @@ class NodeDirectory {
         if (current != zero)
             return false;
 
-        current.copyFrom (Ledger::getBookBase (book));
-        next.copyFrom (Ledger::getQualityNext (current));
+        current.copyFrom (getBookBase (book));
+        next.copyFrom (getQualityNext (current));
 
         // TODO(tom): it seems impossible that any actual offers with
         // quality == 0 could occur - we should disallow them, and clear

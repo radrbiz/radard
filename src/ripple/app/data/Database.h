@@ -20,6 +20,11 @@
 #ifndef RIPPLE_DATABASE_H_INCLUDED
 #define RIPPLE_DATABASE_H_INCLUDED
 
+#include <ripple/basics/Blob.h>
+#include <cstdint>
+#include <string>
+#include <vector>
+
 namespace ripple {
 
 // VFALCO Get rid of these macros
@@ -100,6 +105,7 @@ public:
     virtual int getBinary (int colIndex, unsigned char* buf, int maxSize) = 0;
     virtual std::uint64_t getBigInt (int colIndex) = 0;
     virtual Blob getBinary (int colIndex) = 0;
+    virtual bool hasField(const std::string &table, const std::string &field) = 0;
     
     const Type getDBType()
     {

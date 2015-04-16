@@ -20,23 +20,29 @@
 #ifndef RIPPLE_APP_APPLICATION_H_INCLUDED
 #define RIPPLE_APP_APPLICATION_H_INCLUDED
 
-#include <ripple/app/main/FullBelowCache.h>
+#include <ripple/shamap/FullBelowCache.h>
+#include <ripple/shamap/TreeNodeCache.h>
+#include <ripple/basics/TaggedCache.h>
+#include <beast/utility/PropertyStream.h>
+#include <beast/cxx14/memory.h> // <memory>
+#include <mutex>
+    
+namespace boost { namespace asio { class io_service; } }
 
 namespace ripple {
 
-namespace SiteFiles { class Manager; }
 namespace Validators { class Manager; }
 namespace Resource { class Manager; }
 namespace NodeStore { class Database; }
 namespace RPC { class Manager; }
 
 // VFALCO TODO Fix forward declares required for header dependency loops
-class CollectorManager;
 class AmendmentTable;
+class CollectorManager;
 class IHashRouter;
 class Logs;
 class LoadFeeTrack;
-class Overlay;
+class LocalCredentials;
 class UniqueNodeList;
 class JobQueue;
 class InboundLedgers;
@@ -44,17 +50,17 @@ class LedgerMaster;
 class LoadManager;
 class NetworkOPs;
 class OrderBookDB;
-class ProofOfWorkFactory;
-class SerializedLedgerEntry;
-class TransactionMaster;
-class TxQueue;
-class LocalCredentials;
+class Overlay;
 class PathRequests;
+class STLedgerEntry;
+class TransactionMaster;
+class Validations;
 
 class DatabaseCon;
+class SHAMapStore;
 
 using NodeCache     = TaggedCache <uint256, Blob>;
-using SLECache      = TaggedCache <uint256, SerializedLedgerEntry>;
+using SLECache      = TaggedCache <uint256, STLedgerEntry>;
 
 class Application : public beast::PropertyStream::Source
 {
@@ -70,7 +76,7 @@ public:
 
         other things
     */
-    typedef RippleRecursiveMutex LockType;
+    typedef std::recursive_mutex LockType;
     typedef std::unique_lock <LockType> ScopedLockType;
     typedef std::unique_ptr <ScopedLockType> ScopedLock;
 
@@ -91,7 +97,6 @@ public:
     virtual FullBelowCache&         getFullBelowCache () = 0;
     virtual JobQueue&               getJobQueue () = 0;
     virtual RPC::Manager&           getRPCManager () = 0;
-    virtual SiteFiles::Manager&     getSiteFiles () = 0;
     virtual NodeCache&              getTempNodeCache () = 0;
     virtual TreeNodeCache&          getTreeNodeCache () = 0;
     virtual SLECache&               getSLECache () = 0;
@@ -101,7 +106,6 @@ public:
     virtual LoadFeeTrack&           getFeeTrack () = 0;
     virtual LoadManager&            getLoadManager () = 0;
     virtual Overlay&                overlay () = 0;
-    virtual ProofOfWorkFactory&     getProofOfWorkFactory () = 0;
     virtual UniqueNodeList&         getUNL () = 0;
     virtual Validations&            getValidations () = 0;
     virtual NodeStore::Database&    getNodeStore () = 0;
@@ -110,10 +114,10 @@ public:
     virtual NetworkOPs&             getOPs () = 0;
     virtual OrderBookDB&            getOrderBookDB () = 0;
     virtual TransactionMaster&      getMasterTransaction () = 0;
-    virtual TxQueue&                getTxQueue () = 0;
     virtual LocalCredentials&       getLocalCredentials () = 0;
     virtual Resource::Manager&      getResourceManager () = 0;
     virtual PathRequests&           getPathRequests () = 0;
+    virtual SHAMapStore&            getSHAMapStore () = 0;
 
     virtual DatabaseCon& getRpcDB () = 0;
     virtual DatabaseCon& getTxnDB () = 0;

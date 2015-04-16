@@ -1,3 +1,12 @@
+#include <ripple/app/ledger/LedgerMaster.h>
+#include <ripple/app/main/Application.h>
+#include <ripple/app/misc/DividendVote.h>
+#include <ripple/app/misc/DividendMaster.h>
+#include <ripple/app/misc/NetworkOPs.h>
+#include <ripple/app/misc/Validations.h>
+#include <ripple/basics/Log.h>
+#include <ripple/protocol/SystemParameters.h>
+
 namespace ripple {
 
 class DividendVoteImpl : public DividendVote
@@ -74,7 +83,7 @@ public:
         ValidationSet const set = getApp().getValidations ().getValidations (lastClosedLedger->getHash ());
         for (auto const& e : set)
         {
-            SerializedValidation const& val = *e.second;
+            STValidation const& val = *e.second;
             
             if (val.isTrusted ())
             {
@@ -125,7 +134,7 @@ public:
         if (m_journal.warning)
             m_journal.warning << "We are voting for a dividend start based " << dividendLedger << " with VRP " << ourVote.first << " VBC " << ourVote.second << " with " << weight << " same votes in " << lastClosedLedger->getHash();
 
-        SerializedTransaction trans(ttDIVIDEND);
+        STTx trans(ttDIVIDEND);
         trans.setFieldU8(sfDividendType, DividendMaster::DivType_Start);
         trans.setFieldAccount(sfAccount, Account());
         trans.setFieldU32(sfDividendLedger, dividendLedger);
@@ -186,7 +195,7 @@ public:
         ValidationSet const set = getApp().getValidations ().getValidations (lastClosedLedger->getHash ());
         for (auto const& e : set)
         {
-            SerializedValidation const& val = *e.second;
+            STValidation const& val = *e.second;
             
             if (val.isTrusted ())
             {

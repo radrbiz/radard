@@ -17,18 +17,25 @@
 */
 //==============================================================================
 
+#include <BeastConfig.h>
+#include <ripple/app/paths/AccountCurrencies.h>
+#include <ripple/app/paths/FindPaths.h>
+#include <ripple/app/paths/RippleCalc.h>
+#include <ripple/core/LoadFeeTrack.h>
+#include <ripple/protocol/STParsedJSON.h>
 #include <ripple/rpc/impl/LegacyPathFind.h>
+#include <ripple/server/Role.h>
 
 namespace ripple {
 
 // This interface is deprecated.
 Json::Value doRipplePathFind (RPC::Context& context)
 {
-    RPC::LegacyPathFind lpf (context.role_ == Config::ADMIN);
+    RPC::LegacyPathFind lpf (context.role == Role::ADMIN);
     if (!lpf.isOk ())
         return rpcError (rpcTOO_BUSY);
 
-    context.loadType_ = Resource::feeHighBurdenRPC;
+    context.loadType = Resource::feeHighBurdenRPC;
 
     RippleAddress raSrc;
     RippleAddress raDst;
@@ -38,43 +45,43 @@ Json::Value doRipplePathFind (RPC::Context& context)
     Json::Value jvResult;
 
     if (getConfig().RUN_STANDALONE ||
-        context.params_.isMember(jss::ledger) ||
-        context.params_.isMember(jss::ledger_index) ||
-        context.params_.isMember(jss::ledger_hash))
+        context.params.isMember(jss::ledger) ||
+        context.params.isMember(jss::ledger_index) ||
+        context.params.isMember(jss::ledger_hash))
     {
         // The caller specified a ledger
         jvResult = RPC::lookupLedger (
-            context.params_, lpLedger, context.netOps_);
+            context.params, lpLedger, context.netOps);
         if (!lpLedger)
             return jvResult;
     }
 
-    if (!context.params_.isMember ("source_account"))
+    if (!context.params.isMember ("source_account"))
     {
         jvResult = rpcError (rpcSRC_ACT_MISSING);
     }
-    else if (!context.params_["source_account"].isString ()
+    else if (!context.params["source_account"].isString ()
              || !raSrc.setAccountID (
-                 context.params_["source_account"].asString ()))
+                 context.params["source_account"].asString ()))
     {
         jvResult = rpcError (rpcSRC_ACT_MALFORMED);
     }
-    else if (!context.params_.isMember ("destination_account"))
+    else if (!context.params.isMember ("destination_account"))
     {
         jvResult = rpcError (rpcDST_ACT_MISSING);
     }
-    else if (!context.params_["destination_account"].isString ()
+    else if (!context.params["destination_account"].isString ()
              || !raDst.setAccountID (
-                 context.params_["destination_account"].asString ()))
+                 context.params["destination_account"].asString ()))
     {
         jvResult = rpcError (rpcDST_ACT_MALFORMED);
     }
     else if (
         // Parse saDstAmount.
-        !context.params_.isMember ("destination_amount")
-        || ! amountFromJsonNoThrow(saDstAmount, context.params_["destination_amount"])
+        !context.params.isMember ("destination_amount")
+        || ! amountFromJsonNoThrow(saDstAmount, context.params["destination_amount"])
         || saDstAmount <= zero
-		|| (!isXRP(saDstAmount.getCurrency()) && !isVBC(saDstAmount.getCurrency())
+		|| (!isNative(saDstAmount.getCurrency())
             && (!saDstAmount.getIssuer () ||
                 noAccount() == saDstAmount.getIssuer ())))
     {
@@ -83,9 +90,9 @@ Json::Value doRipplePathFind (RPC::Context& context)
     }
     else if (
         // Checks on source_currencies.
-        context.params_.isMember ("source_currencies")
-        && (!context.params_["source_currencies"].isArray ()
-            || !context.params_["source_currencies"].size ())
+        context.params.isMember ("source_currencies")
+        && (!context.params["source_currencies"].isArray ()
+            || !context.params["source_currencies"].size ())
         // Don't allow empty currencies.
     )
     {
@@ -94,7 +101,7 @@ Json::Value doRipplePathFind (RPC::Context& context)
     }
     else
     {
-        context.loadType_ = Resource::feeHighBurdenRPC;
+        context.loadType = Resource::feeHighBurdenRPC;
         RippleLineCache::pointer cache;
 
         if (lpLedger)
@@ -107,23 +114,22 @@ Json::Value doRipplePathFind (RPC::Context& context)
         {
             // The closed ledger is recent and any nodes made resident
             // have the best chance to persist
-            lpLedger = context.netOps_.getClosedLedger();
+            lpLedger = context.netOps.getClosedLedger();
             cache = getApp().getPathRequests().getLineCache(lpLedger, false);
         }
 
         Json::Value     jvSrcCurrencies;
 
-        if (context.params_.isMember ("source_currencies"))
+        if (context.params.isMember ("source_currencies"))
         {
-            jvSrcCurrencies = context.params_["source_currencies"];
+            jvSrcCurrencies = context.params["source_currencies"];
         }
         else
         {
-            auto usCurrencies = usAccountSourceCurrencies (raSrc, cache, true);
-
+            auto currencies = accountSourceCurrencies (raSrc, cache, true);
             jvSrcCurrencies = Json::Value (Json::arrayValue);
 
-            for (auto const& uCurrency: usCurrencies)
+            for (auto const& uCurrency: currencies)
             {
                 Json::Value jvCurrency (Json::objectValue);
                 jvCurrency["currency"] = to_string(uCurrency);
@@ -134,7 +140,9 @@ Json::Value doRipplePathFind (RPC::Context& context)
         // Fill in currencies destination will accept
         Json::Value jvDestCur (Json::arrayValue);
 
-        auto usDestCurrID = usAccountDestCurrencies (raDst, cache, true);
+        // TODO(tom): this could be optimized the same way that
+        // PathRequest::doUpdate() is - if we don't obsolete this code first.
+        auto usDestCurrID = accountDestCurrencies (raDst, cache, true);
         for (auto const& uCurrency: usDestCurrID)
                 jvDestCur.append (to_string (uCurrency));
 
@@ -142,6 +150,29 @@ Json::Value doRipplePathFind (RPC::Context& context)
         jvResult["destination_account"] = raDst.humanAccountID ();
 
         Json::Value jvArray (Json::arrayValue);
+
+        int level = getConfig().PATH_SEARCH_OLD;
+        if ((getConfig().PATH_SEARCH_MAX > level)
+            && !getApp().getFeeTrack().isLoadedLocal())
+        {
+            ++level;
+        }
+
+        if (context.params.isMember("search_depth")
+            && context.params["search_depth"].isIntegral())
+        {
+            int rLev = context.params["search_depth"].asInt ();
+            if ((rLev < level) || (context.role == Role::ADMIN))
+                level = rLev;
+        }
+
+        FindPaths fp (
+            cache,
+            raSrc.getAccountID(),
+            raDst.getAccountID(),
+            saDstAmount,
+            level,
+            4); // max paths
 
         for (unsigned int i = 0; i != jvSrcCurrencies.size (); ++i)
         {
@@ -181,51 +212,42 @@ Json::Value doRipplePathFind (RPC::Context& context)
             }
 
             STPathSet spsComputed;
-            bool bValid;
-            Pathfinder pf (cache, raSrc, raDst, uSrcCurrencyID,
-                           uSrcIssuerID, saDstAmount, bValid);
-
-            int level = getConfig().PATH_SEARCH_OLD;
-            if ((getConfig().PATH_SEARCH_MAX > level)
-                && !getApp().getFeeTrack().isLoadedLocal())
+            if (context.params.isMember("paths"))
             {
-                ++level;
-            }
-            if (context.params_.isMember("depth")
-                && context.params_["depth"].isIntegral())
-            {
-                int rLev = context.params_["search_depth"].asInt ();
-                if ((rLev < level) || (context.role_ == Config::ADMIN))
-                    level = rLev;
-            }
-
-            if (context.params_.isMember("paths"))
-            {
-                STParsedJSONObject paths ("paths", context.params_["paths"]);
+                Json::Value pathSet = Json::objectValue;
+                pathSet["Paths"] = context.params["paths"];
+                STParsedJSONObject paths ("pathSet", pathSet);
                 if (paths.object.get() == nullptr)
                     return paths.error;
                 else
-                    spsComputed = paths.object.get()->downcast<STPathSet> ();
+                {
+                    spsComputed = paths.object.get()->getFieldPathSet (sfPaths);
+                    WriteLog (lsTRACE, RPCHandler) << "ripple_path_find: Paths: " << spsComputed.getJson (0);
+                }
             }
 
-            STPath extraPath;
-            if (!bValid || !pf.findPaths (level, 4, spsComputed, extraPath))
+            STPath fullLiquidityPath;
+            auto valid = fp.findPathsForIssue (
+                {uSrcCurrencyID, uSrcIssuerID},
+                spsComputed,
+                fullLiquidityPath);
+            if (!valid)
             {
                 WriteLog (lsWARNING, RPCHandler)
                     << "ripple_path_find: No paths found.";
             }
             else
             {
-                //auto& issuer =
-                //    isXRP (uSrcIssuerID) ?
-                //        isXRP (uSrcCurrencyID) ? // Default to source account.
-                //            xrpAccount() :
-                //            Account (raSrc.getAccountID ())
-                //        : uSrcIssuerID;            // Use specifed issuer.
-
-				auto& issuer =
-					isXRP(uSrcIssuerID) ? (isXRP(uSrcCurrencyID) ? xrpAccount() : Account(raSrc.getAccountID()))
-					: (isVBC(uSrcIssuerID) ? (isVBC(uSrcCurrencyID) ? vbcAccount() : Account(raSrc.getAccountID())) : uSrcIssuerID);            // Use specifed issuer.
+                auto& issuer =
+                    isXRP (uSrcIssuerID) ?
+                        isXRP (uSrcCurrencyID) ? // Default to source account.
+                            xrpAccount() :
+                            Account (raSrc.getAccountID ())
+                    : (isVBC(uSrcIssuerID) ?
+                        (isVBC(uSrcCurrencyID) ?
+                            vbcAccount() :
+                            Account (raSrc.getAccountID ()))
+                        : uSrcIssuerID);            // Use specifed issuer.
 
                 STAmount saMaxAmount ({uSrcCurrencyID, issuer}, 1);
                 saMaxAmount.negate ();
@@ -248,13 +270,13 @@ Json::Value doRipplePathFind (RPC::Context& context)
                     << " saMaxAmountAct=" << rc.actualAmountIn
                     << " saDstAmountAct=" << rc.actualAmountOut;
 
-                if (extraPath.size() > 0 &&
+                if (fullLiquidityPath.size() > 0 &&
                     (rc.result() == terNO_LINE || rc.result() == tecPATH_PARTIAL))
                 {
                     WriteLog (lsDEBUG, PathRequest)
                         << "Trying with an extra path element";
 
-                    spsComputed.push_back (extraPath);
+                    spsComputed.push_back (fullLiquidityPath);
                     lesSandbox.clear ();
                     rc = path::RippleCalc::rippleCalculate (
                         lesSandbox,

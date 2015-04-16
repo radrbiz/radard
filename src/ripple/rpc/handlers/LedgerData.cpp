@@ -17,6 +17,8 @@
 */
 //==============================================================================
 
+#include <BeastConfig.h>
+#include <ripple/server/Role.h>
 
 namespace ripple {
 
@@ -36,52 +38,43 @@ Json::Value doLedgerData (RPC::Context& context)
     int const JSON_PAGE_LENGTH = 256;
 
     Ledger::pointer lpLedger;
+    auto const& params = context.params;
 
-    Json::Value jvResult = RPC::lookupLedger (
-        context.params_, lpLedger, context.netOps_);
+    Json::Value jvResult = RPC::lookupLedger (params, lpLedger, context.netOps);
     if (!lpLedger)
         return jvResult;
 
     uint256 resumePoint;
-    if (context.params_.isMember ("marker"))
+    if (params.isMember ("marker"))
     {
-        Json::Value const& jMarker = context.params_["marker"];
+        Json::Value const& jMarker = params["marker"];
         if (!jMarker.isString ())
             return RPC::expected_field_error ("marker", "valid");
         if (!resumePoint.SetHex (jMarker.asString ()))
             return RPC::expected_field_error ("marker", "valid");
     }
 
-    bool isBinary = false;
-    if (context.params_.isMember ("binary"))
-    {
-        Json::Value const& jBinary = context.params_["binary"];
-        if (!jBinary.isBool ())
-            return RPC::expected_field_error ("binary", "bool");
-        isBinary = jBinary.asBool ();
-    }
+    bool isBinary = params["binary"].asBool();
 
     int limit = -1;
     int maxLimit = isBinary ? BINARY_PAGE_LENGTH : JSON_PAGE_LENGTH;
 
-    if (context.params_.isMember ("limit"))
+    if (params.isMember ("limit"))
     {
-        Json::Value const& jLimit = context.params_["limit"];
+        Json::Value const& jLimit = params["limit"];
         if (!jLimit.isIntegral ())
             return RPC::expected_field_error ("limit", "integer");
 
         limit = jLimit.asInt ();
     }
 
-    if ((limit < 0) || ((limit > maxLimit) && (context.role_ != Config::ADMIN)))
+    if ((limit < 0) || ((limit > maxLimit) && (context.role != Role::ADMIN)))
         limit = maxLimit;
 
-    Json::Value jvReply = Json::objectValue;
+    jvResult["ledger_hash"] = to_string (lpLedger->getHash());
+    jvResult["ledger_index"] = std::to_string( lpLedger->getLedgerSeq ());
 
-    jvReply["ledger_hash"] = to_string (lpLedger->getHash());
-    jvReply["ledger_index"] = std::to_string( lpLedger->getLedgerSeq ());
-
-    Json::Value& nodes = (jvReply["state"] = Json::arrayValue);
+    Json::Value& nodes = (jvResult["state"] = Json::arrayValue);
     SHAMap& map = *(lpLedger->peekAccountStateMap ());
 
     for (;;)
@@ -94,7 +87,7 @@ Json::Value doLedgerData (RPC::Context& context)
        if (limit-- <= 0)
        {
            --resumePoint;
-           jvReply["marker"] = to_string (resumePoint);
+           jvResult["marker"] = to_string (resumePoint);
            break;
        }
 
@@ -113,7 +106,7 @@ Json::Value doLedgerData (RPC::Context& context)
        }
     }
 
-    return jvReply;
+    return jvResult;
 }
 
 } // ripple

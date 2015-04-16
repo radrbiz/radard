@@ -51,9 +51,6 @@ operating in the Client Handler role accepts incoming connections from clients
 and services them through the JSON-RPC interface. A peer can operate in either
 the leaf or superpeer roles while also operating as a client handler.
 
-
-
-
 ## Handshake
 
 To establish a protocol connection, a peer makes an outgoing TLS encrypted
@@ -63,15 +60,14 @@ custom fields to communicate protocol specific information:
 
 ```
 GET / HTTP/1.1
-User-Agent: Ripple-0.26.0
+User-Agent: rippled-0.27.0
 Local-Address: 192.168.0.101:8421
-Remote-Address: 208.239.76.97:51234
-Upgrade: Ripple/1.2, Ripple/1.3
+Upgrade: RTXP/1.2, RTXP/1.3
 Connection: Upgrade
 Connect-As: Leaf, Peer
 Accept-Encoding: identity, zlib, snappy
-Protocol-Public-Key: aBRoQibi2jpDofohooFuzZi9nEzKw9Zdfc4ExVNmuXHaJpSPh8uJ
-Protocol-Session-Cookie: 71ED064155FFADFA38782C5E0158CB26
+Public-Key: aBRoQibi2jpDofohooFuzZi9nEzKw9Zdfc4ExVNmuXHaJpSPh8uJ
+Session-Signature: 71ED064155FFADFA38782C5E0158CB26
 ```
 
 Upon receipt of a well-formed HTTP request the remote peer will send back a
@@ -79,15 +75,30 @@ HTTP response indicating the connection status:
 
 ```
 HTTP/1.1 101 Switching Protocols
-Server: Ripple-0.26.0-rc1
-Local-Address: 192.168.0.101:8421
-Remote-Address: 63.104.209.13:8421
-Upgrade: Ripple/1.2
+Server: rippled-0.27.0
+Remote-Address: 63.104.209.13
+Upgrade: RTXP/1.2
 Connection: Upgrade
 Connect-As: Leaf
 Transfer-Encoding: snappy
-Protocol-Public-Key: aBRoQibi2jpDofohooFuzZi9nEzKw9Zdfc4ExVNmuXHaJpSPh8uJ
-Protocol-Session-Cookie: 71ED064155FFADFA38782C5E0158CB26
+Public-Key: aBRoQibi2jpDofohooFuzZi9nEzKw9Zdfc4ExVNmuXHaJpSPh8uJ
+Session-Signature: 71ED064155FFADFA38782C5E0158CB26
+```
+
+If the remote peer has no available slots, the HTTP status code 503 (Service
+Unavailable) is returned, with an optional content body in JSON format that
+may contain additional information such as IP and port addresses of other
+servers that may have open slots:
+
+```
+HTTP/1.1 503 Service Unavailable
+Server: rippled-0.27.0
+Remote-Address: 63.104.209.13
+Content-Length: 253
+Content-Type: application/json
+{"peer-ips":["54.68.219.39:51235","54.187.191.179:51235",
+"107.150.55.21:6561","54.186.230.77:51235","54.187.110.243:51235",
+"85.127.34.221:51235","50.43.33.236:51235","54.187.138.75:51235"]}
 ```
 
 ### Fields
@@ -113,20 +124,17 @@ Protocol-Session-Cookie: 71ED064155FFADFA38782C5E0158CB26
     Contains information about the software providing the response. The
     specification is identical to RFC2616 Section 14.38.
 
-* `Local-Address`
+* `Remote-Address` (optional)
 
-    This field must be present and contain the string representation of the
-    IP and port address of the local end of the connection as seen by the peer.
-
-* `Remote-Address`
-
-    This field must be present and contain the string representation of the
-    IP and port address of the remote end of the connection as seen by the peer.
+    This optional field contains the string representation of the IP
+    address of the remote end of the connection as seen by the peer.
+    By observing values of this field from a sufficient number of different
+    servers, a peer making outgoing connections can deduce its own IP address.
 
 * `Upgrade`
 
     This field must be present and for requests consist of a comma delimited
-    list of at least one element where each element is of the form "Ripple/"
+    list of at least one element where each element is of the form "RTXP/"
     followed by the dotted major and minor protocol version number. For
     responses the value must be a single element matching one of the elements
     provided in the corresponding request field. If the server does not
@@ -152,21 +160,28 @@ Protocol-Session-Cookie: 71ED064155FFADFA38782C5E0158CB26
     of elements specified in the request. If a server does not recognize any
     of the connection types it must return a HTTP error response.
 
-* `Protocol-Public-Key`
+* `Public-Key`
 
-    This field value must be present, and contain a Base58 encoded value used
+    This field value must be present, and contain a base 64 encoded value used
     as a server public key identifier.
 
-* `Protocol-Session-Proof`
+* `Session-Signature`
 
-    This field must be present (TODO)
+    This field must be present. It contains a cryptographic token formed
+    from the SHA512 hash of the shared data exchanged during SSL handshaking.
+    For more details see the corresponding source code.
 
-* _User Defined_
+* `Crawl` (optional)
+
+    If present, and the value is "public" then neighbors will report the IP
+    address to crawler requests. If absent, neighbor's default behavior is to
+    not report IP addresses.
+
+* _User Defined_ (Unimplemented)
 
     The rippled operator may specify additional, optional fields and values
     through the configuration. These headers will be transmitted in the
     corresponding request or response messages.
-
 
 ---
 

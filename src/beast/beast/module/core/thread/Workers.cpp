@@ -21,12 +21,18 @@
 
 namespace beast {
 
-Workers::Workers (Callback& callback, String const& threadNames, int numberOfThreads)
-    : m_callback (callback)
-    , m_threadNames (threadNames)
-    , m_allPaused (true, true)
-    , m_semaphore (0)
-    , m_numberOfThreads (0)
+Workers::Workers (
+    Callback& callback,
+    std::string const& threadNames,
+    int numberOfThreads)
+        : m_callback (callback)
+        , m_threadNames (threadNames)
+        , m_allPaused (true, true)
+        , m_semaphore (0)
+        , m_numberOfThreads (0)
+        , m_activeCount (0)
+        , m_pauseCount (0)
+        , m_runningTaskCount (0)
 {
     setNumberOfThreads (numberOfThreads);
 }
@@ -112,7 +118,7 @@ void Workers::addTask ()
 
 int Workers::numberOfCurrentlyRunningTasks () const noexcept
 {
-    return m_runningTaskCount.get ();
+    return m_runningTaskCount.load ();
 }
 
 void Workers::deleteWorkers (LockFreeStack <Worker>& stack)
@@ -135,7 +141,7 @@ void Workers::deleteWorkers (LockFreeStack <Worker>& stack)
 
 //------------------------------------------------------------------------------
 
-Workers::Worker::Worker (Workers& workers, String const& threadName)
+Workers::Worker::Worker (Workers& workers, std::string const& threadName)
     : Thread (threadName)
     , m_workers (workers)
 {
@@ -166,7 +172,7 @@ void Workers::Worker::run ()
             // See if there's a pause request. This
             // counts as an "internal task."
             //
-            int pauseCount = m_workers.m_pauseCount.get ();
+            int pauseCount = m_workers.m_pauseCount.load ();
 
             if (pauseCount > 0)
             {
@@ -226,7 +232,6 @@ void Workers::Worker::run ()
 class Workers_test : public unit_test::suite
 {
 public:
-
     struct TestCallback : Workers::Callback
     {
         explicit TestCallback (int count_)
@@ -242,22 +247,12 @@ public:
         }
 
         WaitableEvent finished;
-        Atomic <int> count;
+        std::atomic <int> count;
     };
-
-    template <class T1, class T2>
-    bool
-    expectEquals (T1 const& t1, T2 const& t2)
-    {
-        return expect (t1 == t2);
-    }
 
     void testThreads (int const threadCount)
     {
-        std::stringstream ss;
-        ss <<
-            "threadCount = " << threadCount;
-        testcase (ss.str());
+        testcase ("threadCount = " + std::to_string (threadCount));
 
         TestCallback cb (threadCount);
 
@@ -273,14 +268,12 @@ public:
         // 10 seconds should be enough to finish on any system
         //
         bool signaled = cb.finished.wait (10 * 1000);
-
         expect (signaled, "timed out");
 
         w.pauseAllThreadsAndWait ();
 
-        int const count (cb.count.get ());
-
-        expectEquals (count, 0);
+        // We had better finished all our work!
+        expect (cb.count.load () == 0, "Did not complete task!");
     }
 
     void run ()

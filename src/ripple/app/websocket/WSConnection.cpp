@@ -17,14 +17,24 @@
 */
 //==============================================================================
 
-#include <ripple/common/jsonrpc_fields.h>
+#include <BeastConfig.h>
+#include <ripple/app/websocket/WSConnection.h>
+#include <ripple/net/RPCErr.h>
+#include <ripple/app/main/Application.h>
+#include <ripple/protocol/JsonFields.h>
+#include <ripple/resource/Fees.h>
+#include <ripple/rpc/RPCHandler.h>
+#include <ripple/server/Role.h>
 
 namespace ripple {
 
-WSConnection::WSConnection (Resource::Manager& resourceManager,
-    Resource::Consumer usage, InfoSub::Source& source, bool isPublic,
-        beast::IP::Endpoint const& remoteAddress, boost::asio::io_service& io_service)
+WSConnection::WSConnection (HTTP::Port const& port,
+    Resource::Manager& resourceManager, Resource::Consumer usage,
+        InfoSub::Source& source, bool isPublic,
+            beast::IP::Endpoint const& remoteAddress,
+                boost::asio::io_service& io_service)
     : InfoSub (source, usage)
+    , port_(port)
     , m_resourceManager (resourceManager)
     , m_isPublic (isPublic)
     , m_remoteAddress (remoteAddress)
@@ -48,7 +58,8 @@ void WSConnection::onPong (std::string const&)
     m_sentPing = false;
 }
 
-void WSConnection::rcvMessage (message_ptr msg, bool& msgRejected, bool& runQueue)
+void WSConnection::rcvMessage (
+    message_ptr msg, bool& msgRejected, bool& runQueue)
 {
     ScopedLockType sl (m_receiveQueueMutex);
 
@@ -59,7 +70,8 @@ void WSConnection::rcvMessage (message_ptr msg, bool& msgRejected, bool& runQueu
         return;
     }
 
-    if ((m_receiveQueue.size () >= 1000) || (msg->get_payload().size() > 1000000))
+    if ((m_receiveQueue.size () >= 1000) ||
+        (msg->get_payload().size() > 1000000))
     {
         msgRejected = true;
         runQueue = false;
@@ -150,21 +162,21 @@ Json::Value WSConnection::invokeCommand (Json::Value& jvRequest)
     }
 
     Resource::Charge loadType = Resource::feeReferenceRPC;
-    RPCHandler  mRPCHandler (m_netOPs, std::dynamic_pointer_cast<InfoSub> (this->shared_from_this ()));
     Json::Value jvResult (Json::objectValue);
 
-    Config::Role const role = m_isPublic
-            ? Config::GUEST     // Don't check on the public interface.
-            : getConfig ().getAdminRole (
-                jvRequest, m_remoteAddress);
+    Role const role = port_.allow_admin ? adminRole (port_, jvRequest,
+        m_remoteAddress, getConfig().RPC_ADMIN_ALLOW) : Role::GUEST;
 
-    if (Config::FORBID == role)
+    if (Role::FORBID == role)
     {
         jvResult[jss::result]  = rpcError (rpcFORBIDDEN);
     }
     else
     {
-        jvResult[jss::result] = mRPCHandler.doCommand (jvRequest, role, loadType);
+        RPC::Context context {
+            jvRequest, loadType, m_netOPs, role,
+            std::dynamic_pointer_cast<InfoSub> (this->shared_from_this ())};
+        RPC::doCommand (context, jvResult[jss::result]);
     }
 
     getConsumer().charge (loadType);
@@ -187,15 +199,15 @@ Json::Value WSConnection::invokeCommand (Json::Value& jvRequest)
     }
     else
     {
-        jvResult[jss::status]  = jss::success;
+        jvResult[jss::status] = jss::success;
     }
 
     if (jvRequest.isMember (jss::id))
     {
-        jvResult[jss::id]      = jvRequest[jss::id];
+        jvResult[jss::id] = jvRequest[jss::id];
     }
 
-    jvResult[jss::type]        = jss::response;
+    jvResult[jss::type] = jss::response;
 
     return jvResult;
 }

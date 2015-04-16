@@ -20,6 +20,11 @@
 #ifndef RIPPLE_INBOUNDLEDGER_H
 #define RIPPLE_INBOUNDLEDGER_H
 
+#include <ripple/app/ledger/Ledger.h>
+#include <ripple/app/peers/PeerSet.h>
+#include <ripple/basics/CountedObject.h>
+#include <set>
+
 namespace ripple {
 
 // VFALCO TODO Rename to InboundLedger
@@ -98,6 +103,7 @@ public:
     void filterNodes (std::vector<SHAMapNodeID>& nodeIDs, std::vector<uint256>& nodeHashes,
                              std::set<SHAMapNodeID>& recentNodes, int max, bool aggressive);
 
+    /** Return a Json::objectValue. */
     Json::Value getJson (int);
     void runData ();
 

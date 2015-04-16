@@ -20,6 +20,11 @@
 #ifndef RIPPLE_WSDOOR_H_INCLUDED
 #define RIPPLE_WSDOOR_H_INCLUDED
 
+#include <ripple/net/InfoSub.h>
+#include <ripple/resource/Manager.h>
+#include <ripple/server/Port.h>
+#include <beast/threads/Stoppable.h>
+
 namespace ripple {
 
 /** Handles accepting incoming WebSocket connections. */
@@ -29,13 +34,16 @@ protected:
     explicit WSDoor (Stoppable& parent);
 
 public:
-    virtual ~WSDoor () { }
+    virtual ~WSDoor() = default;
 
-    static WSDoor* New (Resource::Manager& resourceManager,
-        InfoSub::Source& source, std::string const& strIp,
-            int iPort, bool bPublic, bool bProxy, boost::asio::ssl::context& ssl_context);
+    // VFALCO TODO Add this member function to prevent races on shutdown
+    //virtual void close() = 0;
 };
 
-} // ripple
+std::unique_ptr<WSDoor>
+make_WSDoor (HTTP::Port const& port, Resource::Manager& resourceManager,
+    InfoSub::Source& source);
+
+}
 
 #endif

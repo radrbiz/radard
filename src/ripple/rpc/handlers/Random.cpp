@@ -17,6 +17,9 @@
 */
 //==============================================================================
 
+#include <BeastConfig.h>
+#include <ripple/crypto/RandomNumbers.h>
+#include <ripple/json/json_value.h>
 
 namespace ripple {
 
@@ -31,7 +34,7 @@ Json::Value doRandom (RPC::Context& context)
     try
     {
         uint256 rand;
-        RandomNumbers::getInstance ().fillBytes (rand.begin (), rand.size ());
+        random_fill (rand.begin (), rand.size ());
 
         Json::Value jvResult;
         jvResult["random"]  = to_string (rand);

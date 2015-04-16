@@ -17,16 +17,22 @@
 */
 //==============================================================================
 
+#include <BeastConfig.h>
 #include <ripple/basics/BasicConfig.h>
 #include <boost/regex.hpp>
 #include <algorithm>
 
 namespace ripple {
 
+Section::Section (std::string const& name)
+    : name_(name)
+{
+}
+
 void
 Section::set (std::string const& key, std::string const& value)
 {
-    auto const result = map_.emplace (key, value);
+    auto const result = cont().emplace (key, value);
     if (! result.second)
         result.first->second = value;
 }
@@ -62,14 +68,14 @@ Section::append (std::vector <std::string> const& lines)
 bool
 Section::exists (std::string const& name) const
 {
-    return map_.find (name) != map_.end();
+    return cont().find (name) != cont().end();
 }
 
 std::pair <std::string, bool>
 Section::find (std::string const& name) const
 {
-    auto const iter = map_.find (name);
-    if (iter == map_.end())
+    auto const iter = cont().find (name);
+    if (iter == cont().end())
         return {{}, false};
     return {iter->second, true};
 }
@@ -77,7 +83,7 @@ Section::find (std::string const& name) const
 std::ostream&
 operator<< (std::ostream& os, Section const& section)
 {
-    for (auto const& kv : section.map_)
+    for (auto const& kv : section.cont())
         os << kv.first << "=" << kv.second << "\n";
     return os;
 }
@@ -87,13 +93,13 @@ operator<< (std::ostream& os, Section const& section)
 bool
 BasicConfig::exists (std::string const& name) const
 {
-    return map_.find (name) != map_.end();
+    return map_.find(name) != map_.end();
 }
 
 Section const&
 BasicConfig::section (std::string const& name) const
 {
-    static Section none;
+    static Section none("");
     auto const iter = map_.find (name);
     if (iter == map_.end())
         return none;
@@ -107,11 +113,13 @@ BasicConfig::remap (std::string const& legacy_section,
     auto const iter = map_.find (legacy_section);
     if (iter == map_.end())
         return;
-    if (iter->second.keys() != 0)
+    if (iter->second.size() != 0)
         return;
     if (iter->second.lines().size() != 1)
         return;
-    auto& s = map_[new_section];
+    auto result = map_.emplace(std::piecewise_construct,
+        std::make_tuple(new_section), std::make_tuple(new_section));
+    auto& s = result.first->second;
     s.append (iter->second.lines().front());
     s.set (key, iter->second.lines().front());
 }
@@ -120,7 +128,8 @@ void
 BasicConfig::overwrite (std::string const& section, std::string const& key,
     std::string const& value)
 {
-    auto const result = map_.emplace (section, Section{});
+    auto const result = map_.emplace (std::piecewise_construct,
+        std::make_tuple(section), std::make_tuple(section));
     result.first->second.set (key, value);
 }
 
@@ -129,7 +138,8 @@ BasicConfig::build (IniFileSections const& ifs)
 {
     for (auto const& entry : ifs)
     {
-        auto const result = map_.emplace (entry.first, Section{});
+        auto const result = map_.emplace (std::piecewise_construct,
+            std::make_tuple(entry.first), std::make_tuple(entry.first));
         result.first->second.append (entry.second);
     }
 }

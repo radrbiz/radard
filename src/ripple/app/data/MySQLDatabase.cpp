@@ -1,4 +1,8 @@
 #include <mysql.h>
+#include <ripple/app/data/MySQLDatabase.h>
+#include <ripple/app/main/Application.h>
+#include <ripple/core/JobQueue.h>
+#include <ripple/basics/Log.h>
 
 namespace ripple {
 MySQLDatabase::MySQLDatabase(char const* host, std::uint32_t port,
@@ -273,6 +277,24 @@ MySQLStatement* MySQLDatabase::getStatement()
         mStmt.reset(stmt);
     }
     return stmt;
+}
+    
+bool MySQLDatabase::hasField(const std::string &table, const std::string &field)
+{
+    std::string sql = "SHOW COLUMNS FROM `" + table + "`;";
+    if (executeSQL(sql.c_str(), false))
+    {
+        for (bool bMore = startIterRows(true); bMore; bMore = getNextRow(true))
+        {
+            std::string schema;
+            Database::getStr ("Field", schema);
+            if (schema == field)
+            {
+                return true;
+            }
+        }
+    }
+    return false;
 }
     
 //---------------------------------------------------

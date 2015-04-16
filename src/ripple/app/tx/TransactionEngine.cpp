@@ -17,6 +17,15 @@
 */
 //==============================================================================
 
+#include <BeastConfig.h>
+#include <ripple/app/tx/TransactionEngine.h>
+#include <ripple/app/transactors/Transactor.h>
+#include <ripple/basics/Log.h>
+#include <ripple/json/to_string.h>
+#include <ripple/protocol/Indexes.h>
+#include <boost/foreach.hpp>
+#include <cassert>
+
 namespace ripple {
 
 //
@@ -71,7 +80,7 @@ void TransactionEngine::txnWrite ()
 }
 
 TER TransactionEngine::applyTransaction (
-    SerializedTransaction const& txn,
+    STTx const& txn,
     TransactionEngineParams params,
     bool& didApply)
 {
@@ -87,13 +96,12 @@ TER TransactionEngine::applyTransaction (
         Serializer ser;
         txn.add (ser);
         SerializerIterator sit (ser);
-        SerializedTransaction s2 (sit);
+        STTx s2 (sit);
 
         if (!s2.isEquivalent (txn))
         {
             WriteLog (lsFATAL, TransactionEngine) <<
                 "Transaction serdes mismatch";
-            Json::StyledStreamWriter ssw;
             WriteLog (lsINFO, TransactionEngine) << txn.getJson (0);
             WriteLog (lsFATAL, TransactionEngine) << s2.getJson (0);
             assert (false);
@@ -139,7 +147,7 @@ TER TransactionEngine::applyTransaction (
         mNodes.clear ();
 
         SLE::pointer txnAcct = entryCache (ltACCOUNT_ROOT,
-            Ledger::getAccountRootIndex (txn.getSourceAccount ()));
+            getAccountRootIndex (txn.getSourceAccount ()));
 
         if (!txnAcct)
             terResult = terNO_ACCOUNT;
@@ -233,20 +241,6 @@ TER TransactionEngine::applyTransaction (
                 // Charge whatever fee they specified.
                 STAmount saPaid = txn.getTransactionFee ();
                 mLedger->destroyCoins (saPaid.getNValue ());
-
-//                if (txn.getTxnType() == ttDIVIDEND) {
-//                    uint64_t dividendCoins = mLedger->getDividendCoins();
-//                    uint64_t dividendCoinsVBC = mLedger->getDividendCoinsVBC();
-//                    
-//                    WriteLog(lsINFO, TransactionEngine) <<
-//                    "radar: Dividend coins " << dividendCoins;
-//                    mLedger->createCoins(dividendCoins);
-//                    
-//                    WriteLog(lsINFO, TransactionEngine) <<
-//                    "radar: Dividend coinsVBC " << dividendCoinsVBC;
-//                    mLedger->createCoinsVBC(dividendCoinsVBC);
-//                }
-
             }
         }
     }

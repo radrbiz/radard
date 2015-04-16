@@ -17,6 +17,7 @@
 */
 //==============================================================================
 
+#include <BeastConfig.h>
 
 namespace ripple {
 
@@ -24,20 +25,20 @@ namespace ripple {
 //   secret: <string>   // optional
 // }
 //
-// This command requires Config::ADMIN access because it makes no sense to ask
+// This command requires Role::ADMIN access because it makes no sense to ask
 // an untrusted server for this.
 Json::Value doValidationCreate (RPC::Context& context)
 {
     RippleAddress   raSeed;
     Json::Value     obj (Json::objectValue);
 
-    if (!context.params_.isMember ("secret"))
+    if (!context.params.isMember ("secret"))
     {
         WriteLog (lsDEBUG, RPCHandler) << "Creating random validation seed.";
 
         raSeed.setSeedRandom ();                // Get a random seed.
     }
-    else if (!raSeed.setSeedGeneric (context.params_["secret"].asString ()))
+    else if (!raSeed.setSeedGeneric (context.params["secret"].asString ()))
     {
         return rpcError (rpcBAD_SEED);
     }

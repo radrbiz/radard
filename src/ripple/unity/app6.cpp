@@ -19,15 +19,14 @@
 
 #include <BeastConfig.h>
 
-#include <ripple/unity/app.h>
-
-#include <ripple/common/seconds_clock.h>
-
 #include <ripple/app/ledger/LedgerEntrySet.cpp>
 #include <ripple/app/ledger/AcceptedLedger.cpp>
 #include <ripple/app/ledger/DirectoryEntryIterator.cpp>
 #include <ripple/app/ledger/OrderBookIterator.cpp>
 #include <ripple/app/consensus/DisputedTx.cpp>
 #include <ripple/app/misc/HashRouter.cpp>
+#include <ripple/app/paths/AccountCurrencies.cpp>
+#include <ripple/app/paths/Credit.cpp>
+#include <ripple/app/paths/FindPaths.cpp>
 #include <ripple/app/paths/Pathfinder.cpp>
 #include <ripple/app/misc/AmendmentTableImpl.cpp>

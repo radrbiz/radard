@@ -1,21 +1,8 @@
-//------------------------------------------------------------------------------
-/*
-    This file is part of rippled: https://github.com/ripple/rippled
-    Copyright (c) 2012, 2013 Ripple Labs Inc.
-
-    Permission to use, copy, modify, and/or distribute this software for any
-    purpose  with  or without fee is hereby granted, provided that the above
-    copyright notice and this permission notice appear in all copies.
-
-    THE  SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
-    WITH  REGARD  TO  THIS  SOFTWARE  INCLUDING  ALL  IMPLIED  WARRANTIES  OF
-    MERCHANTABILITY  AND  FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
-    ANY  SPECIAL ,  DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
-    WHATSOEVER  RESULTING  FROM  LOSS  OF USE, DATA OR PROFITS, WHETHER IN AN
-    ACTION  OF  CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
-    OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
-*/
-//==============================================================================
+#include <BeastConfig.h>
+#include <ripple/app/transactors/Transactor.h>
+#include <ripple/basics/Log.h>
+#include <ripple/protocol/Indexes.h>
+#include <ripple/protocol/TxFlags.h>
 
 namespace ripple {
 
@@ -24,7 +11,7 @@ class AddReferee
 {
 public:
     AddReferee(
-        SerializedTransaction const& txn,
+        STTx const& txn,
         TransactionEngineParams params,
         TransactionEngine* engine)
         : Transactor (
@@ -61,12 +48,12 @@ public:
 
         //
         // Open a ledger for editing.
-        SLE::pointer sleReferee(mEngine->entryCache(ltACCOUNT_ROOT, Ledger::getAccountRootIndex(refereeID)));
-        SLE::pointer sleReference(mEngine->entryCache(ltACCOUNT_ROOT, Ledger::getAccountRootIndex(referenceID)));
+        SLE::pointer sleReferee(mEngine->entryCache(ltACCOUNT_ROOT, getAccountRootIndex(refereeID)));
+        SLE::pointer sleReference(mEngine->entryCache(ltACCOUNT_ROOT, getAccountRootIndex(referenceID)));
 
-        auto const referenceReferIndex = mEngine->getLedger()->getAccountReferIndex(referenceID);
+        auto const referenceReferIndex = getAccountReferIndex(referenceID);
         SLE::pointer sleReferenceRefer(mEngine->entryCache (ltREFER, referenceReferIndex));
-        auto const referIndex = mEngine->getLedger()->getAccountReferIndex (refereeID);
+        auto const referIndex = getAccountReferIndex (refereeID);
         SLE::pointer sleRefer(mEngine->entryCache (ltREFER, referIndex));
 
         if (!sleReferee) {
@@ -84,27 +71,19 @@ public:
             m_journal.trace << "Referee has been set.";
 
             return tefREFEREE_EXIST;
-        } else if ((sleReferenceRefer && !sleReferenceRefer->getFieldArray(sfReferences).empty())
-               || (sleReference->isFieldPresent(sfReferences)
-                   && !sleReference->getFieldArray(sfReferences).empty())) {
+        } else if ((sleReferenceRefer && !sleReferenceRefer->getFieldArray(sfReferences).empty())) {
             m_journal.trace << "Reference has been set.";
-            
             return tefREFERENCE_EXIST;
         } else {
             STArray references(sfReferences);
-            bool oldFormat = false;
             if (sleRefer && sleRefer->isFieldPresent(sfReferences)) {
                 references = sleRefer->getFieldArray(sfReferences);
-            } else if (sleReferee->isFieldPresent(sfReferences)) {
-                references = sleReferee->getFieldArray(sfReferences);
-                oldFormat = true;
             }
 
             for (auto it = references.begin(); it != references.end(); ++it) {
                 Account id = it->getFieldAccount(sfReference).getAccountID();
                 if (id == referenceID) {
                     m_journal.trace << "Malformed transaction: Reference has been set.";
-
                     return tefREFERENCE_EXIST;
                 }
             }
@@ -118,10 +97,6 @@ public:
             sleReference->setFieldU32(sfReferenceHeight, referenceHeight+1);
             references.push_back(STObject(sfReferenceHolder));
             references.back().setFieldAccount(sfReference, referenceID);
-            if (oldFormat) {
-                mEngine->entryModify(sleReferee);
-                sleReferee->delField(sfReferences);
-            }
             if (!sleRefer) {
                 sleRefer = mEngine->entryCreate(ltREFER, referIndex);
             } else {
@@ -136,7 +111,7 @@ public:
 
 TER
 transact_AddReferee (
-    SerializedTransaction const& txn,
+    STTx const& txn,
     TransactionEngineParams params,
     TransactionEngine* engine)
 {

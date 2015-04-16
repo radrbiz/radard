@@ -20,6 +20,10 @@
 #ifndef RIPPLE_TRANSACTION_H
 #define RIPPLE_TRANSACTION_H
 
+#include <ripple/protocol/Protocol.h>
+#include <ripple/protocol/STTx.h>
+#include <ripple/protocol/TER.h>
+
 namespace ripple {
 
 //
@@ -57,14 +61,14 @@ public:
     typedef const pointer& ref;
 
 public:
-    Transaction (SerializedTransaction::ref, Validate);
+    Transaction (STTx::ref, Validate);
 
     static Transaction::pointer sharedTransaction (Blob const&, Validate);
     static Transaction::pointer transactionFromSQL (Database*, Validate);
 
     bool checkSign () const;
 
-    SerializedTransaction::ref getSTransaction ()
+    STTx::ref getSTransaction ()
     {
         return mTransaction;
     }
@@ -125,7 +129,7 @@ private:
     TransStatus     mStatus;
     TER             mResult;
 
-    SerializedTransaction::pointer mTransaction;
+    STTx::pointer mTransaction;
 };
 
 } // ripple

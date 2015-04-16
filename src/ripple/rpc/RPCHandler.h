@@ -21,45 +21,26 @@
 #define RIPPLE_APP_RPC_HANDLER
 
 #include <ripple/core/Config.h>
-
-#include <ripple/rpc/impl/AccountFromString.h>
-#include <ripple/rpc/impl/Accounts.h>
+#include <ripple/net/InfoSub.h>
+#include <ripple/rpc/Status.h>
 #include <ripple/rpc/impl/Context.h>
-#include <ripple/rpc/impl/GetMasterGenerator.h>
-#include <ripple/rpc/impl/LookupLedger.h>
-#include <ripple/rpc/impl/ParseAccountIds.h>
-#include <ripple/rpc/impl/TransactionSign.h>
 
 namespace ripple {
+namespace RPC {
 
-// used by the RPCServer or WSDoor to carry out these RPC commands
-class InfoSub;
-class NetworkOPs;
+struct Context;
+struct YieldStrategy;
 
-class RPCHandler
-{
-public:
-    explicit RPCHandler (
-        NetworkOPs& netOps, InfoSub::pointer infoSub = nullptr);
+/** Execute an RPC command and store the results in a Json::Value. */
+Status doCommand (RPC::Context&, Json::Value&, YieldStrategy const& s = {});
 
-    Json::Value doCommand (
-        Json::Value const& request,
-        Config::Role role,
-        Resource::Charge& loadType);
+/** Execute an RPC command and store the results in an std::string. */
+void executeRPC (RPC::Context&, std::string&, YieldStrategy const& s = {});
 
-    Json::Value doRpcCommand (
-        std::string const& command,
-        Json::Value const& params,
-        Config::Role role,
-        Resource::Charge& loadType);
+/** Temporary flag to enable RPCs. */
+auto const streamingRPC = false;
 
-private:
-    NetworkOPs& netOps_;
-    InfoSub::pointer infoSub_;
-
-    Config::Role role_ = Config::FORBID;
-};
-
+} // RPC
 } // ripple
 
 #endif

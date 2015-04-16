@@ -19,26 +19,22 @@
 
 #include <BeastConfig.h>
 
-// Unfortunate but necessary since RPC handlers can literally do anything
-#include <ripple/unity/app.h>
-#include <ripple/unity/json.h>
-#include <ripple/common/jsonrpc_fields.h>
+// This has to be included early to prevent an obscure MSVC compile error
+#include <boost/asio/deadline_timer.hpp>
 
-#include <ripple/unity/rpcx.h>
+#include <ripple/protocol/JsonFields.h>
 
 #include <ripple/rpc/RPCHandler.h>
-#include <ripple/overlay/Overlay.h>
-#include <tuple>
 
-#include <ripple/rpc/RPCHandler.h>
-#include <ripple/rpc/impl/ErrorCodes.cpp>
+#include <ripple/rpc/impl/Coroutine.cpp>
 #include <ripple/rpc/impl/JsonObject.cpp>
 #include <ripple/rpc/impl/JsonWriter.cpp>
+#include <ripple/rpc/impl/WriteJson.cpp>
 #include <ripple/rpc/impl/Manager.cpp>
-#include <ripple/rpc/impl/RPCServerHandler.cpp>
 #include <ripple/rpc/impl/RPCHandler.cpp>
 #include <ripple/rpc/impl/Status.cpp>
-#include <ripple/rpc/impl/Status_test.cpp>
+#include <ripple/rpc/impl/Yield.cpp>
+#include <ripple/rpc/impl/Utilities.cpp>
 
 #include <ripple/rpc/handlers/Handlers.h>
 #include <ripple/rpc/handlers/AccountCurrencies.cpp>
@@ -50,6 +46,7 @@
 #include <ripple/rpc/handlers/AccountTxSwitch.cpp>
 #include <ripple/rpc/handlers/BlackList.cpp>
 #include <ripple/rpc/handlers/BookOffers.cpp>
+#include <ripple/rpc/handlers/CanDelete.cpp>
 #include <ripple/rpc/handlers/Connect.cpp>
 #include <ripple/rpc/handlers/ConsensusInfo.cpp>
 #include <ripple/rpc/handlers/Feature.cpp>
@@ -75,9 +72,6 @@
 #include <ripple/rpc/handlers/Peers.cpp>
 #include <ripple/rpc/handlers/Ping.cpp>
 #include <ripple/rpc/handlers/Print.cpp>
-#include <ripple/rpc/handlers/ProofCreate.cpp>
-#include <ripple/rpc/handlers/ProofSolve.cpp>
-#include <ripple/rpc/handlers/ProofVerify.cpp>
 #include <ripple/rpc/handlers/Random.cpp>
 #include <ripple/rpc/handlers/RipplePathFind.cpp>
 #include <ripple/rpc/handlers/SMS.cpp>
@@ -113,5 +107,10 @@
 #include <ripple/rpc/impl/ParseAccountIds.cpp>
 #include <ripple/rpc/impl/TransactionSign.cpp>
 
-#include <ripple/rpc/impl/JsonObject_test.cpp>
-#include <ripple/rpc/impl/JsonWriter_test.cpp>
+#include <ripple/rpc/tests/Coroutine.test.cpp>
+#include <ripple/rpc/tests/JsonObject.test.cpp>
+#include <ripple/rpc/tests/JSONRPC.test.cpp>
+#include <ripple/rpc/tests/JsonWriter.test.cpp>
+#include <ripple/rpc/tests/Status.test.cpp>
+#include <ripple/rpc/tests/WriteJson.test.cpp>
+#include <ripple/rpc/tests/Yield.test.cpp>

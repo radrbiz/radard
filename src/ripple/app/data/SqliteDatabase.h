@@ -20,7 +20,12 @@
 #ifndef RIPPLE_SQLITEDATABASE_H_INCLUDED
 #define RIPPLE_SQLITEDATABASE_H_INCLUDED
 
+#include <ripple/app/data/Database.h>
+#include <ripple/basics/Blob.h>
+#include <ripple/core/JobQueue.h>
+#include <beast/module/sqlite/sqlite.h>
 #include <beast/threads/Thread.h>
+#include <mutex>
 
 namespace ripple {
 
@@ -52,6 +57,7 @@ public:
 
     virtual bool beginTransaction() override;
     virtual bool endTransaction() override;
+    bool hasField(const std::string &table, const std::string &field) override;
 
     bool getNull (int colIndex);
     char* getStr (int colIndex, std::string& retStr);
@@ -83,7 +89,7 @@ private:
     void run ();
     void runWal ();
 
-    typedef RippleMutex LockType;
+    typedef std::mutex LockType;
     typedef std::lock_guard <LockType> ScopedLockType;
     LockType m_walMutex;
 

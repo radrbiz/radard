@@ -4,6 +4,8 @@
 #include <mysql.h>
 #include <boost/thread/tss.hpp>
 #include <beast/module/core/text/StringPairArray.h>
+#include <beast/utility/LeakChecked.h>
+#include <ripple/app/data/DatabaseCon.h>
 
 namespace ripple {
 
@@ -41,6 +43,7 @@ public:
     bool beginTransaction() override;
     bool endTransaction() override;
 
+    bool hasField(const std::string &table, const std::string &field) override;
     bool getNull (int colIndex);
     char* getStr (int colIndex, std::string& retStr);
     std::int32_t getInt (int colIndex);

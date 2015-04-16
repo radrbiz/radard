@@ -17,8 +17,16 @@
 */
 //==============================================================================
 
+#include <BeastConfig.h>
+#include <ripple/app/ledger/ConsensusTransSetSF.h>
+#include <ripple/app/ledger/InboundLedgers.h>
+#include <ripple/app/main/Application.h>
+#include <ripple/app/misc/DefaultMissingNodeHandler.h>
+#include <ripple/app/misc/NetworkOPs.h>
+#include <ripple/app/tx/TransactionAcquire.h>
 #include <ripple/overlay/Overlay.h>
 #include <boost/foreach.hpp>
+#include <memory>
 
 namespace ripple {
 
@@ -36,7 +44,8 @@ TransactionAcquire::TransactionAcquire (uint256 const& hash, clock_type& clock)
 {
     Application& app = getApp();
     mMap = std::make_shared<SHAMap> (smtTRANSACTION, hash,
-        app.getFullBelowCache (), app.getTreeNodeCache());
+        app.getFullBelowCache (), app.getTreeNodeCache(), app.getNodeStore(),
+            DefaultMissingNodeHandler(), deprecatedLogs().journal("SHAMap"));
     mMap->setUnbacked ();
 }
 

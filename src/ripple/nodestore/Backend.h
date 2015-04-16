@@ -43,12 +43,17 @@ public:
         or other tasks scheduled, they will be completed before this call
         returns.
     */
-    virtual ~Backend () = 0;
+    virtual ~Backend() = default;
 
     /** Get the human-readable name of this backend.
         This is used for diagnostic output.
     */
     virtual std::string getName() = 0;
+
+    /** Close the backend.
+        This allows the caller to catch exceptions.
+    */
+    virtual void close() = 0;
 
     /** Fetch a single object.
         If the object is not found or an error is encountered, the
@@ -84,6 +89,12 @@ public:
 
     /** Estimate the number of write operations pending. */
     virtual int getWriteLoad () = 0;
+
+    /** Remove contents on disk upon destruction. */
+    virtual void setDeletePath() = 0;
+
+    /** Perform consistency checks on database .*/
+    virtual void verify() = 0;
 };
 
 }

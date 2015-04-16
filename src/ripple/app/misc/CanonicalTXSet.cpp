@@ -17,6 +17,9 @@
 */
 //==============================================================================
 
+#include <BeastConfig.h>
+#include <ripple/app/misc/CanonicalTXSet.h>
+
 namespace ripple {
 
 bool CanonicalTXSet::Key::operator< (Key const& rhs) const
@@ -71,7 +74,7 @@ bool CanonicalTXSet::Key::operator>= (Key const& rhs)const
     return mTXid >= rhs.mTXid;
 }
 
-void CanonicalTXSet::push_back (SerializedTransaction::ref txn)
+void CanonicalTXSet::push_back (STTx::ref txn)
 {
     uint256 effectiveAccount = mSetHash;
 

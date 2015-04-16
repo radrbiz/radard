@@ -20,9 +20,15 @@
 #ifndef RIPPLE_RESOURCE_LOGIC_H_INCLUDED
 #define RIPPLE_RESOURCE_LOGIC_H_INCLUDED
 
-#include <ripple/common/UnorderedContainers.h>
-
+#include <ripple/resource/Fees.h>
+#include <ripple/resource/Gossip.h>
+#include <ripple/resource/impl/Import.h>
+#include <ripple/basics/UnorderedContainers.h>
+#include <ripple/json/json_value.h>
 #include <beast/chrono/abstract_clock.h>
+#include <beast/Insight.h>
+#include <beast/threads/SharedData.h>
+#include <beast/utility/PropertyStream.h>
 
 namespace ripple {
 namespace Resource {
@@ -30,7 +36,7 @@ namespace Resource {
 class Logic
 {
 private:
-    typedef beast::abstract_clock <std::chrono::seconds> clock_type;
+    typedef beast::abstract_clock <std::chrono::steady_clock> clock_type;
     typedef hash_map <std::string, Import> Imports;
     typedef hash_map <Key, Entry, Key::hasher, Key::key_equal> Table;
     typedef beast::List <Entry> EntryIntrusiveList;
@@ -76,7 +82,7 @@ private:
 
     SharedState m_state;
     Stats m_stats;
-    beast::abstract_clock <std::chrono::seconds>& m_clock;
+    beast::abstract_clock <std::chrono::steady_clock>& m_clock;
     beast::Journal m_journal;
 
     //--------------------------------------------------------------------------
@@ -233,6 +239,7 @@ public:
         return getJson (warningThreshold);
     }
 
+    /** Returns a Json::objectValue. */
     Json::Value getJson (int threshold)
     {
         clock_type::time_point const now (m_clock.now());

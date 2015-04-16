@@ -17,6 +17,8 @@
 */
 //==============================================================================
 
+#include <BeastConfig.h>
+#include <ripple/protocol/Indexes.h>
 
 namespace ripple {
 
@@ -29,7 +31,7 @@ Json::Value doLedgerEntry (RPC::Context& context)
 {
     Ledger::pointer lpLedger;
     Json::Value jvResult = RPC::lookupLedger (
-        context.params_, lpLedger, context.netOps_);
+        context.params, lpLedger, context.netOps);
 
     if (!lpLedger)
         return jvResult;
@@ -37,18 +39,18 @@ Json::Value doLedgerEntry (RPC::Context& context)
     uint256     uNodeIndex;
     bool        bNodeBinary = false;
 
-    if (context.params_.isMember ("index"))
+    if (context.params.isMember ("index"))
     {
         // XXX Needs to provide proof.
-        uNodeIndex.SetHex (context.params_["index"].asString ());
+        uNodeIndex.SetHex (context.params["index"].asString ());
         bNodeBinary = true;
     }
-    else if (context.params_.isMember ("account_root"))
+    else if (context.params.isMember ("account_root"))
     {
         RippleAddress   naAccount;
 
         if (!naAccount.setAccountID (
-                context.params_["account_root"].asString ())
+                context.params["account_root"].asString ())
             || !naAccount.getAccountID ())
         {
             jvResult["error"]   = "malformedAddress";
@@ -56,49 +58,49 @@ Json::Value doLedgerEntry (RPC::Context& context)
         else
         {
             uNodeIndex
-                    = Ledger::getAccountRootIndex (naAccount.getAccountID ());
+                    = getAccountRootIndex (naAccount.getAccountID ());
         }
     }
-    else if (context.params_.isMember ("directory"))
+    else if (context.params.isMember ("directory"))
     {
-        if (!context.params_["directory"].isObject ())
+        if (!context.params["directory"].isObject ())
         {
-            uNodeIndex.SetHex (context.params_["directory"].asString ());
+            uNodeIndex.SetHex (context.params["directory"].asString ());
         }
-        else if (context.params_["directory"].isMember ("sub_index")
-                 && !context.params_["directory"]["sub_index"].isIntegral ())
+        else if (context.params["directory"].isMember ("sub_index")
+                 && !context.params["directory"]["sub_index"].isIntegral ())
         {
             jvResult["error"]   = "malformedRequest";
         }
         else
         {
             std::uint64_t  uSubIndex
-                    = context.params_["directory"].isMember ("sub_index")
-                    ? context.params_["directory"]["sub_index"].asUInt () : 0;
+                    = context.params["directory"].isMember ("sub_index")
+                    ? context.params["directory"]["sub_index"].asUInt () : 0;
 
-            if (context.params_["directory"].isMember ("dir_root"))
+            if (context.params["directory"].isMember ("dir_root"))
             {
                 uint256 uDirRoot;
 
-                uDirRoot.SetHex (context.params_["dir_root"].asString ());
+                uDirRoot.SetHex (context.params["dir_root"].asString ());
 
-                uNodeIndex  = Ledger::getDirNodeIndex (uDirRoot, uSubIndex);
+                uNodeIndex  = getDirNodeIndex (uDirRoot, uSubIndex);
             }
-            else if (context.params_["directory"].isMember ("owner"))
+            else if (context.params["directory"].isMember ("owner"))
             {
                 RippleAddress   naOwnerID;
 
                 if (!naOwnerID.setAccountID (
-                        context.params_["directory"]["owner"].asString ()))
+                        context.params["directory"]["owner"].asString ()))
                 {
                     jvResult["error"]   = "malformedAddress";
                 }
                 else
                 {
                     uint256 uDirRoot
-                            = Ledger::getOwnerDirIndex (
+                            = getOwnerDirIndex (
                                 naOwnerID.getAccountID ());
-                    uNodeIndex  = Ledger::getDirNodeIndex (uDirRoot, uSubIndex);
+                    uNodeIndex  = getDirNodeIndex (uDirRoot, uSubIndex);
                 }
             }
             else
@@ -107,20 +109,20 @@ Json::Value doLedgerEntry (RPC::Context& context)
             }
         }
     }
-    else if (context.params_.isMember ("generator"))
+    else if (context.params.isMember ("generator"))
     {
         RippleAddress   naGeneratorID;
 
-        if (!context.params_["generator"].isObject ())
+        if (!context.params["generator"].isObject ())
         {
-            uNodeIndex.SetHex (context.params_["generator"].asString ());
+            uNodeIndex.SetHex (context.params["generator"].asString ());
         }
-        else if (!context.params_["generator"].isMember ("regular_seed"))
+        else if (!context.params["generator"].isMember ("regular_seed"))
         {
             jvResult["error"]   = "malformedRequest";
         }
         else if (!naGeneratorID.setSeedGeneric (
-            context.params_["generator"]["regular_seed"].asString ()))
+            context.params["generator"]["regular_seed"].asString ()))
         {
             jvResult["error"]   = "malformedAddress";
         }
@@ -132,41 +134,40 @@ Json::Value doLedgerEntry (RPC::Context& context)
 
             na0Public.setAccountPublic (naGenerator, 0);
 
-            uNodeIndex  = Ledger::getGeneratorIndex (na0Public.getAccountID ());
+            uNodeIndex  = getGeneratorIndex (na0Public.getAccountID ());
         }
     }
-    else if (context.params_.isMember ("offer"))
+    else if (context.params.isMember ("offer"))
     {
         RippleAddress   naAccountID;
 
-        if (!context.params_["offer"].isObject ())
+        if (!context.params["offer"].isObject ())
         {
-            uNodeIndex.SetHex (context.params_["offer"].asString ());
+            uNodeIndex.SetHex (context.params["offer"].asString ());
         }
-        else if (!context.params_["offer"].isMember ("account")
-                 || !context.params_["offer"].isMember ("seq")
-                 || !context.params_["offer"]["seq"].isIntegral ())
+        else if (!context.params["offer"].isMember ("account")
+                 || !context.params["offer"].isMember ("seq")
+                 || !context.params["offer"]["seq"].isIntegral ())
         {
             jvResult["error"]   = "malformedRequest";
         }
         else if (!naAccountID.setAccountID (
-            context.params_["offer"]["account"].asString ()))
+            context.params["offer"]["account"].asString ()))
         {
             jvResult["error"]   = "malformedAddress";
         }
         else
         {
-            auto uSequence = context.params_["offer"]["seq"].asUInt ();
-            uNodeIndex  = Ledger::getOfferIndex (
-                naAccountID.getAccountID (), uSequence);
+            uNodeIndex  = getOfferIndex (naAccountID.getAccountID (),
+                context.params["offer"]["seq"].asUInt ());
         }
     }
-    else if (context.params_.isMember ("ripple_state"))
+    else if (context.params.isMember ("ripple_state"))
     {
         RippleAddress   naA;
         RippleAddress   naB;
         Currency         uCurrency;
-        Json::Value     jvRippleState   = context.params_["ripple_state"];
+        Json::Value     jvRippleState   = context.params["ripple_state"];
 
         if (!jvRippleState.isObject ()
             || !jvRippleState.isMember ("currency")
@@ -195,26 +196,26 @@ Json::Value doLedgerEntry (RPC::Context& context)
         }
         else
         {
-            uNodeIndex  = Ledger::getRippleStateIndex (
+            uNodeIndex  = getRippleStateIndex (
                 naA.getAccountID (), naB.getAccountID (), uCurrency);
         }
     }
-    else if (context.params_.isMember ("dividend"))
+    else if (context.params.isMember ("dividend"))
     {
-        uNodeIndex = Ledger::getLedgerDividendIndex();
+        uNodeIndex = getLedgerDividendIndex();
     }
-    else if (context.params_.isMember ("account_refer"))
+    else if (context.params.isMember ("account_refer"))
     {
         RippleAddress   naAccount;
         
-        if (!naAccount.setAccountID (context.params_["account_refer"].asString())
+        if (!naAccount.setAccountID (context.params["account_refer"].asString())
             || !naAccount.getAccountID ())
         {
             jvResult["error"]   = "malformedAddress";
         }
         else
         {
-            uNodeIndex = Ledger::getAccountReferIndex(naAccount.getAccountID());
+            uNodeIndex = getAccountReferIndex(naAccount.getAccountID());
         }
     }
     else
@@ -224,10 +225,10 @@ Json::Value doLedgerEntry (RPC::Context& context)
 
     if (uNodeIndex.isNonZero ())
     {
-        auto sleNode = context.netOps_.getSLEi (lpLedger, uNodeIndex);
+        auto sleNode = context.netOps.getSLEi (lpLedger, uNodeIndex);
 
-        if (context.params_.isMember("binary"))
-            bNodeBinary = context.params_["binary"].asBool();
+        if (context.params.isMember("binary"))
+            bNodeBinary = context.params["binary"].asBool();
 
         if (!sleNode)
         {

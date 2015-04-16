@@ -17,6 +17,14 @@
 */
 //==============================================================================
 
+#include <BeastConfig.h>
+#include <ripple/app/tx/TransactionMeta.h>
+#include <ripple/basics/Log.h>
+#include <ripple/json/to_string.h>
+#include <ripple/protocol/STAccount.h>
+#include <boost/foreach.hpp>
+#include <string>
+
 namespace ripple {
 
 // VFALCO TODO rename class to TransactionMeta
@@ -27,7 +35,7 @@ TransactionMetaSet::TransactionMetaSet (uint256 const& txid, std::uint32_t ledge
     Serializer s (vec);
     SerializerIterator sit (s);
 
-    std::unique_ptr<SerializedType> pobj = STObject::deserialize (sit, sfMetadata);
+    std::unique_ptr<STBase> pobj = STObject::deserialize (sit, sfMetadata);
     STObject* obj = static_cast<STObject*> (pobj.get ());
 
     if (!obj)
@@ -39,6 +47,9 @@ TransactionMetaSet::TransactionMetaSet (uint256 const& txid, std::uint32_t ledge
 
     if (obj->isFieldPresent (sfDeliveredAmount))
         setDeliveredAmount (obj->getFieldAmount (sfDeliveredAmount));
+    
+    if (obj->isFieldPresent (sfFeeShareTakers))
+        setFeeShareTakers(obj->getFieldArray(sfFeeShareTakers));
 }
 
 bool TransactionMetaSet::isNodeAffected (uint256 const& node) const
@@ -100,7 +111,7 @@ std::vector<RippleAddress> TransactionMetaSet::getAffectedAccounts ()
 
             if (inner)
             {
-                BOOST_FOREACH (const SerializedType & field, inner->peekData ())
+                BOOST_FOREACH (const STBase & field, inner->peekData ())
                 {
                     const STAccount* sa = dynamic_cast<const STAccount*> (&field);
 
@@ -184,6 +195,7 @@ void TransactionMetaSet::init (uint256 const& id, std::uint32_t ledger)
     mLedger = ledger;
     mNodes = STArray (sfAffectedNodes, 32);
     mDelivered = boost::optional <STAmount> ();
+    mFeeShareTakers = boost::optional<STArray>();
 }
 
 void TransactionMetaSet::swap (TransactionMetaSet& s)
@@ -221,6 +233,9 @@ STObject TransactionMetaSet::getAsObject () const
     metaData.addObject (mNodes);
     if (hasDeliveredAmount ())
         metaData.setFieldAmount (sfDeliveredAmount, getDeliveredAmount ());
+    if (hasFeeShareTakers ())
+        metaData.setFieldArray (sfFeeShareTakers, getFeeShareTakers ());
+    
     return metaData;
 }
 

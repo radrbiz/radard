@@ -20,6 +20,9 @@
 #ifndef RIPPLE_CANONICALTXSET_H
 #define RIPPLE_CANONICALTXSET_H
 
+#include <ripple/protocol/RippleLedgerHash.h>
+#include <ripple/protocol/STTx.h>
+
 namespace ripple {
 
 /** Holds transactions which were deferred to the next pass of consensus.
@@ -30,7 +33,7 @@ namespace ripple {
 
 */
 // VFALCO TODO rename to SortedTxSet
-class CanonicalTXSet : beast::LeakChecked <CanonicalTXSet>
+class CanonicalTXSet
 {
 public:
     class Key
@@ -68,8 +71,8 @@ public:
         std::uint32_t mSeq;
     };
 
-    typedef std::map <Key, SerializedTransaction::pointer>::iterator iterator;
-    typedef std::map <Key, SerializedTransaction::pointer>::const_iterator const_iterator;
+    typedef std::map <Key, STTx::pointer>::iterator iterator;
+    typedef std::map <Key, STTx::pointer>::const_iterator const_iterator;
 
 public:
     explicit CanonicalTXSet (LedgerHash const& lastClosedLedgerHash)
@@ -77,7 +80,7 @@ public:
     {
     }
 
-    void push_back (SerializedTransaction::ref txn);
+    void push_back (STTx::ref txn);
 
     // VFALCO TODO remove this function
     void reset (LedgerHash const& newLastClosedLedgerHash)
@@ -118,7 +121,7 @@ private:
     // Used to salt the accounts so people can't mine for low account numbers
     uint256 mSetHash;
 
-    std::map <Key, SerializedTransaction::pointer> mMap;
+    std::map <Key, STTx::pointer> mMap;
 };
 
 } // ripple

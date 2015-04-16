@@ -17,6 +17,9 @@
 */
 //==============================================================================
 
+#include <BeastConfig.h>
+#include <ripple/app/paths/cursor/PathCursor.h>
+#include <ripple/basics/Log.h>
 #include <tuple>
 
 namespace ripple {
@@ -52,14 +55,14 @@ TER PathCursor::reverseLiquidity () const
     // a fee when third parties transfer that account's own issuances.
 
     // node.transferRate_ caches the output transfer rate for this node.
-    node().transferRate_ = STAmount::saFromRate (
+    node().transferRate_ = amountFromRate (
         rippleTransferRate (ledger(), node().issue_.account));
 
     if (node().isAccount ())
         return reverseLiquidityForAccount ();
 
     // Otherwise the node is an Offer.
-    if (isXRP (nextNode().account_))
+    if (isNative (nextNode().account_))
     {
         WriteLog (lsTRACE, RippleCalc)
             << "reverseLiquidityForOffer: "
@@ -70,17 +73,6 @@ TER PathCursor::reverseLiquidity () const
         // rightmost offer in a chain of offers - which means that
         // deliverNodeReverse has to take all of those offers into consideration.
     }
-	if (isVBC(nextNode().account_))
-	{
-		WriteLog(lsTRACE, RippleCalc)
-			<< "reverseLiquidityForOffer: "
-			<< "OFFER --> offer: nodeIndex_=" << nodeIndex_;
-		return tesSUCCESS;
-
-		// This control structure ensures deliverNodeReverse is only called for the
-		// rightmost offer in a chain of offers - which means that
-		// deliverNodeReverse has to take all of those offers into consideration.
-	}
 
     // Next is an account node, resolve current offer node's deliver.
     STAmount saDeliverAct;

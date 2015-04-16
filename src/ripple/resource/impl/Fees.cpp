@@ -17,6 +17,9 @@
 */
 //==============================================================================
 
+#include <BeastConfig.h>
+#include <ripple/resource/Charge.h>
+
 namespace ripple {
 namespace Resource {
 
@@ -24,7 +27,6 @@ Charge const feeInvalidRequest    (  10, "malformed request"      );
 Charge const feeRequestNoReply    (   1, "unsatisfiable request"  );
 Charge const feeInvalidSignature  ( 100, "invalid signature"      );
 Charge const feeUnwantedData      (   5, "useless data"           );
-Charge const feeBadProofOfWork    ( 250, "incorrect proof of work"); // DAVID: Check the cost
 Charge const feeBadData           (  20, "invalid data"           );
 
 Charge const feeInvalidRPC        (  10, "malformed RPC"          );

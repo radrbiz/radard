@@ -17,6 +17,8 @@
 */
 //==============================================================================
 
+#include <BeastConfig.h>
+
 namespace ripple {
 
 // {
@@ -31,13 +33,10 @@ namespace ripple {
 // TODO(tom): what is that "default"?
 Json::Value doAccountInfo (RPC::Context& context)
 {
-    auto& params = context.params_;
-
-    WriteLog(lsINFO, RPCHandler)
-        << (params.isMember("account") ? params["account"] : "No member \"account\"");
+    auto& params = context.params;
 
     Ledger::pointer ledger;
-    Json::Value result = RPC::lookupLedger (params, ledger, context.netOps_);
+    Json::Value result = RPC::lookupLedger (params, ledger, context.netOps);
 
     if (!ledger)
         return result;
@@ -56,12 +55,12 @@ Json::Value doAccountInfo (RPC::Context& context)
     // Get info on account.
 
     Json::Value jvAccepted = RPC::accountFromString (
-        ledger, naAccount, bIndex, strIdent, iIndex, bStrict, context.netOps_);
+        ledger, naAccount, bIndex, strIdent, iIndex, bStrict, context.netOps);
 
     if (!jvAccepted.empty ())
         return jvAccepted;
 
-    auto asAccepted = context.netOps_.getAccountState (ledger, naAccount);
+    auto asAccepted = context.netOps.getAccountState (ledger, naAccount);
 
     if (asAccepted)
     {
@@ -71,7 +70,7 @@ Json::Value doAccountInfo (RPC::Context& context)
     else
     {
         result["account"] = naAccount.humanAccountID ();
-        result            = rpcError (rpcACT_NOT_FOUND, result);
+        RPC::inject_error (rpcACT_NOT_FOUND, result);
     }
 
     return result;

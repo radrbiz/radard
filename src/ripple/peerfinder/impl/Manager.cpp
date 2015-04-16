@@ -17,6 +17,7 @@
 */
 //==============================================================================
 
+#include <BeastConfig.h>
 #include <ripple/peerfinder/Manager.h>
 #include <ripple/peerfinder/impl/Checker.h>
 #include <ripple/peerfinder/impl/Logic.h>
@@ -24,11 +25,8 @@
 #include <ripple/peerfinder/impl/StoreSqdb.h>
 #include <boost/asio/io_service.hpp>
 #include <boost/optional.hpp>
+#include <beast/cxx14/memory.h> // <memory>
 #include <thread>
-
-#if DOXYGEN
-#include <ripple/peerfinder/README.md>
-#endif
 
 namespace ripple {
 namespace PeerFinder {
@@ -38,6 +36,8 @@ class ManagerImp
     , public beast::LeakChecked <ManagerImp>
 {
 public:
+    boost::asio::io_service &io_service_;
+    boost::optional <boost::asio::io_service::work> work_;
     beast::File m_databaseFile;
     clock_type& m_clock;
     beast::Journal m_journal;
@@ -45,19 +45,17 @@ public:
     Checker<boost::asio::ip::tcp> checker_;
     Logic <decltype(checker_)> m_logic;
 
-    // Temporary
-    std::thread thread_;
-    boost::asio::io_service io_service_;
-    boost::optional <boost::asio::io_service::work> work_;
-
     //--------------------------------------------------------------------------
 
     ManagerImp (
         Stoppable& stoppable,
+        boost::asio::io_service& io_service,
         beast::File const& pathToDbFileOrDirectory,
         clock_type& clock,
         beast::Journal journal)
         : Manager (stoppable)
+        , io_service_(io_service)
+        , work_(boost::in_place(std::ref(io_service_)))
         , m_databaseFile (pathToDbFileOrDirectory)
         , m_clock (clock)
         , m_journal (journal)
@@ -67,23 +65,21 @@ public:
     {
         if (m_databaseFile.isDirectory ())
             m_databaseFile = m_databaseFile.getChildFile("peerfinder.sqlite");
-
-        work_ = boost::in_place (std::ref(io_service_));
-        thread_ = std::thread ([&]() { this->io_service_.run(); });
     }
 
     ~ManagerImp()
     {
-        stop();
+        close();
     }
 
     void
-    stop()
+    close()
     {
-        if (thread_.joinable())
+        if (work_)
         {
             work_ = boost::none;
-            thread_.join();
+            checker_.stop();
+            m_logic.stop();
         }
     }
 
@@ -93,25 +89,32 @@ public:
     //
     //--------------------------------------------------------------------------
 
-    void setConfig (Config const& config)
+    void setConfig (Config const& config) override
     {
         m_logic.config (config);
     }
 
+    Config
+    config() override
+    {
+        return m_logic.config();
+    }
+
     void addFixedPeer (std::string const& name,
-        std::vector <beast::IP::Endpoint> const& addresses)
+        std::vector <beast::IP::Endpoint> const& addresses) override
     {
         m_logic.addFixedPeer (name, addresses);
     }
 
     void
     addFallbackStrings (std::string const& name,
-        std::vector <std::string> const& strings)
+        std::vector <std::string> const& strings) override
     {
         m_logic.addStaticSource (SourceStrings::New (name, strings));
     }
 
-    void addFallbackURL (std::string const& name, std::string const& url)
+    void addFallbackURL (std::string const& name,
+        std::string const& url)
     {
         // VFALCO TODO This needs to be implemented
     }
@@ -121,45 +124,53 @@ public:
     Slot::ptr
     new_inbound_slot (
         beast::IP::Endpoint const& local_endpoint,
-            beast::IP::Endpoint const& remote_endpoint)
+            beast::IP::Endpoint const& remote_endpoint) override
     {
         return m_logic.new_inbound_slot (local_endpoint, remote_endpoint);
     }
 
     Slot::ptr
-    new_outbound_slot (beast::IP::Endpoint const& remote_endpoint)
+    new_outbound_slot (beast::IP::Endpoint const& remote_endpoint) override
     {
         return m_logic.new_outbound_slot (remote_endpoint);
     }
 
     void
-    on_endpoints (Slot::ptr const& slot, Endpoints const& endpoints)
+    on_endpoints (Slot::ptr const& slot,
+        Endpoints const& endpoints)  override
     {
         SlotImp::ptr impl (std::dynamic_pointer_cast <SlotImp> (slot));
         m_logic.on_endpoints (impl, endpoints);
     }
 
     void
-    on_legacy_endpoints (IPAddresses const& addresses)
+    on_legacy_endpoints (IPAddresses const& addresses)  override
     {
         m_logic.on_legacy_endpoints (addresses);
     }
 
     void
-    on_closed (Slot::ptr const& slot)
+    on_closed (Slot::ptr const& slot)  override
     {
         SlotImp::ptr impl (std::dynamic_pointer_cast <SlotImp> (slot));
         m_logic.on_closed (impl);
     }
 
+    void
+    onRedirects (boost::asio::ip::tcp::endpoint const& remote_address,
+        std::vector<boost::asio::ip::tcp::endpoint> const& eps) override
+    {
+        m_logic.onRedirects(eps.begin(), eps.end(), remote_address);
+    }
+
     //--------------------------------------------------------------------------
 
     bool
-    connected (Slot::ptr const& slot,
+    onConnected (Slot::ptr const& slot,
         beast::IP::Endpoint const& local_endpoint) override
     {
         SlotImp::ptr impl (std::dynamic_pointer_cast <SlotImp> (slot));
-        return m_logic.connected (impl, local_endpoint);
+        return m_logic.onConnected (impl, local_endpoint);
     }
 
     Result
@@ -190,9 +201,9 @@ public:
     }
 
     std::vector<std::pair<Slot::ptr, std::vector<Endpoint>>>
-    sendpeers() override
+    buildEndpointsForPeers() override
     {
-        return m_logic.sendpeers();
+        return m_logic.buildEndpointsForPeers();
     }
 
     //--------------------------------------------------------------------------
@@ -219,15 +230,8 @@ public:
 
     void onStop ()
     {
-        m_journal.debug << "Stopping";
-        checker_.stop();
-        m_logic.stop();
+        close();
         stopped();
-        /*
-        signalThreadShouldExit();
-        m_queue.dispatch (m_context.wrap (
-            std::bind (&Thread::signalThreadShouldExit, this)));
-        */
     }
 
     //--------------------------------------------------------------------------
@@ -250,10 +254,12 @@ Manager::Manager (Stoppable& parent)
 {
 }
 
-Manager* Manager::New (Stoppable& parent, beast::File const& databaseFile,
-    clock_type& clock, beast::Journal journal)
+std::unique_ptr<Manager>
+make_Manager (beast::Stoppable& parent, boost::asio::io_service& io_service,
+    beast::File const& databaseFile, clock_type& clock, beast::Journal journal)
 {
-    return new ManagerImp (parent, databaseFile, clock, journal);
+    return std::make_unique<ManagerImp> (
+        parent, io_service, databaseFile, clock, journal);
 }
 
 }

@@ -20,6 +20,9 @@
 #ifndef RIPPLE_TRANSACTIONMETA_H
 #define RIPPLE_TRANSACTIONMETA_H
 
+#include <ripple/protocol/STLedgerEntry.h>
+#include <ripple/protocol/STArray.h>
+#include <ripple/protocol/TER.h>
 #include <boost/optional.hpp>
 
 namespace ripple {
@@ -100,16 +103,32 @@ public:
     {
         mDelivered.reset (delivered);
     }
+    
+    void setFeeShareTakers(STArray const& feeShareTakers)
+    {
+        mFeeShareTakers.reset(feeShareTakers);
+    }
 
     STAmount getDeliveredAmount () const
     {
         assert (hasDeliveredAmount ());
         return *mDelivered;
     }
+    
+    STArray getFeeShareTakers () const
+    {
+        assert (hasFeeShareTakers ());
+        return *mFeeShareTakers;
+    }
 
     bool hasDeliveredAmount () const
     {
         return static_cast <bool> (mDelivered);
+    }
+    
+    bool hasFeeShareTakers() const
+    {
+        return static_cast <bool> (mFeeShareTakers);
     }
 
     static bool thread (STObject& node, uint256 const& prevTxID, std::uint32_t prevLgrID);
@@ -123,6 +142,7 @@ private:
     boost::optional <STAmount> mDelivered;
 
     STArray mNodes;
+    boost::optional <STArray> mFeeShareTakers;
 };
 
 } // ripple

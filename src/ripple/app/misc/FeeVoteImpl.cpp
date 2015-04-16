@@ -17,6 +17,13 @@
 */
 //==============================================================================
 
+#include <BeastConfig.h>
+#include <ripple/app/misc/FeeVote.h>
+#include <ripple/app/main/Application.h>
+#include <ripple/app/misc/Validations.h>
+#include <ripple/basics/BasicConfig.h>
+#include <beast/utility/Journal.h>
+
 namespace ripple {
 
 namespace detail {
@@ -158,7 +165,7 @@ FeeVoteImpl::doVoting (Ledger::ref lastClosedLedger,
             lastClosedLedger->getParentHash ());
     for (auto const& e : set)
     {
-        SerializedValidation const& val = *e.second;
+        STValidation const& val = *e.second;
 
         if (val.isTrusted ())
         {
@@ -206,7 +213,7 @@ FeeVoteImpl::doVoting (Ledger::ref lastClosedLedger,
             "/" << baseReserve <<
             "/" << incReserve;
 
-        SerializedTransaction trans (ttFEE);
+        STTx trans (ttFEE);
         trans.setFieldAccount (sfAccount, Account ());
         trans.setFieldU64 (sfBaseFee, baseFee);
         trans.setFieldU32 (sfReferenceFeeUnits, 10);

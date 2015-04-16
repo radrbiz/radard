@@ -17,6 +17,13 @@
 */
 //==============================================================================
 
+#include <BeastConfig.h>
+#include <ripple/app/paths/RippleCalc.h>
+#include <ripple/app/transactors/Transactor.h>
+#include <ripple/basics/Log.h>
+#include <ripple/core/Config.h>
+#include <ripple/protocol/TxFlags.h>
+
 namespace ripple {
 
 // See https://ripple.com/wiki/Transaction_Format#Payment_.280.29
@@ -32,7 +39,7 @@ class Payment
 
 public:
     Payment (
-        SerializedTransaction const& txn,
+        STTx const& txn,
         TransactionEngineParams params,
         TransactionEngine* engine)
         : Transactor (
@@ -53,7 +60,7 @@ public:
         std::uint64_t feeByTrans = 0;
         
         Account const uDstAccountID (mTxn.getFieldAccount160 (sfDestination));
-        auto const index = Ledger::getAccountRootIndex (uDstAccountID);
+        auto const index = getAccountRootIndex (uDstAccountID);
         //dst account not exist yet, charge a fix amount of fee(0.01) for creating
         if (!mEngine->entryCache (ltACCOUNT_ROOT, index))
         {
@@ -202,7 +209,7 @@ public:
 
         //
         // Open a ledger for editing.
-        auto const index = Ledger::getAccountRootIndex (uDstAccountID);
+        auto const index = getAccountRootIndex (uDstAccountID);
         SLE::pointer sleDst (mEngine->entryCache (ltACCOUNT_ROOT, index));
 
         if (!sleDst)
@@ -244,7 +251,7 @@ public:
             }
 
             // Create the account.
-            auto const newIndex = Ledger::getAccountRootIndex (uDstAccountID);
+            auto const newIndex = getAccountRootIndex (uDstAccountID);
             sleDst = mEngine->entryCreate (ltACCOUNT_ROOT, newIndex);
             sleDst->setFieldAccount (sfAccount, uDstAccountID);
             sleDst->setFieldU32 (sfSequence, 1);
@@ -411,7 +418,7 @@ public:
 
 TER
 transact_Payment (
-    SerializedTransaction const& txn,
+    STTx const& txn,
     TransactionEngineParams params,
     TransactionEngine* engine)
 {

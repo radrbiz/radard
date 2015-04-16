@@ -17,99 +17,81 @@
 */
 //==============================================================================
 
+#include <BeastConfig.h>
+#include <ripple/app/ledger/Ledger.h>
+#include <ripple/app/ledger/AcceptedLedger.h>
+#include <ripple/app/ledger/InboundLedgers.h>
+#include <ripple/app/ledger/LedgerMaster.h>
+#include <ripple/app/ledger/LedgerTiming.h>
+#include <ripple/app/ledger/LedgerToJson.h>
+#include <ripple/app/ledger/OrderBookDB.h>
+#include <ripple/app/data/DatabaseCon.h>
+#include <ripple/app/data/SqliteDatabase.h>
+#include <ripple/app/main/Application.h>
+#include <ripple/app/misc/DefaultMissingNodeHandler.h>
+#include <ripple/app/misc/IHashRouter.h>
+#include <ripple/app/misc/NetworkOPs.h>
+#include <ripple/app/tx/TransactionMaster.h>
+#include <ripple/basics/Log.h>
 #include <ripple/basics/LoggedTimings.h>
 #include <ripple/basics/StringUtilities.h>
-#include <ripple/basics/Time.h>
-#include <ripple/common/jsonrpc_fields.h>
+#include <ripple/protocol/Indexes.h>
+#include <ripple/protocol/JsonFields.h>
 #include <ripple/core/Config.h>
+#include <ripple/core/JobQueue.h>
 #include <ripple/core/LoadFeeTrack.h>
+#include <ripple/json/to_string.h>
 #include <ripple/nodestore/Database.h>
+#include <ripple/protocol/HashPrefix.h>
 #include <beast/unit_test/suite.h>
-#include <boost/date_time/posix_time/posix_time.hpp>
 
 namespace ripple {
 
-//Ledger::Ledger(RippleAddress const& masterID, std::uint64_t startAmount)
-//    : mTotCoins (startAmount)
-//    , mTotCoinsVBC(startAmount)
-//    , mLedgerSeq (1) // First Ledger
-//    , mCloseTime (0)
-//    , mParentCloseTime (0)
-//    , mCloseResolution (LEDGER_TIME_ACCURACY)
-//    , mCloseFlags (0)
-//    , mClosed (false)
-//    , mValidated (false)
-//    , mValidHash (false)
-//    , mAccepted (false)
-//    , mImmutable (false)
-//    , mTransactionMap  (std::make_shared <SHAMap> (smtTRANSACTION,
-//        getApp().getFullBelowCache(),
-//        getApp().getTreeNodeCache()))
-//    , mAccountStateMap (std::make_shared <SHAMap> (smtSTATE,
-//        getApp().getFullBelowCache(),
-//        getApp().getTreeNodeCache()))
-//{
-//    // special case: put coins in root account
-//    auto startAccount = std::make_shared<AccountState> (masterID);
-//    auto& sle = startAccount->peekSLE ();
-//    sle.setFieldAmount (sfBalance, startAmount);
-//    sle.setFieldAmount(sfBalanceVBC, startAmount);
-//    sle.setFieldU32 (sfSequence, 1);
-//
-//    WriteLog (lsTRACE, Ledger)
-//            << "root account: " << startAccount->peekSLE ().getJson (0);
-//
-//    writeBack (lepCREATE, startAccount->getSLE ());
-//
-//    mAccountStateMap->flushDirty (hotACCOUNT_NODE, mLedgerSeq);
-//
-//    initializeFees ();
-//    initializeDividendLedger();
-//}
-
 Ledger::Ledger(RippleAddress const& masterID, std::uint64_t startAmount, std::uint64_t startAmountVBC)
-	: mTotCoins(startAmount)
-	, mTotCoinsVBC(startAmountVBC) // REMARK - Please Review this startAmount for mTotCoinsVBC
-	, mLedgerSeq(1) // First Ledger
-	, mCloseTime(0)
-	, mParentCloseTime(0)
-	, mCloseResolution(LEDGER_TIME_ACCURACY)
-	, mCloseFlags(0)
-	, mClosed(false)
-	, mValidated(false)
-	, mValidHash(false)
-	, mAccepted(false)
-	, mImmutable(false)
-	, mTransactionMap(std::make_shared <SHAMap>(smtTRANSACTION,
-	    getApp().getFullBelowCache(),
-	    getApp().getTreeNodeCache()))
-	, mAccountStateMap(std::make_shared <SHAMap>(smtSTATE,
-	    getApp().getFullBelowCache(),
-	    getApp().getTreeNodeCache()))
+    : mTotCoins(startAmount)
+    , mTotCoinsVBC(startAmountVBC) // REMARK - Please Review this startAmount for mTotCoinsVBC
+    , mLedgerSeq(1) // First Ledger
+    , mCloseTime(0)
+    , mParentCloseTime(0)
+    , mCloseResolution(LEDGER_TIME_ACCURACY)
+    , mCloseFlags(0)
+    , mClosed(false)
+    , mValidated(false)
+    , mValidHash(false)
+    , mAccepted(false)
+    , mImmutable(false)
+    , mTransactionMap  (std::make_shared <SHAMap> (smtTRANSACTION,
+       getApp().getFullBelowCache(), getApp().getTreeNodeCache(),
+           getApp().getNodeStore(), DefaultMissingNodeHandler(),
+               deprecatedLogs().journal("SHAMap")))
+    , mAccountStateMap (std::make_shared <SHAMap> (smtSTATE,
+        getApp().getFullBelowCache(), getApp().getTreeNodeCache(),
+           getApp().getNodeStore(), DefaultMissingNodeHandler(),
+               deprecatedLogs().journal("SHAMap")))
 {
-	// special case: put coins in root account
-	auto startAccount = std::make_shared<AccountState>(masterID);
-	auto& sle = startAccount->peekSLE();
-	sle.setFieldAmount(sfBalance, startAmount);
-	sle.setFieldAmount(sfBalanceVBC, startAmountVBC);
-	sle.setFieldU32(sfSequence, 1);
+    // special case: put coins in root account
+    auto startAccount = std::make_shared<AccountState> (masterID);
+    auto& sle = startAccount->peekSLE ();
+    sle.setFieldAmount (sfBalance, startAmount);
+    sle.setFieldAmount (sfBalanceVBC, startAmountVBC);
+    sle.setFieldU32 (sfSequence, 1);
 
-	WriteLog(lsTRACE, Ledger)
-		<< "root account: " << startAccount->peekSLE().getJson(0);
+    WriteLog (lsTRACE, Ledger)
+        << "root account: " << startAccount->peekSLE ().getJson (0);
 
-	writeBack(lepCREATE, startAccount->getSLE());
+    writeBack (lepCREATE, startAccount->getSLE ());
 
-	mAccountStateMap->flushDirty(hotACCOUNT_NODE, mLedgerSeq);
+    mAccountStateMap->flushDirty (hotACCOUNT_NODE, mLedgerSeq);
 
-	initializeFees();
-	initializeDividendLedger();
+    initializeFees ();
+    initializeDividendLedger ();
 }
 
 Ledger::Ledger (uint256 const& parentHash,
                 uint256 const& transHash,
                 uint256 const& accountHash,
                 std::uint64_t totCoins,
-				std::uint64_t totCoinsVBC,
+                std::uint64_t totCoinsVBC,
                 std::uint32_t closeTime,
                 std::uint32_t parentCloseTime,
                 int closeFlags,
@@ -121,7 +103,7 @@ Ledger::Ledger (uint256 const& parentHash,
     , mTransHash (transHash)
     , mAccountHash (accountHash)
     , mTotCoins (totCoins)
-	, mTotCoinsVBC(totCoinsVBC)
+    , mTotCoinsVBC(totCoinsVBC)
     , mLedgerSeq (ledgerSeq)
     , mCloseTime (closeTime)
     , mParentCloseTime (parentCloseTime)
@@ -134,12 +116,13 @@ Ledger::Ledger (uint256 const& parentHash,
     , mAccepted (false)
     , mImmutable (true)
     , mTransactionMap (std::make_shared <SHAMap> (
-        smtTRANSACTION, transHash,
-        getApp().getFullBelowCache(),
-        getApp().getTreeNodeCache()))
+        smtTRANSACTION, transHash, getApp().getFullBelowCache(),
+            getApp().getTreeNodeCache(), getApp().getNodeStore(),
+                DefaultMissingNodeHandler(), deprecatedLogs().journal("SHAMap")))
     , mAccountStateMap (std::make_shared <SHAMap> (smtSTATE, accountHash,
-        getApp().getFullBelowCache(),
-        getApp().getTreeNodeCache()))
+        getApp().getFullBelowCache(), getApp().getTreeNodeCache(),
+            getApp().getNodeStore(), DefaultMissingNodeHandler(),
+                deprecatedLogs().journal("SHAMap")))
 {
     updateHash ();
     loaded = true;
@@ -169,7 +152,7 @@ Ledger::Ledger (Ledger& ledger,
                 bool isMutable)
     : mParentHash (ledger.mParentHash)
     , mTotCoins (ledger.mTotCoins)
-	, mTotCoinsVBC (ledger.mTotCoinsVBC)
+    , mTotCoinsVBC (ledger.mTotCoinsVBC)
     , mLedgerSeq (ledger.mLedgerSeq)
     , mCloseTime (ledger.mCloseTime)
     , mParentCloseTime (ledger.mParentCloseTime)
@@ -192,7 +175,7 @@ Ledger::Ledger (Ledger& ledger,
 Ledger::Ledger (bool /* dummy */,
                 Ledger& prevLedger)
     : mTotCoins (prevLedger.mTotCoins)
-	, mTotCoinsVBC (prevLedger.mTotCoinsVBC)
+    , mTotCoinsVBC (prevLedger.mTotCoinsVBC)
     , mLedgerSeq (prevLedger.mLedgerSeq + 1)
     , mParentCloseTime (prevLedger.mCloseTime)
     , mCloseResolution (prevLedger.mCloseResolution)
@@ -204,8 +187,9 @@ Ledger::Ledger (bool /* dummy */,
     , mAccepted (false)
     , mImmutable (false)
     , mTransactionMap (std::make_shared <SHAMap> (smtTRANSACTION,
-        getApp().getFullBelowCache(),
-        getApp().getTreeNodeCache()))
+        getApp().getFullBelowCache(), getApp().getTreeNodeCache(),
+            getApp().getNodeStore(), DefaultMissingNodeHandler(),
+                deprecatedLogs().journal("SHAMap")))
     , mAccountStateMap (prevLedger.mAccountStateMap->snapShot (true))
 {
     prevLedger.updateHash ();
@@ -262,7 +246,7 @@ Ledger::Ledger (std::string const& rawLedger, bool hasPrefix)
 /** Used for ledgers loaded from JSON files */
 Ledger::Ledger (std::uint32_t ledgerSeq, std::uint32_t closeTime)
     : mTotCoins (0),
-	  mTotCoinsVBC (0),
+      mTotCoinsVBC (0),
       mLedgerSeq (ledgerSeq),
       mCloseTime (closeTime),
       mParentCloseTime (0),
@@ -275,10 +259,12 @@ Ledger::Ledger (std::uint32_t ledgerSeq, std::uint32_t closeTime)
       mImmutable (false),
       mTransactionMap (std::make_shared <SHAMap> (
           smtTRANSACTION, getApp().getFullBelowCache(),
-          getApp().getTreeNodeCache())),
+            getApp().getTreeNodeCache(), getApp().getNodeStore(),
+                DefaultMissingNodeHandler(), deprecatedLogs().journal("SHAMap"))),
       mAccountStateMap (std::make_shared <SHAMap> (
           smtSTATE, getApp().getFullBelowCache(),
-          getApp().getTreeNodeCache()))
+            getApp().getTreeNodeCache(), getApp().getNodeStore(),
+                DefaultMissingNodeHandler(), deprecatedLogs().journal("SHAMap")))
 {
     initializeFees ();
     initializeDividendLedger();
@@ -368,7 +354,7 @@ void Ledger::setRaw (Serializer& s, bool hasPrefix)
 
     mLedgerSeq =        sit.get32 ();
     mTotCoins =         sit.get64 ();
-	mTotCoinsVBC =      sit.get64();
+    mTotCoinsVBC =      sit.get64();
     mParentHash =       sit.get256 ();
     mTransHash =        sit.get256 ();
     mAccountHash =      sit.get256 ();
@@ -383,11 +369,13 @@ void Ledger::setRaw (Serializer& s, bool hasPrefix)
     {
         Application& app = getApp();
         mTransactionMap = std::make_shared<SHAMap> (smtTRANSACTION, mTransHash,
-            app.getFullBelowCache(),
-            app.getTreeNodeCache());
+            app.getFullBelowCache(), app.getTreeNodeCache(),
+                getApp().getNodeStore(), DefaultMissingNodeHandler(),
+                    deprecatedLogs().journal("SHAMap"));
         mAccountStateMap = std::make_shared<SHAMap> (smtSTATE, mAccountHash,
-            app.getFullBelowCache(),
-            app.getTreeNodeCache());
+            app.getFullBelowCache(), app.getTreeNodeCache(),
+                getApp().getNodeStore(), DefaultMissingNodeHandler(),
+                    deprecatedLogs().journal("SHAMap"));
     }
 }
 
@@ -395,7 +383,7 @@ void Ledger::addRaw (Serializer& s) const
 {
     s.add32 (mLedgerSeq);
     s.add64 (mTotCoins);
-	s.add64 (mTotCoinsVBC);
+    s.add64 (mTotCoinsVBC);
     s.add256 (mParentHash);
     s.add256 (mTransHash);
     s.add256 (mAccountHash);
@@ -433,7 +421,7 @@ void Ledger::setAccepted ()
 
 bool Ledger::hasAccount (RippleAddress const& accountID) const
 {
-    return mAccountStateMap->hasItem (Ledger::getAccountRootIndex (accountID));
+    return mAccountStateMap->hasItem (getAccountRootIndex (accountID));
 }
 
 bool Ledger::addSLE (SLE const& sle)
@@ -535,25 +523,25 @@ Transaction::pointer Ledger::getTransaction (uint256 const& transID) const
     return txn;
 }
 
-SerializedTransaction::pointer Ledger::getSTransaction (
+STTx::pointer Ledger::getSTransaction (
     SHAMapItem::ref item, SHAMapTreeNode::TNType type)
 {
     SerializerIterator sit (item->peekSerializer ());
 
     if (type == SHAMapTreeNode::tnTRANSACTION_NM)
-        return std::make_shared<SerializedTransaction> (sit);
+        return std::make_shared<STTx> (sit);
 
     if (type == SHAMapTreeNode::tnTRANSACTION_MD)
     {
         Serializer sTxn (sit.getVL ());
         SerializerIterator tSit (sTxn);
-        return std::make_shared<SerializedTransaction> (tSit);
+        return std::make_shared<STTx> (tSit);
     }
 
-    return SerializedTransaction::pointer ();
+    return STTx::pointer ();
 }
 
-SerializedTransaction::pointer Ledger::getSMTransaction (
+STTx::pointer Ledger::getSMTransaction (
     SHAMapItem::ref item, SHAMapTreeNode::TNType type,
     TransactionMetaSet::pointer& txMeta) const
 {
@@ -562,7 +550,7 @@ SerializedTransaction::pointer Ledger::getSMTransaction (
     if (type == SHAMapTreeNode::tnTRANSACTION_NM)
     {
         txMeta.reset ();
-        return std::make_shared<SerializedTransaction> (sit);
+        return std::make_shared<STTx> (sit);
     }
     else if (type == SHAMapTreeNode::tnTRANSACTION_MD)
     {
@@ -571,11 +559,11 @@ SerializedTransaction::pointer Ledger::getSMTransaction (
 
         txMeta = std::make_shared<TransactionMetaSet> (
             item->getTag (), mLedgerSeq, sit.getVL ());
-        return std::make_shared<SerializedTransaction> (tSit);
+        return std::make_shared<STTx> (tSit);
     }
 
     txMeta.reset ();
-    return SerializedTransaction::pointer ();
+    return STTx::pointer ();
 }
 
 bool Ledger::getTransaction (
@@ -695,7 +683,8 @@ bool Ledger::saveValidatedLedger (bool current)
 
     if (!getAccountHash ().isNonZero ())
     {
-        WriteLog (lsFATAL, Ledger) << "AH is zero: " << getJson (0);
+        WriteLog (lsFATAL, Ledger) << "AH is zero: "
+                                   << getJson (*this);
         assert (false);
     }
 
@@ -716,7 +705,7 @@ bool Ledger::saveValidatedLedger (bool current)
         s.add32 (HashPrefix::ledgerMaster);
         addRaw (s);
         getApp().getNodeStore ().store (
-            hotLEDGER, mLedgerSeq, std::move (s.modData ()), mHash);
+            hotLEDGER, std::move (s.modData ()), mHash);
     }
 
     AcceptedLedger::pointer aLedger;
@@ -813,9 +802,9 @@ bool Ledger::saveValidatedLedger (bool current)
                     << " affects no accounts";
 
             db->executeSQL (
-                SerializedTransaction::getMetaSQLInsertReplaceHeader (db->getDBType()) +
+                STTx::getMetaSQLInsertReplaceHeader (db->getDBType()) +
                 vt.second->getTxn ()->getMetaSQL (
-                    getLedgerSeq (), vt.second->getEscMeta ()) + ";");
+                    getLedgerSeq (), vt.second->getEscMeta (), mCloseTime) + ";");
         }
         db->endTransaction();
         db->batchCommit();
@@ -827,8 +816,8 @@ bool Ledger::saveValidatedLedger (bool current)
         // TODO(tom): ARG!
         getApp().getLedgerDB ().getDB ()->executeSQL (boost::str (addLedger %
                 to_string (getHash ()) % mLedgerSeq % to_string (mParentHash) %
-				beast::lexicalCastThrow <std::string>(mTotCoins) % 
-				beast::lexicalCastThrow <std::string>(mTotCoinsVBC) % mCloseTime %
+                beast::lexicalCastThrow <std::string>(mTotCoins) % 
+                beast::lexicalCastThrow <std::string>(mTotCoinsVBC) % mCloseTime %
                 mParentCloseTime % mCloseResolution % mCloseFlags % mDividendLedger %
                 to_string (mAccountHash) % to_string (mTransHash)));
     }
@@ -924,7 +913,7 @@ Ledger::pointer Ledger::getSQL (std::string const& sql)
 {
     // only used with sqlite3 prepared statements not used
     uint256 ledgerHash, prevHash, accountHash, transHash;
-	std::uint64_t totCoins, totCoinsVBC;
+    std::uint64_t totCoins, totCoinsVBC;
     std::uint32_t closingTime, prevClosingTime, ledgerSeq;
     int closeResolution;
     unsigned closeFlags;
@@ -947,7 +936,7 @@ Ledger::pointer Ledger::getSQL (std::string const& sql)
         db->getStr ("TransSetHash", hash);
         transHash.SetHexExact (hash);
         totCoins = db->getBigInt ("TotalCoins");
-		totCoinsVBC = db->getBigInt("TotalCoinsVBC");
+        totCoinsVBC = db->getBigInt("TotalCoinsVBC");
         closingTime = db->getBigInt ("ClosingTime");
         prevClosingTime = db->getBigInt ("PrevClosingTime");
         closeResolution = db->getBigInt ("CloseTimeRes");
@@ -980,7 +969,7 @@ Ledger::pointer Ledger::getSQL (std::string const& sql)
         {
             WriteLog (lsERROR, Ledger) << "Failed on ledger";
             Json::Value p;
-            ret->addJson (p, LEDGER_JSON_FULL);
+            addJson (p, {*ret, LEDGER_JSON_FULL});
             WriteLog (lsERROR, Ledger) << p;
         }
 
@@ -1019,7 +1008,7 @@ Ledger::pointer Ledger::getSQL1 (SqliteStatement* stmt)
     accountHash.SetHexExact (stmt->peekString (2));
     transHash.SetHexExact (stmt->peekString (3));
     totCoins = stmt->getInt64 (4);
-	totCoinsVBC = stmt->getInt64(5);
+    totCoinsVBC = stmt->getInt64(5);
     closingTime = stmt->getUInt32 (6);
     prevClosingTime = stmt->getUInt32 (7);
     closeResolution = stmt->getUInt32 (8);
@@ -1182,137 +1171,6 @@ Ledger::pointer Ledger::getLastFullLedger ()
     }
 }
 
-void Ledger::addJson (Json::Value& ret, int options)
-{
-    ret[jss::ledger] = getJson (options);
-}
-
-static void stateItemTagAppender(Json::Value& value, SHAMapItem::ref smi)
-{
-    value.append (to_string (smi->getTag ()));
-}
-
-static void stateItemFullAppender(Json::Value& value, SLE::ref sle)
-{
-    value.append (sle->getJson (0));
-}
-
-Json::Value Ledger::getJson (int options) const
-{
-    Json::Value ledger (Json::objectValue);
-
-    bool const bFull (options & LEDGER_JSON_FULL);
-    bool const bExpand (options & LEDGER_JSON_EXPAND);
-
-    // DEPRECATED
-    ledger[jss::seqNum]
-            = beast::lexicalCastThrow <std::string> (mLedgerSeq);
-    ledger[jss::parent_hash] = to_string (mParentHash);
-    ledger[jss::ledger_index]
-            = beast::lexicalCastThrow <std::string> (mLedgerSeq);
-
-    if (mClosed || bFull)
-    {
-        if (mClosed)
-            ledger[jss::closed] = true;
-
-        // DEPRECATED
-        ledger[jss::hash] = to_string (mHash);
-
-        // DEPRECATED
-        ledger[jss::totalCoins]
-                = beast::lexicalCastThrow <std::string> (mTotCoins);
-		ledger[jss::totalCoinsVBC]
-				= beast::lexicalCastThrow <std::string> (mTotCoinsVBC);
-        ledger[jss::ledger_hash]       = to_string (mHash);
-        ledger[jss::transaction_hash]  = to_string (mTransHash);
-        ledger[jss::account_hash]      = to_string (mAccountHash);
-        ledger[jss::accepted]          = mAccepted;
-        ledger[jss::total_coins]
-                = beast::lexicalCastThrow <std::string> (mTotCoins);
-		ledger[jss::total_coinsVBC]
-				= beast::lexicalCastThrow <std::string> (mTotCoinsVBC);
-
-        if (mCloseTime != 0)
-        {
-            ledger[jss::close_time]            = mCloseTime;
-            ledger[jss::close_time_human]
-                    = boost::posix_time::to_simple_string (
-                        ptFromSeconds (mCloseTime));
-            ledger[jss::close_time_resolution] = mCloseResolution;
-
-            if ((mCloseFlags & sLCF_NoConsensusTime) != 0)
-                ledger[jss::close_time_estimated] = true;
-        }
-
-        ledger[jss::dividend_ledger] = mDividendLedger;
-    }
-    else
-    {
-        ledger[jss::closed] = false;
-    }
-
-    if (mTransactionMap && (bFull || options & LEDGER_JSON_DUMP_TXRP))
-    {
-        Json::Value& txns = (ledger[jss::transactions] = Json::arrayValue);
-        SHAMapTreeNode::TNType type;
-
-        for (auto item = mTransactionMap->peekFirstItem (type); item;
-             item = mTransactionMap->peekNextItem (item->getTag (), type))
-        {
-            if (bFull || bExpand)
-            {
-                if (type == SHAMapTreeNode::tnTRANSACTION_NM)
-                {
-                    SerializerIterator sit (item->peekSerializer ());
-                    SerializedTransaction txn (sit);
-                    if (!(options & LEDGER_JSON_DUMP_TXDIV) && txn.getTxnType()==ttDIVIDEND)
-                        continue;
-                    txns.append (txn.getJson (0));
-                }
-                else if (type == SHAMapTreeNode::tnTRANSACTION_MD)
-                {
-                    SerializerIterator sit (item->peekSerializer ());
-                    Serializer sTxn (sit.getVL ());
-
-                    SerializerIterator tsit (sTxn);
-                    SerializedTransaction txn (tsit);
-                    if (!(options & LEDGER_JSON_DUMP_TXDIV) && txn.getTxnType()==ttDIVIDEND)
-                        continue;
-
-                    TransactionMetaSet meta (
-                        item->getTag (), mLedgerSeq, sit.getVL ());
-                    Json::Value txJson = txn.getJson (0);
-                    txJson[jss::metaData] = meta.getJson (0);
-                    txns.append (txJson);
-                }
-                else
-                {
-                    Json::Value error = Json::objectValue;
-                    error[to_string (item->getTag ())] = type;
-                    txns.append (error);
-                }
-            }
-            else txns.append (to_string (item->getTag ()));
-        }
-
-    }
-
-    if (mAccountStateMap && (bFull || options & LEDGER_JSON_DUMP_STATE))
-    {
-        Json::Value& state = (ledger[jss::accountState] = Json::arrayValue);
-        if (bFull || bExpand)
-            visitStateItems(std::bind(stateItemFullAppender, std::ref(state),
-                                      std::placeholders::_1));
-        else
-            mAccountStateMap->visitLeaves(
-                std::bind(stateItemTagAppender, std::ref(state),
-                          std::placeholders::_1));
-    }
-
-    return ledger;
-}
-
 void Ledger::setAcquiring (void)
 {
     if (!mTransactionMap || !mAccountStateMap)
@@ -1424,7 +1282,7 @@ void Ledger::visitAccountItems (
     Account const& accountID, std::function<void (SLE::ref)> func) const
 {
     // Visit each item in this account's owner directory
-    uint256 rootIndex       = Ledger::getOwnerDirIndex (accountID);
+    uint256 rootIndex       = getOwnerDirIndex (accountID);
     uint256 currentIndex    = rootIndex;
 
     while (1)
@@ -1444,7 +1302,7 @@ void Ledger::visitAccountItems (
         if (!uNodeNext)
             return;
 
-        currentIndex = Ledger::getDirNodeIndex (rootIndex, uNodeNext);
+        currentIndex = getDirNodeIndex (rootIndex, uNodeNext);
     }
 
 }
@@ -1457,7 +1315,7 @@ bool Ledger::visitAccountItems (
     std::function <bool (SLE::ref)> func) const
 {
     // Visit each item in this account's owner directory
-    uint256 const rootIndex (Ledger::getOwnerDirIndex (accountID));
+    uint256 const rootIndex (getOwnerDirIndex (accountID));
     uint256 currentIndex (rootIndex);
 
     // If startAfter is not zero try jumping to that page using the hint
@@ -1504,7 +1362,7 @@ bool Ledger::visitAccountItems (
             if (uNodeNext == 0)
                 return found;
 
-            currentIndex = Ledger::getDirNodeIndex (rootIndex, uNodeNext);
+            currentIndex = getDirNodeIndex (rootIndex, uNodeNext);
         }
     }
     else
@@ -1527,7 +1385,7 @@ bool Ledger::visitAccountItems (
             if (uNodeNext == 0)
                 return true;
 
-            currentIndex = Ledger::getDirNodeIndex (rootIndex, uNodeNext);
+            currentIndex = getDirNodeIndex (rootIndex, uNodeNext);
         }
     }
 }
@@ -1674,17 +1532,17 @@ SLE::pointer Ledger::getReferObject(const Account& account) const
 
 bool Ledger::hasRefer (const Account& account) const
 {
-    return mAccountStateMap->hasItem (Ledger::getAccountReferIndex (account));
+    return mAccountStateMap->hasItem (getAccountReferIndex (account));
 }
 
 SLE::pointer Ledger::getDividendObject () const
 {
-    return getASNodeI (Ledger::getLedgerDividendIndex(), ltDIVIDEND);
+    return getASNodeI (getLedgerDividendIndex(), ltDIVIDEND);
 }
 
 uint64_t Ledger::getDividendCoins() const
 {
-    auto sle = getASNodeI(Ledger::getLedgerDividendIndex(), ltDIVIDEND);
+    auto sle = getASNodeI(getLedgerDividendIndex(), ltDIVIDEND);
     
     if (!sle || sle->getFieldIndex(sfDividendCoins)==-1) return 0;
     
@@ -1693,7 +1551,7 @@ uint64_t Ledger::getDividendCoins() const
 
 uint64_t Ledger::getDividendCoinsVBC() const
 {
-    auto sle = getASNodeI(Ledger::getLedgerDividendIndex(), ltDIVIDEND);
+    auto sle = getASNodeI(getLedgerDividendIndex(), ltDIVIDEND);
     
     if (!sle || sle->getFieldIndex(sfDividendCoinsVBC) == -1) return 0;
     
@@ -1702,7 +1560,7 @@ uint64_t Ledger::getDividendCoinsVBC() const
 
 bool Ledger::isDividendStarted() const
 {
-    auto sle = getASNodeI(Ledger::getLedgerDividendIndex(), ltDIVIDEND);
+    auto sle = getASNodeI(getLedgerDividendIndex(), ltDIVIDEND);
     
     if (!sle || sle->getFieldIndex(sfDividendState) == -1) return false;
     
@@ -1712,7 +1570,7 @@ bool Ledger::isDividendStarted() const
 
 std::uint32_t Ledger::getDividendBaseLedger() const
 {
-    auto sle = getASNodeI(Ledger::getLedgerDividendIndex(), ltDIVIDEND);
+    auto sle = getASNodeI(getLedgerDividendIndex(), ltDIVIDEND);
     
     if (!sle || sle->getFieldIndex(sfDividendLedger) == -1)
     {
@@ -1724,7 +1582,7 @@ std::uint32_t Ledger::getDividendBaseLedger() const
 
 uint32_t Ledger::getDividendTimeNC() const
 {
-    auto sle = getASNodeI(Ledger::getLedgerDividendIndex(), ltDIVIDEND);
+    auto sle = getASNodeI(getLedgerDividendIndex(), ltDIVIDEND);
     
     if (!sle || sle->getFieldIndex(sfDividendLedger) == -1) return 0;
     
@@ -1742,105 +1600,29 @@ SLE::pointer Ledger::getGenerator (Account const& uGeneratorID) const
     return getASNodeI (getGeneratorIndex (uGeneratorID), ltGENERATOR_MAP);
 }
 
-SLE::pointer Ledger::getOffer (uint256 const& uIndex) const
+SLE::pointer
+Ledger::getOffer (uint256 const& uIndex) const
 {
     return getASNodeI (uIndex, ltOFFER);
 }
 
-SLE::pointer Ledger::getRippleState (uint256 const& uNode) const
+SLE::pointer
+Ledger::getOffer (Account const& account, std::uint32_t uSequence) const
+{
+    return getOffer (getOfferIndex (account, uSequence));
+}
+
+SLE::pointer
+Ledger::getRippleState (uint256 const& uNode) const
 {
     return getASNodeI (uNode, ltRIPPLE_STATE);
 }
 
-// For an entry put in the 64 bit index or quality.
-uint256 Ledger::getQualityIndex (
-    uint256 const& uBase, const std::uint64_t uNodeDir)
+SLE::pointer
+Ledger::getRippleState (
+    Account const& a, Account const& b, Currency const& currency) const
 {
-    // Indexes are stored in big endian format: they print as hex as stored.
-    // Most significant bytes are first.  Least significant bytes represent
-    // adjacent entries.  We place uNodeDir in the 8 right most bytes to be
-    // adjacent.  Want uNodeDir in big endian format so ++ goes to the next
-    // entry for indexes.
-    uint256 uNode (uBase);
-
-    // TODO(tom): there must be a better way.
-    ((std::uint64_t*) uNode.end ())[-1] = htobe64 (uNodeDir);
-
-    return uNode;
-}
-
-// Return the last 64 bits.
-std::uint64_t Ledger::getQuality (uint256 const& uBase)
-{
-    return be64toh (((std::uint64_t*) uBase.end ())[-1]);
-}
-
-uint256 Ledger::getQualityNext (uint256 const& uBase)
-{
-    static uint256 uNext ("10000000000000000");
-    return uBase + uNext;
-}
-
-uint256 Ledger::getAccountRootIndex (Account const& account)
-{
-    Serializer  s (22);
-
-    s.add16 (spaceAccount); //  2
-    s.add160 (account);  // 20
-
-    return s.getSHA512Half ();
-}
-            
-uint256 Ledger::getAccountReferIndex (Account const& account)
-{
-    Serializer  s (22);
-    
-    s.add16 (spaceRefer);
-    s.add160 (account);
-    
-    return s.getSHA512Half ();
-}
-
-uint256 Ledger::getLedgerFeeIndex ()
-{
-    // get the index of the node that holds the fee schedul
-    Serializer s (2);
-    s.add16 (spaceFee);
-    return s.getSHA512Half ();
-}
-
-uint256 Ledger::getLedgerDividendIndex()
-{
-	Serializer s(2);
-	s.add16(spaceDividend);
-	return s.getSHA512Half();
-}
-
-uint256 Ledger::getLedgerAmendmentIndex ()
-{
-    // get the index of the node that holds the enabled amendments
-    Serializer s (2);
-    s.add16 (spaceAmendment);
-    return s.getSHA512Half ();
-}
-
-uint256 Ledger::getLedgerHashIndex ()
-{
-    // get the index of the node that holds the last 256 ledgers
-    Serializer s (2);
-    s.add16 (spaceSkipList);
-    return s.getSHA512Half ();
-}
-
-uint256 Ledger::getLedgerHashIndex (std::uint32_t desiredLedgerIndex)
-{
-    // Get the index of the node that holds the set of 256 ledgers that includes
-    // this ledger's hash (or the first ledger after it if it's not a multiple
-    // of 256).
-    Serializer s (6);
-    s.add16 (spaceSkipList);
-    s.add32 (desiredLedgerIndex >> 16);
-    return s.getSHA512Half ();
+    return getRippleState (getRippleStateIndex (a, b, currency));
 }
 
 uint256 Ledger::getLedgerHash (std::uint32_t ledgerIndex)
@@ -1948,112 +1730,6 @@ std::vector<uint256> Ledger::getLedgerAmendments () const
     return usAmendments;
 }
 
-uint256 Ledger::getBookBase (Book const& book)
-{
-    Serializer  s (82);
-
-    s.add16 (spaceBookDir);        //  2
-    s.add160 (book.in.currency);   // 20
-    s.add160 (book.out.currency);  // 20
-    s.add160 (book.in.account);    // 20
-    s.add160 (book.out.account);   // 20
-
-    // Return with quality 0.
-    uint256 uBaseIndex  = getQualityIndex (s.getSHA512Half ());
-
-    WriteLog (lsTRACE, Ledger)
-            << "getBookBase (" << book << ") = " << to_string (uBaseIndex);
-
-    assert (isConsistent (book));
-
-    return uBaseIndex;
-}
-
-uint256 Ledger::getDirNodeIndex (
-    uint256 const& uDirRoot, const std::uint64_t uNodeIndex)
-{
-    if (uNodeIndex)
-    {
-        Serializer  s (42);
-
-        s.add16 (spaceDirNode);     //  2
-        s.add256 (uDirRoot);        // 32
-        s.add64 (uNodeIndex);       //  8
-
-        return s.getSHA512Half ();
-    }
-    else
-    {
-        return uDirRoot;
-    }
-}
-
-uint256 Ledger::getGeneratorIndex (Account const& uGeneratorID)
-{
-    Serializer  s (22);
-
-    s.add16 (spaceGenerator);   //  2
-    s.add160 (uGeneratorID);    // 20
-
-    return s.getSHA512Half ();
-}
-
-uint256 Ledger::getOfferIndex (Account const& account, std::uint32_t uSequence)
-{
-    Serializer  s (26);
-
-    s.add16 (spaceOffer);       //  2
-    s.add160 (account);         // 20
-    s.add32 (uSequence);        //  4
-
-    return s.getSHA512Half ();
-}
-
-uint256 Ledger::getOwnerDirIndex (Account const& account)
-{
-    Serializer  s (22);
-
-    s.add16 (spaceOwnerDir);    //  2
-    s.add160 (account);      // 20
-
-    return s.getSHA512Half ();
-}
-
-uint256 Ledger::getRippleStateIndex (
-    Account const& a, Account const& b, Currency const& currency)
-{
-    Serializer  s (62);
-
-    s.add16 (spaceRipple);  //  2
-
-    if (a < b)
-    {
-        s.add160 (a);       // 20
-        s.add160 (b);       // 20
-    }
-    else
-    {
-        s.add160 (b);       // 20
-        s.add160 (a);       // 20
-    }
-
-    s.add160 (currency);    // 20
-
-    return s.getSHA512Half ();
-}
-
-uint256 Ledger::getTicketIndex (
-    Account const& account, std::uint32_t uSequence)
-{
-    Serializer  s (26);
-
-    s.add16 (spaceTicket);       //  2
-    s.add160 (account);          // 20
-    s.add32 (uSequence);         //  4
-
-    return s.getSHA512Half ();
-}
-
 bool Ledger::walkLedger () const
 {
     std::vector <SHAMapMissingNode> missingNodes1;
@@ -2096,7 +1772,7 @@ bool Ledger::assertSane () const
 
     WriteLog (lsFATAL, Ledger) << "ledger is not sane";
 
-    Json::Value j = getJson (0);
+    Json::Value j = getJson (*this);
 
     j [jss::accountTreeHash] = to_string (mAccountHash);
     j [jss::transTreeHash] = to_string (mTransHash);
@@ -2270,7 +1946,7 @@ void Ledger::updateFees ()
     std::int64_t reserveIncrement = getConfig ().FEE_OWNER_RESERVE;
 
     LedgerStateParms p = lepNONE;
-    auto sle = getASNode (p, Ledger::getLedgerFeeIndex (), ltFEE_SETTINGS);
+    auto sle = getASNode (p, getLedgerFeeIndex (), ltFEE_SETTINGS);
 
     if (sle)
     {
@@ -2350,44 +2026,6 @@ std::vector<uint256> Ledger::getNeededAccountStateHashes (
 
     return ret;
 }
-
-//------------------------------------------------------------------------------
-
-class Ledger_test : public beast::unit_test::suite
-{
-    void test_genesis_ledger ()
-    {
-        RippleAddress rootSeedMaster
-                = RippleAddress::createSeedGeneric ("masterpassphrase");
-        RippleAddress rootGeneratorMaster
-                = RippleAddress::createGeneratorPublic (rootSeedMaster);
-        RippleAddress rootAddress
-                = RippleAddress::createAccountPublic (rootGeneratorMaster, 0);
-        std::uint64_t startAmount (100000);
-        std::uint64_t startAmountVBC(100000);
-        Ledger::pointer ledger (std::make_shared <Ledger> (
-            rootAddress, startAmount, startAmountVBC));
-        ledger->updateHash();
-        expect(ledger->assertSane());
-    }
-
-    void test_getQuality ()
-    {
-        uint256 uBig (
-            "D2DC44E5DC189318DB36EF87D2104CDF0A0FE3A4B698BEEE55038D7EA4C68000");
-
-        // VFALCO NOTE This fails in the original version as well.
-        expect (6125895493223874560 == Ledger::getQuality (uBig));
-    }
-public:
-    void run ()
-    {
-        test_genesis_ledger ();
-        test_getQuality ();
-    }
-};
-
-BEAST_DEFINE_TESTSUITE(Ledger,ripple_app,ripple);
 
 Ledger::StaticLockType Ledger::sPendingSaveLock;
 std::set<std::uint32_t> Ledger::sPendingSaves;

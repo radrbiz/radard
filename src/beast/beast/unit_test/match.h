@@ -51,71 +51,82 @@ public:
     };
 
 private:
-    mode_t m_mode;
-    std::string m_pat;
-    std::string m_library;
+    mode_t mode_;
+    std::string pat_;
+    std::string library_;
 
 public:
+    template <class = void>
     explicit
-    selector (mode_t mode, std::string const& pattern = "")
-        : m_mode (mode)
-        , m_pat (pattern)
-    {
-        if (m_mode == automatch && pattern.empty())
-            m_mode = all;
-    }
+    selector (mode_t mode, std::string const& pattern = "");
 
+    template <class = void>
     bool
-    operator() (suite_info const& s)
-    {
-        switch (m_mode)
-        {
-        case automatch:
-            // check suite
-            if (m_pat == s.name())
-            {
-                m_mode = none;
-                return true;
-            }
-
-            // check module
-            if (m_pat == s.module())
-            {
-                m_mode = module;
-                m_library = s.library();
-                return ! s.manual();
-            }
-
-            // check library
-            if (m_pat == s.library())
-            {
-                m_mode = library;
-                return ! s.manual();
-            }
-
-            return false;
-
-        case suite:
-            return m_pat == s.name();
-
-        case module:
-            return m_pat == s.module() && ! s.manual();
-
-        case library:
-            return m_pat == s.library() && ! s.manual();
-
-        case none:
-            return false;
-
-        case all:
-        default:
-            // fall through
-            break;
-        };
-
-        return ! s.manual();
-    }
+    operator() (suite_info const& s);
 };
+
+//------------------------------------------------------------------------------
+
+template <class>
+selector::selector (mode_t mode, std::string const& pattern)
+    : mode_ (mode)
+    , pat_ (pattern)
+{
+    if (mode_ == automatch && pattern.empty())
+        mode_ = all;
+}
+
+template <class>
+bool
+selector::operator() (suite_info const& s)
+{
+    switch (mode_)
+    {
+    case automatch:
+        // suite or full name
+        if (s.name() == pat_ || s.full_name() == pat_)
+        {
+            mode_ = none;
+            return true;
+        }
+
+        // check module
+        if (pat_ == s.module())
+        {
+            mode_ = module;
+            library_ = s.library();
+            return ! s.manual();
+        }
+
+        // check library
+        if (pat_ == s.library())
+        {
+            mode_ = library;
+            return ! s.manual();
+        }
+
+        return false;
+
+    case suite:
+        return pat_ == s.name();
+
+    case module:
+        return pat_ == s.module() && ! s.manual();
+
+    case library:
+        return pat_ == s.library() && ! s.manual();
+
+    case none:
+        return false;
+
+    case all:
+    default:
+        // fall through
+        break;
+    };
+
+    return ! s.manual();
+}
 
 //------------------------------------------------------------------------------
 

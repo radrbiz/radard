@@ -17,13 +17,14 @@
 */
 //==============================================================================
 
+#include <BeastConfig.h>
 
 namespace ripple {
 
 Json::Value doLedgerCurrent (RPC::Context& context)
 {
     Json::Value jvResult;
-    jvResult["ledger_current_index"] = context.netOps_.getCurrentLedgerID ();
+    jvResult["ledger_current_index"] = context.netOps.getCurrentLedgerID ();
     return jvResult;
 }
 

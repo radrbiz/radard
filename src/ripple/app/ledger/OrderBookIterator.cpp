@@ -17,6 +17,10 @@
 */
 //==============================================================================
 
+#include <BeastConfig.h>
+#include <ripple/app/ledger/OrderBookIterator.h>
+#include <ripple/basics/Log.h>
+
 namespace ripple {
 
 /** Iterate through the directories in an order book */
@@ -24,9 +28,9 @@ BookDirIterator::BookDirIterator(
     Currency const& currencyIn, Account const& issuerIn,
     Currency const& currencyOut, Account const& issuerOut)
 {
-    mBase = Ledger::getBookBase({{currencyIn, issuerIn},
+    mBase = ripple::getBookBase({{currencyIn, issuerIn},
             {currencyOut, issuerOut}});
-    mEnd = Ledger::getQualityNext(mBase);
+    mEnd = getQualityNext(mBase);
     mIndex = mBase;
 }
 
@@ -94,7 +98,7 @@ DirectoryEntryIterator BookDirIterator::getOfferIterator () const
 
 std::uint64_t BookDirIterator::getRate () const
 {
-    return Ledger::getQuality(mIndex);
+    return getQuality(mIndex);
 }
 
 bool BookDirIterator::addJson (Json::Value& jv) const

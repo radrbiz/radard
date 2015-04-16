@@ -20,16 +20,33 @@
 #ifndef RIPPLE_DATABASECON_H
 #define RIPPLE_DATABASECON_H
 
+#include <ripple/app/data/Database.h>
+#include <ripple/core/Config.h>
+#include <boost/filesystem/path.hpp>
 #include <mutex>
+#include <string>
 
 namespace ripple {
 
+class Database;
+
 // VFALCO NOTE This looks like a pointless class. Figure out
 //         what purpose it is really trying to serve and do it better.
-class DatabaseCon : beast::LeakChecked <DatabaseCon>
+class DatabaseCon
 {
 public:
-    DatabaseCon (std::string const& name, const char* initString[], int countInit);
+    struct Setup
+    {
+        bool onlineDelete = false;
+        Config::StartUpType startUp = Config::NORMAL;
+        bool standAlone = false;
+        boost::filesystem::path dataDir;
+    };
+
+    DatabaseCon (Setup const& setup,
+            std::string const& name,
+            const char* initString[],
+            int countInit);
     ~DatabaseCon ();
 
     Database* getDB ()
@@ -39,11 +56,16 @@ public:
 
     typedef std::recursive_mutex mutex;
 
-    std::unique_lock<mutex> lock()
+    std::unique_lock<mutex> lock ()
     {
         return std::unique_lock<mutex>(mLock);
     }
-    
+
+    mutex& peekMutex()
+    {
+        return mLock;
+    }
+
 protected:
     DatabaseCon () {}
     Database* mDatabase;
@@ -51,6 +73,11 @@ protected:
 private:
     mutex  mLock;
 };
+
+//------------------------------------------------------------------------------
+
+DatabaseCon::Setup
+setup_DatabaseCon (Config const& c);
 
 } // ripple
 

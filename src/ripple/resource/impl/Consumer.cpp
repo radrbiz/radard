@@ -17,6 +17,11 @@
 */
 //==============================================================================
 
+#include <BeastConfig.h>
+#include <ripple/resource/Consumer.h>
+#include <ripple/resource/impl/Entry.h>
+#include <ripple/resource/impl/Logic.h>
+
 namespace ripple {
 namespace Resource {
 

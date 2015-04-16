@@ -17,9 +17,19 @@
 */
 //==============================================================================
 
+#include <BeastConfig.h>
+
+#include <ripple/unity/leveldb.h>
+
 #if RIPPLE_LEVELDB_AVAILABLE
 
-#include <ripple/core/Config.h>
+#include <ripple/core/Config.h> // VFALCO Bad dependency
+#include <ripple/nodestore/Factory.h>
+#include <ripple/nodestore/Manager.h>
+#include <ripple/nodestore/impl/BatchWriter.h>
+#include <ripple/nodestore/impl/DecodedBlob.h>
+#include <ripple/nodestore/impl/EncodedBlob.h>
+#include <beast/cxx14/memory.h> // <memory>
 
 namespace ripple {
 namespace NodeStore {
@@ -27,8 +37,10 @@ namespace NodeStore {
 class LevelDBBackend
     : public Backend
     , public BatchWriter::Callback
-    , public beast::LeakChecked <LevelDBBackend>
 {
+private:
+    std::atomic <bool> m_deletePath;
+
 public:
     beast::Journal m_journal;
     size_t const m_keyBytes;
@@ -40,7 +52,8 @@ public:
 
     LevelDBBackend (int keyBytes, Parameters const& keyValues,
         Scheduler& scheduler, beast::Journal journal)
-        : m_journal (journal)
+        : m_deletePath (false)
+        , m_journal (journal)
         , m_keyBytes (keyBytes)
         , m_scheduler (scheduler)
         , m_batch (*this, scheduler)
@@ -93,10 +106,29 @@ public:
         m_db.reset (db);
     }
 
+    ~LevelDBBackend()
+    {
+        close();
+    }
+
     std::string
     getName()
     {
         return m_name;
+    }
+
+    void
+    close() override
+    {
+        if (m_db)
+        {
+            m_db.reset();
+            if (m_deletePath)
+            {
+                boost::filesystem::path dir = m_name;
+                boost::filesystem::remove_all (dir);
+            }
+        }
     }
 
     //--------------------------------------------------------------------------
@@ -222,12 +254,23 @@ public:
         return m_batch.getWriteLoad ();
     }
 
+    void
+    setDeletePath() override
+    {
+        m_deletePath = true;
+    }
+
     //--------------------------------------------------------------------------
 
     void
     writeBatch (Batch const& batch)
     {
         storeBatch (batch);
+    }
+
+    void
+    verify() override
+    {
     }
 };
 
@@ -236,22 +279,16 @@ public:
 class LevelDBFactory : public Factory
 {
 public:
-    std::unique_ptr <leveldb::Cache> m_lruCache;
-
     class BackendImp;
 
     LevelDBFactory ()
-        : m_lruCache (nullptr)
     {
-        leveldb::Options options;
-        options.create_if_missing = true;
-        options.block_cache = leveldb::NewLRUCache (
-            getConfig ().getSize (siHashNodeDBCache) * 1024 * 1024);
-        m_lruCache.reset (options.block_cache);
+        Manager::instance().insert(*this);
     }
 
     ~LevelDBFactory()
     {
+        Manager::instance().erase(*this);
     }
 
     std::string
@@ -274,11 +311,7 @@ public:
 
 //------------------------------------------------------------------------------
 
-std::unique_ptr <Factory>
-make_LevelDBFactory ()
-{
-    return std::make_unique <LevelDBFactory> ();
-}
+static LevelDBFactory levelDBFactory;
 
 }
 }
