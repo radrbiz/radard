@@ -84,12 +84,12 @@ Json::Value doGetCounts (RPC::Context& context)
 
     std::string uptime;
     int s = UptimeTimer::getInstance ().getElapsedSeconds ();
+    ret["uptime"] = s;
     textTime (uptime, s, "year", 365 * 24 * 60 * 60);
     textTime (uptime, s, "day", 24 * 60 * 60);
     textTime (uptime, s, "hour", 60 * 60);
     textTime (uptime, s, "minute", 60);
     textTime (uptime, s, "second", 1);
-    ret["uptime"] = s;
     ret["uptime_human"] = uptime;
 
     ret["node_writes"] = app.getNodeStore().getStoreCount();
