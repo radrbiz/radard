@@ -38,16 +38,17 @@ public:
         Account const midAccountID (mTxn.getFieldAccount160(sfAccount));        
         
         
-        
+        /**
         std::uint32_t const uTxFlags = mTxn.getFlags ();
         bool const partialPaymentAllowed = uTxFlags & tfPartialPayment;
         bool const limitQuality = uTxFlags & tfLimitQuality;
         bool const defaultPathsAllowed = !(uTxFlags & tfNoRippleDirect);
         bool const bPaths = mTxn.isFieldPresent (sfPaths);
         bool const bMax = mTxn.isFieldPresent (sfSendMax);
+        **/
         STAmount const saDstAmount (mTxn.getFieldAmount(sfAmount));
         STAmount maxSourceAmount;
-        
+        /**
         if (bMax)
             maxSourceAmount = mTxn.getFieldAmount (sfSendMax);
         else if (saDstAmount.isNative ())
@@ -57,6 +58,15 @@ public:
               {saDstAmount.getCurrency (), mTxnAccountID},
               saDstAmount.mantissa(), saDstAmount.exponent (),
               saDstAmount < zero);
+        **/
+        if (saDstAmount.isNative())
+            maxSourceAmount = saDstAmount;
+        else
+            maxSourceAmount = STAmount(
+                {saDstAmount.getCurrency(), mTxnAccountID},
+                saDstAmount.mantissa(), saDstAmount.exponent(),
+                saDstAmount < zero);
+
         auto const& uSrcCurrency = maxSourceAmount.getCurrency ();
         auto const& uDstCurrency = saDstAmount.getCurrency ();
         
@@ -69,21 +79,14 @@ public:
             
         if (!isLegalNet(saDstAmount) || !isLegalNet (maxSourceAmount))
             return temBAD_AMOUNT;
-            
-        if (uTxFlags & tfPaymentMask)
-        {
-            m_journal.trace <<
-                "Malformed transaction: Invalid flags set.";
-
-            return temINVALID_FLAG;
-        }
-        else if (!uDstCurrency)
+        
+        if (!uDstCurrency)
         {
             m_journal.trace <<
                 "Malformed transaction: Payment destination account not specified.";
             return  temDST_NEEDED;
         }
-        else if (bMax && maxSourceAmount <= zero)
+        else if (maxSourceAmount <= zero)
         {
             m_journal.trace <<
                 "Malformed transaction: bad max amount: " << maxSourceAmount.
@@ -104,8 +107,7 @@ public:
 
             return temBAD_CURRENCY;
         }
-        else if (mTxnAccountID == dstAccountID && uSrcCurrency == uDstCurrency &&
-            !bPaths)
+        else if (mTxnAccountID == dstAccountID && uSrcCurrency == uDstCurrency)
         {
             // You're signing yourself a payment.
             // If bPaths is true, you might be trying some arbitrage.
@@ -117,47 +119,6 @@ public:
                 " dst_cur=" << to_string (uDstCurrency);
 
             return temREDUNDANT;
-        }
-        else if (bMax && maxSourceAmount == saDstAmount &&
-                 maxSourceAmount.getCurrency() == saDstAmount.getCurrency())
-        {
-            // Consistent but redundant transaction.
-            m_journal.trace <<
-                "Malformed transaction: Redundant SendMax.";
-
-            return temREDUNDANT_SEND_MAX;
-        }
-        else if (bXRPDirect && bMax)
-        {
-            // Consistent but redundant transaction.
-            m_journal.trace <<
-                "Malformed transaction: SendMax specified for XRP to XRP.";
-
-            return temBAD_SEND_XRP_MAX;
-        }
-        else if (bXRPDirect && bPaths)
-        {
-            // XRP is sent without paths.
-            m_journal.trace <<
-                "Malformed transaction: Paths specified for XRP to XRP.";
-
-            return temBAD_SEND_XRP_PATHS;
-        }
-        else if (bXRPDirect && partialPaymentAllowed)
-        {
-            // Consistent but redundant transaction.
-            m_journal.trace <<
-                "Malformed transaction: Limit quality specified for XRP to XRP.";
-
-            return temBAD_SEND_XRP_LIMIT;
-        }
-        else if (bXRPDirect && !defaultPathsAllowed)
-        {
-            // Consistent but redundant transaction.
-            m_journal.trace <<
-                "Malformed transaction: No ripple direct specified for XRP to XRP.";
-
-            return temBAD_SEND_XRP_NO_DIRECT;
         }
         
         //Open a ledger for editing.
@@ -175,18 +136,6 @@ public:
                 // Another transaction could create the account and then this
                 // transaction would succeed.
                 return tecNO_DST;
-            }
-            else if (mParams & tapOPEN_LEDGER && partialPaymentAllowed)
-            {
-                // You cannot fund an account with a partial payment.
-                // Make retry work smaller, by rejecting this.
-                m_journal.trace <<
-                    "Delay transaction: Partial payment not allowed to create account.";
-
-
-                // Another transaction could create the account and then this
-                // transaction would succeed.
-                return telNO_DST_PARTIAL;
             }
             else if (saDstAmount.getNValue() < mEngine->getLedger()->getReserve(0))
             {
@@ -217,7 +166,7 @@ public:
         
         TER terResult;
         
-        bool const bRipple = bPaths || bMax || !saDstAmount.isNative();
+        bool const bRipple = !saDstAmount.isNative();
         
         if (bRipple)
         {
@@ -225,8 +174,9 @@ public:
             // transitive balances.
 
             // Copy paths into an editable class.
-            STPathSet spsPaths = mTxn.getFieldPathSet(sfPaths);
+            //STPathSet spsPaths = mTxn.getFieldPathSet(sfPaths);
             
+            /**
             try
             {
                 path::RippleCalc::Input rcInput;
@@ -277,6 +227,7 @@ public:
 
                 terResult = tefEXCEPTION;
             }
+            **/
         }
         else
         {
@@ -349,7 +300,6 @@ public:
             assert (false);
         }
 
-        //return terResult;
         
         //set referee
         // Open a ledger entry for editing.
@@ -392,7 +342,7 @@ public:
             sleReference->setFieldAccount(sfReferee, srcAccountID);
             sleReference->setFieldU32(sfReferenceHeight, referenceHeight+1);
             references.push_back(STObject(sfReferenceHolder));
-            references.back().setFieldAccount(sfReference, srcAccountID);
+            references.back().setFieldAccount(sfReference, dstAccountID);
             if (!sleRefer) {
                 sleRefer = mEngine->entryCreate(ltREFER, referIndex);
             } else {
