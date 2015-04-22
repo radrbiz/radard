@@ -28,6 +28,29 @@ public:
     
     }
     
+    void calculateFee () override
+    {
+        mFeeDue = STAmount (mEngine->getLedger ()->scaleFeeLoad (
+                        calculateBaseFee (), mParams & tapADMIN));
+
+        Config d;
+        std::uint64_t feeByTrans = 0;
+        
+        Account const uDstAccountID (mTxn.getFieldAccount160 (sfReference));
+        auto const index = getAccountRootIndex (uDstAccountID);
+        //dst account not exist yet, charge a fix amount of fee(0.01) for creating
+        if (!mEngine->entryCache (ltACCOUNT_ROOT, index))
+        {
+            feeByTrans = d.FEE_DEFAULT_CREATE;
+        }
+
+        //if currency is native(VRP/VBC), charge 1/1000 of transfer amount,
+        //otherwise charge a fix amount of fee(0.001)
+        STAmount const amount (mTxn.getFieldAmount (sfAmount));
+        feeByTrans += amount.isNative() ? amount.getNValue() * d.FEE_DEFAULT_RATE_NATIVE : d.FEE_DEFAULT_NONE_NATIVE;
+
+        mFeeDue = std::max(mFeeDue, STAmount(feeByTrans, false));
+    }
     
     TER doApply() override
     {

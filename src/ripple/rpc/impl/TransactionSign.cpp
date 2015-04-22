@@ -229,6 +229,52 @@ static void autofill_fee (
         }
 
         //if currency is native(VRP/VBC), charge 1/1000 of transfer amount,
+        //otherwise charge a fix ' of fee(0.001)
+        if (tx.isMember("Amount"))
+        {
+            STAmount amount;
+            if (!amountFromJsonNoThrow(amount, tx["Amount"]))
+            {
+                RPC::inject_error (rpcINVALID_PARAMS, "wrong amount format", result);
+                return;
+            }
+            feeByTrans += amount.isNative() ? amount.getNValue() * d.FEE_DEFAULT_RATE_NATIVE : d.FEE_DEFAULT_NONE_NATIVE;
+        }
+    }
+    
+    /*
+        Add compat for transaction type ActiveAccount
+    */
+    else if (tx.isMember("TransactionType") && tx["TransactionType"].asString() == "ActiveAccount")
+    {
+        // referee is Source, reference is destination
+        if (!tx.isMember("Referee"))
+        {
+            RPC::inject_error (rpcINVALID_PARAMS, "no referee account", result);
+            return;
+        }
+        else if (!tx.isMember("Reference"))
+        {
+            RPC::inject_error (rpcINVALID_PARAMS, "no reference account", result);
+            return;
+        }
+        Config d;
+        std::string referenceAccountID = tx["Reference"].asString();
+        RippleAddress referenceAddress;
+        
+        if (!referenceAddress.setAccountID(referenceAccountID))
+        {
+            RPC::inject_error (rpcINVALID_PARAMS, "invalid reference account id", result);
+            return;
+        }
+
+        //dst account not exist yet, charge a fix amount of fee(0.01) for creating
+        if (!ledgerFacade.isAccountExist(referenceAddress.getAccountID()))
+        {
+            feeByTrans = d.FEE_DEFAULT_CREATE;
+        }
+
+        //if currency is native(VRP/VBC), charge 1/1000 of transfer amount,
         //otherwise charge a fix amount of fee(0.001)
         if (tx.isMember("Amount"))
         {
@@ -240,6 +286,7 @@ static void autofill_fee (
             }
             feeByTrans += amount.isNative() ? amount.getNValue() * d.FEE_DEFAULT_RATE_NATIVE : d.FEE_DEFAULT_NONE_NATIVE;
         }
+
     }
     
     int mult = Tuning::defaultAutoFillFeeMultiplier;
