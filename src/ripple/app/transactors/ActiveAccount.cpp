@@ -60,28 +60,9 @@ public:
         Account const dstAccountID (mTxn.getFieldAccount160(sfReference));
         Account const midAccountID (mTxn.getFieldAccount160(sfAccount));        
         
-        
-        /**
-        std::uint32_t const uTxFlags = mTxn.getFlags ();
-        bool const partialPaymentAllowed = uTxFlags & tfPartialPayment;
-        bool const limitQuality = uTxFlags & tfLimitQuality;
-        bool const defaultPathsAllowed = !(uTxFlags & tfNoRippleDirect);
-        bool const bPaths = mTxn.isFieldPresent (sfPaths);
-        bool const bMax = mTxn.isFieldPresent (sfSendMax);
-        **/
         STAmount const saDstAmount (mTxn.getFieldAmount(sfAmount));
         STAmount maxSourceAmount;
-        /**
-        if (bMax)
-            maxSourceAmount = mTxn.getFieldAmount (sfSendMax);
-        else if (saDstAmount.isNative ())
-            maxSourceAmount = saDstAmount;
-        else
-          maxSourceAmount = STAmount (
-              {saDstAmount.getCurrency (), mTxnAccountID},
-              saDstAmount.mantissa(), saDstAmount.exponent (),
-              saDstAmount < zero);
-        **/
+
         if (saDstAmount.isNative())
             maxSourceAmount = saDstAmount;
         else
@@ -189,127 +170,62 @@ public:
         
         TER terResult;
         
-        bool const bRipple = !saDstAmount.isNative();
-        
-        if (bRipple)
+        // Direct XRP payment.
+
+        // uOwnerCount is the number of entries in this legder for this account
+        // that require a reserve.
+
+        std::uint32_t const uOwnerCount (mTxnAccount->getFieldU32 (sfOwnerCount));
+
+        // This is the total reserve in drops.
+        // TODO(tom): there should be a class for this.
+        std::uint64_t const uReserve (mEngine->getLedger ()->getReserve (uOwnerCount));
+
+        // mPriorBalance is the balance on the sending account BEFORE the fees were charged.
+        //
+        // Make sure have enough reserve to send. Allow final spend to use
+        // reserve for fee.
+        auto const mmm = std::max(uReserve, mTxn.getTransactionFee ().getNValue ());
+        bool isVBCTransaction = isVBC(saDstAmount);
+        if (mPriorBalance < (isVBCTransaction?0:saDstAmount) + mmm
+            || (isVBCTransaction && mTxnAccount->getFieldAmount (sfBalanceVBC) < saDstAmount) )
         {
-            // Ripple payment with at least one intermediate step and uses
-            // transitive balances.
+            // Vote no.
+            // However, transaction might succeed, if applied in a different order.
+            m_journal.trace << "Delay transaction: Insufficient funds: " <<
+                " " << mPriorBalance.getText () <<
+                " / " << (saDstAmount + uReserve).getText () <<
+                " (" << uReserve << ")";
 
-            // Copy paths into an editable class.
-            //STPathSet spsPaths = mTxn.getFieldPathSet(sfPaths);
-            
-            /**
-            try
-            {
-                path::RippleCalc::Input rcInput;
-                rcInput.partialPaymentAllowed = partialPaymentAllowed;
-                rcInput.defaultPathsAllowed = defaultPathsAllowed;
-                rcInput.limitQuality = limitQuality;
-                rcInput.deleteUnfundedOffers = true;
-                rcInput.isLedgerOpen = static_cast<bool>(mParams & tapOPEN_LEDGER);
-
-                bool pathTooBig = spsPaths.size () > MaxPathSize;
-
-                for (auto const& path : spsPaths)
-                    if (path.size () > MaxPathLength)
-                        pathTooBig = true;
-
-                if (rcInput.isLedgerOpen && pathTooBig)
-                {
-                    terResult = telBAD_PATH_COUNT; // Too many paths for proposed ledger.
-                }
-                else
-                {
-                    auto rc = path::RippleCalc::rippleCalculate (
-                        mEngine->view (),
-                        maxSourceAmount,
-                        saDstAmount,
-                        dstAccountID,
-                        mTxnAccountID,
-                        spsPaths,
-                        &rcInput);
-
-                    // TODO: is this right?  If the amount is the correct amount, was
-                    // the delivered amount previously set?
-                    if (rc.result () == tesSUCCESS && rc.actualAmountOut != saDstAmount)
-                        mEngine->view ().setDeliveredAmount (rc.actualAmountOut);
-
-                    terResult = rc.result ();
-                }
-
-                // TODO(tom): what's going on here?
-                if (isTerRetry (terResult))
-                    terResult = tecPATH_DRY;
-
-            }
-            catch (std::exception const& e)
-            {
-                m_journal.trace <<
-                    "Caught throw: " << e.what ();
-
-                terResult = tefEXCEPTION;
-            }
-            **/
+            terResult = tecUNFUNDED_PAYMENT;
         }
         else
         {
-            // Direct XRP payment.
+            // The source account does have enough money, so do the arithmetic
+            // for the transfer and make the ledger change.
+            m_journal.info << "radar: Deduct coin "
+                << isVBCTransaction << mSourceBalance << saDstAmount;
 
-            // uOwnerCount is the number of entries in this legder for this account
-            // that require a reserve.
-
-            std::uint32_t const uOwnerCount (mTxnAccount->getFieldU32 (sfOwnerCount));
-
-            // This is the total reserve in drops.
-            // TODO(tom): there should be a class for this.
-            std::uint64_t const uReserve (mEngine->getLedger ()->getReserve (uOwnerCount));
-
-            // mPriorBalance is the balance on the sending account BEFORE the fees were charged.
-            //
-            // Make sure have enough reserve to send. Allow final spend to use
-            // reserve for fee.
-            auto const mmm = std::max(uReserve, mTxn.getTransactionFee ().getNValue ());
-            bool isVBCTransaction = isVBC(saDstAmount);
-            if (mPriorBalance < (isVBCTransaction?0:saDstAmount) + mmm
-                || (isVBCTransaction && mTxnAccount->getFieldAmount (sfBalanceVBC) < saDstAmount) )
+            if (isVBCTransaction)
             {
-                // Vote no.
-                // However, transaction might succeed, if applied in a different order.
-                m_journal.trace << "Delay transaction: Insufficient funds: " <<
-                    " " << mPriorBalance.getText () <<
-                    " / " << (saDstAmount + uReserve).getText () <<
-                    " (" << uReserve << ")";
-
-                terResult = tecUNFUNDED_PAYMENT;
+                mTxnAccount->setFieldAmount(sfBalanceVBC, mTxnAccount->getFieldAmount (sfBalanceVBC) - saDstAmount);
+                sleDst->setFieldAmount(sfBalanceVBC, sleDst->getFieldAmount(sfBalanceVBC) + saDstAmount);
             }
             else
             {
-                // The source account does have enough money, so do the arithmetic
-                // for the transfer and make the ledger change.
-                m_journal.info << "radar: Deduct coin "
-                    << isVBCTransaction << mSourceBalance << saDstAmount;
-
-                if (isVBCTransaction)
-				{
-					mTxnAccount->setFieldAmount(sfBalanceVBC, mTxnAccount->getFieldAmount (sfBalanceVBC) - saDstAmount);
-					sleDst->setFieldAmount(sfBalanceVBC, sleDst->getFieldAmount(sfBalanceVBC) + saDstAmount);
-				}
-				else
-				{
-					mTxnAccount->setFieldAmount(sfBalance, mSourceBalance - saDstAmount);
-					sleDst->setFieldAmount(sfBalance, sleDst->getFieldAmount(sfBalance) + saDstAmount);
-				}
-
-
-
-                // Re-arm the password change fee if we can and need to.
-                if ((sleDst->getFlags () & lsfPasswordSpent))
-                    sleDst->clearFlag (lsfPasswordSpent);
-
-                terResult = tesSUCCESS;
+                mTxnAccount->setFieldAmount(sfBalance, mSourceBalance - saDstAmount);
+                sleDst->setFieldAmount(sfBalance, sleDst->getFieldAmount(sfBalance) + saDstAmount);
             }
+
+
+
+            // Re-arm the password change fee if we can and need to.
+            if ((sleDst->getFlags () & lsfPasswordSpent))
+                sleDst->clearFlag (lsfPasswordSpent);
+
+            terResult = tesSUCCESS;
         }
+
         std::string strToken;
         std::string strHuman;
 
