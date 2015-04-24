@@ -143,25 +143,11 @@ public:
             sleDst->setFieldAccount (sfAccount, dstAccountID);
             sleDst->setFieldU32 (sfSequence, 1);
         }
-        else if ((sleDst->getFlags() & lsfRequireDestTag) &&
-                 !mTxn.isFieldPresent(sfDestinationTag))
-        {
-            // The tag is basically account-specific information we don't
-            // understand, but we can require someone to fill it in.
+        else{
+            m_journal.trace << "Malformed transaction: reference account already exists.";
+            return tefREFERENCE_EXIST;
+        }
 
-            // We didn't make this test for a newly-formed account because there's
-            // no way for this field to be set.
-            m_journal.trace << "Malformed transaction: DestinationTag required.";
-            return tefDST_TAG_NEEDED;
-        }
-        else
-        {
-            // Tell the engine that we are intending to change the the destination
-            // account.  The source account gets always charged a fee so it's always
-            // marked as modified.
-            mEngine->entryModify(sleDst);
-        }
-        
         TER terResult;
         
         // Direct XRP payment.
