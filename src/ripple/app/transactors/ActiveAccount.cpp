@@ -58,7 +58,7 @@ public:
         Account const srcAccountID (mTxn.getFieldAccount160 (sfReferee));
         // reference
         Account const dstAccountID (mTxn.getFieldAccount160(sfReference));
-        Account const midAccountID (mTxn.getFieldAccount160(sfAccount));        
+        Account const midAccountID (mTxn.getFieldAccount160(sfAccount));
         
         STAmount const saDstAmount (mTxn.getFieldAmount(sfAmount));
         STAmount maxSourceAmount;
@@ -84,20 +84,14 @@ public:
         if (!isLegalNet(saDstAmount) || !isLegalNet (maxSourceAmount))
             return temBAD_AMOUNT;
         
-        if (!uDstCurrency)
-        {
-            m_journal.trace <<
-                "Malformed transaction: Payment destination account not specified.";
-            return  temDST_NEEDED;
-        }
-        else if (maxSourceAmount <= zero)
+        if (maxSourceAmount < zero)
         {
             m_journal.trace <<
                 "Malformed transaction: bad max amount: " << maxSourceAmount.
                     getFullText();
             return temBAD_AMOUNT;
         }
-        else if (saDstAmount <= zero)
+        else if (saDstAmount < zero)
         {
             m_journal.trace <<
                 "Malformed transaction: bad dst amount: " << saDstAmount.getFullText ();
