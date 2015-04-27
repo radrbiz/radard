@@ -137,6 +137,16 @@ public:
             }
             else if (saDstAmount.getNValue() < mEngine->getLedger()->getReserve(0))
             {
+                // getReserve() is the minimum amount that an account can have.
+                // Reserve is not scaled by load.
+                m_journal.trace <<
+                "Delay transaction: Destination account does not exist. " <<
+                "Insufficent payment to create account.";
+                
+                // TODO: dedupe
+                // Another transaction could create the account and then this
+                // transaction would succeed.
+                return tecNO_DST_INSUF_XRP;
             }
             auto const newIndex = getAccountRootIndex (dstAccountID);
             sleDst = mEngine->entryCreate (ltACCOUNT_ROOT, newIndex);
@@ -219,58 +229,7 @@ public:
             assert (false);
         }
 
-        
-        //set referee
-        // Open a ledger entry for editing.
-        SLE::pointer sleReferee(mEngine->entryCache(ltACCOUNT_ROOT, getAccountRootIndex(srcAccountID)));
-        SLE::pointer sleReference(mEngine->entryCache(ltACCOUNT_ROOT, getAccountRootIndex(dstAccountID)));
-        
-        auto const referenceReferIndex = getAccountReferIndex(dstAccountID);
-        SLE::pointer sleReferenceRefer(mEngine->entryCache (ltREFER, 
-            referenceReferIndex));
-        auto const referIndex = getAccountReferIndex (srcAccountID);
-        SLE::pointer sleRefer(mEngine->entryCache (ltREFER, referIndex));
-        
-        if (!sleReferee) {
-            // Referee account does not exist.
-            m_journal.trace <<  "Referee account does not exist.";
-
-            return tecNO_DST;
-        } else if ((sleReferenceRefer && !sleReferenceRefer->getFieldArray(sfReferences).empty())) {
-            m_journal.trace << "Reference has been set.";
-            return tefREFERENCE_EXIST;
-        } else {
-            STArray references(sfReferences);
-            if (sleRefer && sleRefer->isFieldPresent(sfReferences)) {
-                references = sleRefer->getFieldArray(sfReferences);
-            }
-
-            for (auto it = references.begin(); it != references.end(); ++it) {
-                Account id = it->getFieldAccount(sfReference).getAccountID();
-                if (id == dstAccountID) {
-                    m_journal.trace << "Malformed transaction: Reference has been set.";
-                    return tefREFERENCE_EXIST;
-                }
-            }
-
-            int referenceHeight=0;
-            if (sleReferee->isFieldPresent(sfReferenceHeight))
-                referenceHeight=sleReferee->getFieldU32(sfReferenceHeight);
-            
-            mEngine->entryModify(sleReference);
-            sleReference->setFieldAccount(sfReferee, srcAccountID);
-            sleReference->setFieldU32(sfReferenceHeight, referenceHeight+1);
-            references.push_back(STObject(sfReferenceHolder));
-            references.back().setFieldAccount(sfReference, dstAccountID);
-            if (!sleRefer) {
-                sleRefer = mEngine->entryCreate(ltREFER, referIndex);
-            } else {
-                mEngine->entryModify(sleRefer);
-            }
-            sleRefer->setFieldArray(sfReferences, references);
-        }
-        return tesSUCCESS;
-    }
+        return mEngine->view ().addRefer(srcAccountID, dstAccountID);
 };
 
 TER

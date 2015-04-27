@@ -220,7 +220,6 @@ public:
     TER rippleCredit (
         Account const& uSenderID, Account const& uReceiverID,
         const STAmount & saAmount, bool bCheckIssuer = true);
-    TER shareFeeWithReferee(Account const& uSenderID, Account const& uIssuerID, const STAmount& saAmount);
 
     STAmount accountHolds (
         Account const& account, Currency const& currency,
@@ -247,6 +246,10 @@ public:
     TER trustDelete (
         SLE::ref sleRippleState, Account const& uLowAccountID,
         Account const& uHighAccountID);
+    
+    TER shareFeeWithReferee (Account const& uSenderID, Account const& uIssuerID, const STAmount& saAmount);
+    
+    TER addRefer (Account const& refereeID, Account const& referenceID);
 
     Json::Value getJson (int) const;
     void calcRawMeta (Serializer&, TER result, std::uint32_t index);
