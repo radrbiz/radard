@@ -238,7 +238,9 @@ static void autofill_fee (
                 RPC::inject_error (rpcINVALID_PARAMS, "wrong amount format", result);
                 return;
             }
-            feeByTrans += amount.isNative() ? amount.getNValue() * d.FEE_DEFAULT_RATE_NATIVE : d.FEE_DEFAULT_NONE_NATIVE;
+            //feeByTrans += amount.isNative() ? amount.getNValue() * d.FEE_DEFAULT_RATE_NATIVE : d.FEE_DEFAULT_NONE_NATIVE;
+            // 1000 at least
+            feeByTrans += amount.isNative() ? std::max(int(amount.getNValue() * d.FEE_DEFAULT_RATE_NATIVE), 1000) : d.FEE_DEFAULT_NONE_NATIVE;
         }
     }
     
@@ -284,7 +286,7 @@ static void autofill_fee (
                 RPC::inject_error (rpcINVALID_PARAMS, "wrong amount format", result);
                 return;
             }
-            feeByTrans += amount.isNative() ? amount.getNValue() * d.FEE_DEFAULT_RATE_NATIVE : d.FEE_DEFAULT_NONE_NATIVE;
+            feeByTrans += amount.isNative() ? std::max(int(amount.getNValue() * d.FEE_DEFAULT_RATE_NATIVE), 1000) : d.FEE_DEFAULT_NONE_NATIVE;
         }
 
     }
