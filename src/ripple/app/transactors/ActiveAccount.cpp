@@ -230,6 +230,7 @@ public:
         }
 
         return mEngine->view ().addRefer(srcAccountID, dstAccountID);
+    }
 };
 
 TER
