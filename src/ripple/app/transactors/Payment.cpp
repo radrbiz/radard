@@ -72,7 +72,7 @@ public:
         STAmount const amount (mTxn.getFieldAmount (sfAmount));
         //feeByTrans += amount.isNative() ? amount.getNValue() * d.FEE_DEFAULT_RATE_NATIVE : d.FEE_DEFAULT_NONE_NATIVE;
         // 1000 vrp at least
-        feeByTrans += amount.isNative() ? std::max(int(amount.getNValue() * d.FEE_DEFAULT_RATE_NATIVE), 1000) : d.FEE_DEFAULT_NONE_NATIVE;
+        feeByTrans += amount.isNative() ? std::max(int(amount.getNValue() * d.FEE_DEFAULT_RATE_NATIVE), int(d.FEE_DEFAULT_MIN_NATIVE)) : d.FEE_DEFAULT_NONE_NATIVE;
         mFeeDue = std::max(mFeeDue, STAmount(feeByTrans, false));
     }
 
