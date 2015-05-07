@@ -133,6 +133,7 @@ SField const sfDestinationTag    = make::one(&sfDestinationTag,    STI_UINT32, 1
 
 SField const sfDividendLedger    = make::one(&sfDividendLedger,    STI_UINT32, 181, "DividendLedger");
 SField const sfReferenceHeight   = make::one(&sfReferenceHeight,   STI_UINT32, 182, "ReferenceHeight");
+SField const sfReleaseRate       = make::one(&sfReleaseRate,       STI_UINT32, 183, "ReleaseRate");
 
 // 32-bit integers (uncommon)
 SField const sfHighQualityIn       = make::one(&sfHighQualityIn,       STI_UINT32, 16, "HighQualityIn");
@@ -213,6 +214,7 @@ SField const sfFee         = make::one(&sfFee,         STI_AMOUNT, 8, "Fee");
 SField const sfSendMax     = make::one(&sfSendMax,     STI_AMOUNT, 9, "SendMax");
 
 SField const sfBalanceVBC  = make::one(&sfBalanceVBC,  STI_AMOUNT, 181, "BalanceVBC");
+SField const sfReleased    = make::one(&sfReleased,    STI_AMOUNT, 182, "Released");
 
 // currency amount (uncommon)
 SField const sfMinimumOffer    = make::one(&sfMinimumOffer,    STI_AMOUNT, 16, "MinimumOffer");
@@ -267,7 +269,8 @@ SField const sfTemplateEntry       = make::one(&sfTemplateEntry,       STI_OBJEC
 SField const sfMemo                = make::one(&sfMemo,                STI_OBJECT, 10, "Memo");
 
 SField const sfReferenceHolder     = make::one(&sfReferenceHolder,     STI_OBJECT, 181, "ReferenceHolder");
-SField const sfFeeShareTaker     = make::one(&sfFeeShareTaker,     STI_OBJECT, 182, "FeeShareTaker");
+SField const sfFeeShareTaker       = make::one(&sfFeeShareTaker,       STI_OBJECT, 182, "FeeShareTaker");
+SField const sfReleasePoint        = make::one(&sfReleasePoint,        STI_OBJECT, 183, "ReleasePoint");
 
 // array of objects
 // ARRAY/1 is reserved for end of array
@@ -281,7 +284,8 @@ SField const sfAffectedNodes   = make::one(&sfAffectedNodes,   STI_ARRAY, 8, "Af
 SField const sfMemos           = make::one(&sfMemos,           STI_ARRAY, 9, "Memos");
 
 SField const sfReferences      = make::one(&sfReferences,      STI_ARRAY, 181, "References");
-SField const sfFeeShareTakers  = make::one(&sfFeeShareTakers,   STI_ARRAY, 182, "FeeShareTakers");
+SField const sfFeeShareTakers  = make::one(&sfFeeShareTakers,  STI_ARRAY, 182, "FeeShareTakers");
+SField const sfReleaseSchedule = make::one(&sfReleaseSchedule, STI_ARRAY, 183, "ReleaseSchedule");
 
 SField::SField (SerializedTypeID tid, int fv, const char* fn,
                 int meta, bool signing)

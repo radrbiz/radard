@@ -290,6 +290,7 @@ extern SField const sfDestinationTag;
 
 extern SField const sfDividendLedger;
 extern SField const sfReferenceHeight;
+extern SField const sfReleaseRate;
 
 // 32-bit integers (uncommon)
 extern SField const sfHighQualityIn;
@@ -371,6 +372,8 @@ extern SField const sfHighLimit;
 extern SField const sfFee;
 extern SField const sfSendMax;
 
+extern SField const sfReleased;
+
 // currency amount (uncommon)
 extern SField const sfMinimumOffer;
 extern SField const sfRippleEscrow;
@@ -425,6 +428,7 @@ extern SField const sfMemo;
 
 extern SField const sfReferenceHolder;
 extern SField const sfFeeShareTaker;
+extern SField const sfReleasePoint;
 
 // array of objects
 // ARRAY/1 is reserved for end of array
@@ -439,6 +443,7 @@ extern SField const sfMemos;
 
 extern SField const sfReferences;
 extern SField const sfFeeShareTakers;
+extern SField const sfReleaseSchedule;
 
 } // ripple
 

@@ -173,5 +173,11 @@ Currency const& badCurrency()
     static Currency const currency(0x5652500000000000);
     return currency;
 }
+    
+Currency const& stkCurrency()
+{
+    static Currency const currency("0x53544B0000000000000000000000000000000000");
+    return currency;
+}
 
 } // ripple

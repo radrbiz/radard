@@ -103,6 +103,11 @@ TxFormats::TxFormats ()
         << SOElement(sfDestination,          SOE_REQUIRED)
         << SOElement(sfAmount,               SOE_OPTIONAL)
         ;
+    
+    add("Issue", ttISSUE)
+        << SOElement(sfAmount,               SOE_REQUIRED)
+        << SOElement(sfReleaseSchedule,      SOE_REQUIRED)
+        ;
 }
 
 void TxFormats::addCommonFields (Item& item)

@@ -38,6 +38,10 @@ enum LedgerEntryType
     ltINVALID           = -1,
 
     ltACCOUNT_ROOT      = 'a',
+    
+    ltASSET             = 'E',
+    
+    ltRELEASE_SCHEDULE  = 'U',
 
     /** Directory node.
 
@@ -49,10 +53,10 @@ enum LedgerEntryType
         (There's a little more information than this, see the template)
     */
     ltDIR_NODE          = 'd',
+    
+    ltDIVIDEND          = 'D',
 
     ltGENERATOR_MAP     = 'g',
-
-    ltDIVIDEND          = 'D',
 
     ltREFER             = 'R',
 
@@ -98,6 +102,8 @@ enum LedgerNameSpace
     spaceTicket         = 'T',
     spaceDividend       = 'D',
     spaceRefer          = 'R',
+    spaceAsset          = 'E',
+    spaceReleaseSchedule = 'U',
 
     // No longer used or supported. Left here to reserve the space and
     // avoid accidental reuse of the space.

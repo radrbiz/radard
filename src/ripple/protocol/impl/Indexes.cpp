@@ -238,4 +238,23 @@ getRippleStateIndex (Account const& a, Issue const& issue)
     return getRippleStateIndex (a, issue.account, issue.currency);
 }
 
+uint256
+getReleaseScheduleIndex (Account const& a, Currency const& currency)
+{
+    Serializer  s (42);
+    
+    s.add16 (spaceReleaseSchedule);
+    
+    s.add160 (a);
+    s.add160 (currency);
+    
+    return s.getSHA512Half ();
+}
+
+uint256
+getReleaseScheduleIndex (Issue const& issue)
+{
+    return getReleaseScheduleIndex (issue.account, issue.currency);
+}
+
 }

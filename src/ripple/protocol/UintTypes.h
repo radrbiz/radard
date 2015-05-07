@@ -73,6 +73,9 @@ Currency const& noCurrency();
 
 Currency const& badCurrency();
 
+/** A placeholder for stock currency. */
+Currency const& stkCurrency();
+
 inline bool isXRP(Currency const& c)
 {
     return c == zero;
