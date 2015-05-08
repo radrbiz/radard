@@ -1600,6 +1600,8 @@ TER LedgerEntrySet::addRefer(Account const& refereeID, Account const& referenceI
         references.push_back(STObject(sfReferenceHolder));
         references.back().setFieldAccount(sfReference, referenceID);
         sleRefereeRefer->setFieldArray(sfReferences, references);
+        // Fix bug, add account for referee
+        sleRefereeRefer->setFieldAccount(sfAccount, refereeID);
         
         // Modify referee&referenceHeight for reference account
         entryModify(sleReference);
