@@ -150,9 +150,9 @@ public:
             sleDst->setFieldAccount (sfAccount, dstAccountID);
             sleDst->setFieldU32 (sfSequence, 1);
         }
-        else{
-            m_journal.trace << "Malformed transaction: reference account already exists.";
-            return tefREFERENCE_EXIST;
+        else {
+            m_journal.trace << "account already created";
+            return tefCREATED;
         }
 
         TER terResult;
