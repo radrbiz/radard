@@ -127,8 +127,8 @@ public:
 
     bool calcResultHash() override
     {
-        Application& app = getApp();
 #ifdef RADAR_ASYNC_DIVIDEND
+        Application& app = getApp();
         SHAMap::pointer txMap = std::make_shared<SHAMap>(
                                         smtTRANSACTION,
                                         app.getFullBelowCache(),

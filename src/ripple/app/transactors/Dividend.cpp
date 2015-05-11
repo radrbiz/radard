@@ -188,7 +188,6 @@ namespace ripple {
             if (m_journal.debug.active())
                 m_journal.debug << "radar: apply dividend.";
 
-            auto ledgerSeq = mTxn.getFieldU32(sfDividendLedger);
             const Account& account = mTxn.getFieldAccount160(sfDestination);
 
             if (m_journal.trace.active()) {
@@ -228,7 +227,7 @@ namespace ripple {
                     if (mTxn.isFieldPresent(sfDividendVRank))
                     {
                         std::uint64_t divVRank = mTxn.getFieldU64(sfDividendVRank);
-                        sleAccoutModified->setFieldU64(sfDividendVRank, divCoins);
+                        sleAccoutModified->setFieldU64(sfDividendVRank, divVRank);
                     }
                     
                     if (mTxn.isFieldPresent(sfDividendVSprd))

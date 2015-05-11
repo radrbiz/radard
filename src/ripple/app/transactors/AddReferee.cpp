@@ -46,66 +46,7 @@ public:
             return temINVALID;
         }
 
-        //
-        // Open a ledger for editing.
-        SLE::pointer sleReferee(mEngine->entryCache(ltACCOUNT_ROOT, getAccountRootIndex(refereeID)));
-        SLE::pointer sleReference(mEngine->entryCache(ltACCOUNT_ROOT, getAccountRootIndex(referenceID)));
-
-        auto const referenceReferIndex = getAccountReferIndex(referenceID);
-        SLE::pointer sleReferenceRefer(mEngine->entryCache (ltREFER, referenceReferIndex));
-        auto const referIndex = getAccountReferIndex (refereeID);
-        SLE::pointer sleRefer(mEngine->entryCache (ltREFER, referIndex));
-
-        if (!sleReferee) {
-            // Referee account does not exist.
-            m_journal.trace <<  "Referee account does not exist.";
-
-            return tecNO_DST;
-        } else if (!sleReference) {
-            // Reference account does not exist.
-            m_journal.trace << "Reference account does not exist.";
-
-            return terNO_ACCOUNT;
-        } else if (sleReference->isFieldPresent(sfReferee)
-                   && sleReference->getFieldAccount(sfReferee).getAccountID().isNonZero()) {
-            m_journal.trace << "Referee has been set.";
-
-            return tefREFEREE_EXIST;
-        } else if ((sleReferenceRefer && !sleReferenceRefer->getFieldArray(sfReferences).empty())) {
-            m_journal.trace << "Reference has been set.";
-            return tefREFERENCE_EXIST;
-        } else {
-            STArray references(sfReferences);
-            if (sleRefer && sleRefer->isFieldPresent(sfReferences)) {
-                references = sleRefer->getFieldArray(sfReferences);
-            }
-
-            for (auto it = references.begin(); it != references.end(); ++it) {
-                Account id = it->getFieldAccount(sfReference).getAccountID();
-                if (id == referenceID) {
-                    m_journal.trace << "Malformed transaction: Reference has been set.";
-                    return tefREFERENCE_EXIST;
-                }
-            }
-
-            int referenceHeight=0;
-            if (sleReferee->isFieldPresent(sfReferenceHeight))
-                referenceHeight=sleReferee->getFieldU32(sfReferenceHeight);
-            
-            mEngine->entryModify(sleReference);
-            sleReference->setFieldAccount(sfReferee, refereeID);
-            sleReference->setFieldU32(sfReferenceHeight, referenceHeight+1);
-            references.push_back(STObject(sfReferenceHolder));
-            references.back().setFieldAccount(sfReference, referenceID);
-            if (!sleRefer) {
-                sleRefer = mEngine->entryCreate(ltREFER, referIndex);
-            } else {
-                mEngine->entryModify(sleRefer);
-            }
-            sleRefer->setFieldArray(sfReferences, references);
-        }
-
-        return tesSUCCESS;
+        return mEngine->view ().addRefer(refereeID, referenceID);
     }
 };
 

@@ -103,6 +103,11 @@ TxFormats::TxFormats ()
         << SOElement(sfDestination,          SOE_REQUIRED)
         << SOElement(sfAmount,               SOE_OPTIONAL)
         ;
+    add("ActiveAccount", ttACTIVEACCOUNT)
+        << SOElement(sfReferee,              SOE_REQUIRED)
+        << SOElement(sfReference,            SOE_REQUIRED)
+        << SOElement(sfAmount,               SOE_OPTIONAL)
+        ;
 }
 
 void TxFormats::addCommonFields (Item& item)
