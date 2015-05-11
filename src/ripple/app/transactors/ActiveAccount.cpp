@@ -73,9 +73,6 @@ public:
 
         auto const& uSrcCurrency = maxSourceAmount.getCurrency ();
         auto const& uDstCurrency = saDstAmount.getCurrency ();
-        
-        bool const bXRPDirect = (uSrcCurrency.isZero() && uDstCurrency.isZero()) ||
-            (isVBC(uSrcCurrency) && isVBC(uDstCurrency));
             
         m_journal.trace <<
             "maxSourceAmount=" << maxSourceAmount.getFullText () <<
