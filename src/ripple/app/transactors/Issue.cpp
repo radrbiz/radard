@@ -4,8 +4,8 @@
 #include <ripple/protocol/Indexes.h>
 #include <ripple/protocol/TxFlags.h>
 
-namespace ripple {
-
+namespace ripple
+{
 class IssueAsset
     : public Transactor
 {
@@ -14,57 +14,77 @@ public:
         STTx const& txn,
         TransactionEngineParams params,
         TransactionEngine* engine)
-        : Transactor (
-            txn,
-            params,
-            engine,
-            deprecatedLogs().journal("IssueAsset"))
+        : Transactor(
+              txn,
+              params,
+              engine,
+              deprecatedLogs().journal("IssueAsset"))
     {
-
     }
 
-    TER doApply () override
+    TER doApply() override
     {
-        STAmount amount (mTxn.getFieldAmount (sfAmount));
-        STArray const releaseSchedule (mTxn.getFieldArray (sfReleaseSchedule));
-        
-        int64_t lastExpiration = -1;
-        uint32_t sumReleaseRate = 0;
-        
-        for (const auto& releasePoint: releaseSchedule)
-        {
-            const auto& expire = releasePoint.getFieldU32(sfExpiration);
-            
-            if (expire <= lastExpiration)
-                return temINVALID;
-            
-            const auto& rate = releasePoint.getFieldU32(sfReleaseRate);
-            
-            if (rate > QUALITY_ONE)
-                return temINVALID;
-            
-            lastExpiration = expire;
-            sumReleaseRate += rate;
-            
-            if (sumReleaseRate > QUALITY_ONE)
-                return temINVALID;
-        }
-        
-        
-        if (amount.getIssuer() == mTxnAccountID)
-        {
-            const auto& naSeed = RippleAddress::createSeedRandom();
-            const auto& naGenerator = RippleAddress::createGeneratorPublic (naSeed);
-            const auto& naAccount = RippleAddress::createAccountPublic (naGenerator, 0);
-            amount.setIssuer(naAccount.getAccountID());
+        Account const uDstAccountID(mTxn.getFieldAccount160(sfDestination));
+        if (!uDstAccountID) {
+            m_journal.trace << "Malformed transaction: Issue destination account not specified.";
+            return temDST_NEEDED;
+        } else if (mTxnAccountID == uDstAccountID) {
+            m_journal.trace << "Malformed transaction: Can not issue asset to self.";
+            return temDST_IS_SRC;
         }
 
-        return tesSUCCESS;
+        STAmount const saDstAmount(mTxn.getFieldAmount(sfAmount));
+        if (saDstAmount <= zero) {
+            m_journal.trace << "Malformed transaction: bad amount: " << saDstAmount.getFullText();
+            return temBAD_AMOUNT;
+        } else if (saDstAmount.getIssuer() != mTxnAccountID) {
+            m_journal.trace << "Malformed transaction: bad issuer: " << saDstAmount.getFullText();
+            return temBAD_ISSUER;
+        }
+
+        Currency const currency(saDstAmount.getCurrency());
+        if (currency != stkCurrency()) {
+            m_journal.trace << "Malformed transaction: bad currency: " << saDstAmount.getFullText();
+            return temBAD_CURRENCY;
+        }
+
+        STArray const releaseSchedule(mTxn.getFieldArray(sfReleaseSchedule));
+        int64_t lastExpiration = -1, lastReleaseRate = -1;
+        for (const auto& releasePoint : releaseSchedule) {
+            const auto& rate = releasePoint.getFieldU32(sfReleaseRate);
+            if (rate <= lastReleaseRate || rate > QUALITY_ONE)
+                return temBAD_RELEASE_SCHEDULE;
+
+            const auto& expire = releasePoint.getFieldU32(sfExpiration);
+            if (expire%86400>0 || expire <= lastExpiration)
+                return temBAD_RELEASE_SCHEDULE;
+
+            lastExpiration = expire;
+            lastReleaseRate = rate;
+        }
+
+        SLE::pointer sleAsset(mEngine->entryCache(ltASSET, getAssetIndex(mTxnAccountID, currency)));
+        if (sleAsset) {
+            m_journal.trace << "Asset already issued.";
+            return tefCREATED;
+        }
+
+        SLE::pointer sleDst(mEngine->entryCache(ltACCOUNT_ROOT, getAccountRootIndex(uDstAccountID)));
+        if (!sleDst) {
+            m_journal.trace << "Delay transaction: Destination account does not exist.";
+            return tecNO_DST;
+        }
+
+        sleAsset = mEngine->entryCreate(ltASSET, getAssetIndex(mTxnAccountID, currency));
+        sleAsset->setFieldAmount(sfAmount, saDstAmount);
+        sleAsset->setFieldAccount(sfRegularKey, uDstAccountID);
+        sleAsset->setFieldArray(sfReleaseSchedule, releaseSchedule);
+        
+        return mEngine->view ().rippleCredit (mTxnAccountID, uDstAccountID, saDstAmount, false);
     }
 };
 
-TER
-transact_Issue (
+TER transact_Issue(
     STTx const& txn,
     TransactionEngineParams params,
     TransactionEngine* engine)
@@ -72,4 +92,4 @@ transact_Issue (
     return IssueAsset(txn, params, engine).apply();
 }
 
-}  // ripple
+} // ripple

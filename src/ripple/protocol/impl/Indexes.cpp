@@ -239,11 +239,11 @@ getRippleStateIndex (Account const& a, Issue const& issue)
 }
 
 uint256
-getReleaseScheduleIndex (Account const& a, Currency const& currency)
+getAssetIndex (Account const& a, Currency const& currency)
 {
     Serializer  s (42);
     
-    s.add16 (spaceReleaseSchedule);
+    s.add16 (spaceAsset);
     
     s.add160 (a);
     s.add160 (currency);
@@ -252,9 +252,38 @@ getReleaseScheduleIndex (Account const& a, Currency const& currency)
 }
 
 uint256
-getReleaseScheduleIndex (Issue const& issue)
+getAssetIndex (Issue const& issue)
 {
-    return getReleaseScheduleIndex (issue.account, issue.currency);
+    return getAssetIndex (issue.account, issue.currency);
+}
+
+uint256
+getAssetStateIndex (Account const& a, Account const& b, Currency const& currency)
+{
+    Serializer  s (62);
+    
+    s.add16 (spaceAssetState);
+
+    if (a < b)
+    {
+        s.add160 (a);
+        s.add160 (b);
+    }
+    else
+    {
+        s.add160 (b);
+        s.add160 (a);
+    }
+
+    s.add160 (currency);
+    
+    return s.getSHA512Half ();
+}
+
+uint256
+getAssetStateIndex (Account const& a, Issue const& issue)
+{
+    return getAssetStateIndex (a, issue.account, issue.currency);
 }
 
 }

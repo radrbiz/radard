@@ -38,10 +38,12 @@ enum LedgerEntryType
     ltINVALID           = -1,
 
     ltACCOUNT_ROOT      = 'a',
-    
-    ltASSET             = 'E',
-    
-    ltRELEASE_SCHEDULE  = 'U',
+
+    /// Describes an asset issuance
+    ltASSET             = 't',
+
+    /// Describes an asset holding
+    ltASSET_STATE       = 'S',
 
     /** Directory node.
 
@@ -58,6 +60,7 @@ enum LedgerEntryType
 
     ltGENERATOR_MAP     = 'g',
 
+    /// References hold by referee.
     ltREFER             = 'R',
 
     /** Describes a trust line.
@@ -102,8 +105,8 @@ enum LedgerNameSpace
     spaceTicket         = 'T',
     spaceDividend       = 'D',
     spaceRefer          = 'R',
-    spaceAsset          = 'E',
-    spaceReleaseSchedule = 'U',
+    spaceAsset          = 't',
+    spaceAssetState     = 'S',
 
     // No longer used or supported. Left here to reserve the space and
     // avoid accidental reuse of the space.

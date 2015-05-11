@@ -214,7 +214,6 @@ SField const sfFee         = make::one(&sfFee,         STI_AMOUNT, 8, "Fee");
 SField const sfSendMax     = make::one(&sfSendMax,     STI_AMOUNT, 9, "SendMax");
 
 SField const sfBalanceVBC  = make::one(&sfBalanceVBC,  STI_AMOUNT, 181, "BalanceVBC");
-SField const sfReleased    = make::one(&sfReleased,    STI_AMOUNT, 182, "Released");
 
 // currency amount (uncommon)
 SField const sfMinimumOffer    = make::one(&sfMinimumOffer,    STI_AMOUNT, 16, "MinimumOffer");

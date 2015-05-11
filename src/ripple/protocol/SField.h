@@ -372,8 +372,6 @@ extern SField const sfHighLimit;
 extern SField const sfFee;
 extern SField const sfSendMax;
 
-extern SField const sfReleased;
-
 // currency amount (uncommon)
 extern SField const sfMinimumOffer;
 extern SField const sfRippleEscrow;

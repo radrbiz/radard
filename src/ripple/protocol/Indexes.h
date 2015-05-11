@@ -94,10 +94,16 @@ uint256
 getRippleStateIndex (Account const& a, Issue const& issue);
 
 uint256
-getReleaseScheduleIndex (Account const& a, Currency const& currency);
+getAssetIndex (Account const& a, Currency const& currency);
 
 uint256
-getReleaseScheduleIndex (Issue const& issue);
+getAssetIndex (Issue const& issue);
+
+uint256
+getAssetStateIndex (Account const& a, Account const& b, Currency const& currency);
+
+uint256
+getAssetStateIndex (Account const& a, Issue const& issue);
 
 }
 

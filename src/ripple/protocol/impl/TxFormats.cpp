@@ -105,8 +105,9 @@ TxFormats::TxFormats ()
         ;
     
     add("Issue", ttISSUE)
-        << SOElement(sfAmount,               SOE_REQUIRED)
-        << SOElement(sfReleaseSchedule,      SOE_REQUIRED)
+        << SOElement (sfDestination,         SOE_REQUIRED)
+        << SOElement (sfAmount,              SOE_REQUIRED)
+        << SOElement (sfReleaseSchedule,     SOE_REQUIRED)
         ;
 }
 

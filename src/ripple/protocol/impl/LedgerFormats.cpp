@@ -49,10 +49,19 @@ LedgerFormats::LedgerFormats ()
             << SOElement (sfDividendVSprd,       SOE_OPTIONAL)
             << SOElement (sfDividendTSprd,       SOE_OPTIONAL)
             ;
-
+    
     add ("Asset", ltASSET)
-            << SOElement (sfAmount,              SOE_REQUIRED)
-            << SOElement (sfReleased,            SOE_REQUIRED)
+            << SOElement (sfAmount,              SOE_REQUIRED)  // Initial amount
+            << SOElement (sfRegularKey,          SOE_REQUIRED)  // Hot wallet
+            << SOElement (sfReleaseSchedule,     SOE_OPTIONAL)
+            << SOElement (sfPreviousTxnID,       SOE_REQUIRED)
+            << SOElement (sfPreviousTxnLgrSeq,   SOE_REQUIRED)
+            ;
+
+    add ("AssetState", ltASSET_STATE)
+            << SOElement (sfAccount,             SOE_REQUIRED)  // Asset holder
+            << SOElement (sfAmount,              SOE_REQUIRED)  // Initial amount
+            << SOElement (sfDeliveredAmount,     SOE_OPTIONAL)  // Amount delieverd
             << SOElement (sfPreviousTxnID,       SOE_REQUIRED)
             << SOElement (sfPreviousTxnLgrSeq,   SOE_REQUIRED)
             ;
