@@ -30,6 +30,8 @@ Source code directory. Some of the directories contained here are external repos
      3. Other types of transaction, e.g. Offer: a fixed 0.001 VRP will be applied to each transaction
   3. There is no minimum balance required for a wallet, i.e. the entire balance can be transferred out from an activated account.
 
+For more information, see https://wiki.radarlab.org/transaction_fee.
+
 ### Build instructions:
   * Coming soon...
 
@@ -38,3 +40,5 @@ Source code directory. Some of the directories contained here are external repos
 
 ### License
 Radar is open source and permissively licensed under the ISC license. See the LICENSE file for more details.
+
+If you are a financial institution, please contact info@radr.biz for enterprise licensing. If you are not a financial institution and you offer public service, you must list on your website and terms of service that your service is an Unofficial Radr Gateway.
