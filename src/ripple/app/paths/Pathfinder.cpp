@@ -235,11 +235,12 @@ bool Pathfinder::findPaths (int searchLevel)
     m_loadEvent = getApp ().getJobQueue ().getLoadEvent (
         jtPATH_FIND, "FindPath");
     auto currencyIsXRP = isXRP (mSrcCurrency);
+    auto currencyIsVBC = isVBC (mSrcCurrency);
 
     bool useIssuerAccount
-            = mSrcIssuer && !currencyIsXRP && !isXRP (*mSrcIssuer);
+            = mSrcIssuer && !currencyIsXRP && !isXRP (*mSrcIssuer) && !currencyIsVBC && !isVBC (*mSrcIssuer);
     auto& account = useIssuerAccount ? *mSrcIssuer : mSrcAccount;
-    auto issuer = currencyIsXRP ? Account() : account;
+    auto issuer = currencyIsXRP ? Account() : ( currencyIsVBC ? vbcAccount() : account );
     mSource = STPathElement (account, mSrcCurrency, issuer);
     auto issuerString = mSrcIssuer
             ? to_string (*mSrcIssuer) : std::string ("none");
