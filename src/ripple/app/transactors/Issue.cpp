@@ -43,7 +43,7 @@ public:
         }
 
         Currency const currency(saDstAmount.getCurrency());
-        if (currency != stkCurrency()) {
+        if (currency != assetCurrency()) {
             m_journal.trace << "Malformed transaction: bad currency: " << saDstAmount.getFullText();
             return temBAD_CURRENCY;
         }

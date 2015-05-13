@@ -207,8 +207,8 @@ public:
             return temBAD_SEND_XRP_NO_DIRECT;
         }
 
-        // additional checking for currency STK.
-        if (stkCurrency() == uSrcCurrency) {
+        // additional checking for currency ASSET.
+        if (assetCurrency() == uSrcCurrency) {
             if (saDstAmount.getIssuer() == mTxnAccountID) {
                 m_journal.trace << "STK payment from issuer is not allowed";
                 return temDISABLED;

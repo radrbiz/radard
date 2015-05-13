@@ -178,8 +178,8 @@ CreateOffer::doApply()
     SLE::pointer sleCreator = mEngine->entryCache (
         ltACCOUNT_ROOT, getAccountRootIndex (mTxnAccountID));
 
-    // additional checking for currency STK.
-    if (stkCurrency() == uPaysCurrency) {
+    // additional checking for currency ASSET.
+    if (assetCurrency() == uPaysCurrency) {
         if (uPaysIssuerID == mTxnAccountID || uGetsIssuerID == mTxnAccountID) {
             m_journal.trace << "Creating STK offer is not allowed for issuer";
             return temDISABLED;

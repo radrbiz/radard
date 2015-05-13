@@ -174,9 +174,9 @@ Currency const& badCurrency()
     return currency;
 }
     
-Currency const& stkCurrency()
+Currency const& assetCurrency()
 {
-    static Currency const currency("0x53544B0000000000000000000000000000000000");
+    static Currency const currency("0x4153534554000000000000000000000000000000");
     return currency;
 }
 
