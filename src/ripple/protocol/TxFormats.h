@@ -55,6 +55,7 @@ enum TxType
     ttDIVIDEND          = 181,
     ttADDREFEREE        = 182,
     ttACTIVEACCOUNT     = 183,
+    ttISSUE             = 184,
 };
 
 /** Manages the list of known transaction formats.

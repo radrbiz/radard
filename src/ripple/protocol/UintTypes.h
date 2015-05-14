@@ -73,6 +73,9 @@ Currency const& noCurrency();
 
 Currency const& badCurrency();
 
+/** A placeholder for asset currency. */
+Currency const& assetCurrency();
+
 inline bool isXRP(Currency const& c)
 {
     return c == zero;

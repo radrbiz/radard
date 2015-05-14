@@ -93,7 +93,7 @@ public:
         }
 
         bool const bSetAuth = (uTxFlags & tfSetfAuth);
-        bool const bSetNoRipple = (uTxFlags & tfSetNoRipple);
+        bool const bSetNoRipple = (assetCurrency() == currency)?true:(uTxFlags & tfSetNoRipple);
         bool const bClearNoRipple  = (uTxFlags & tfClearNoRipple);
         bool const bSetFreeze = (uTxFlags & tfSetFreeze);
         bool const bClearFreeze = (uTxFlags & tfClearFreeze);
@@ -111,6 +111,9 @@ public:
                 "Malformed transaction: Native credit limit: " <<
                 saLimitAmount.getFullText ();
             return temBAD_LIMIT;
+        } else if (bClearNoRipple && assetCurrency() == currency) {
+            m_journal.trace << "Malformed transaction: tfClearNoRipple is not allowed on asset";
+            return temINVALID_FLAG;
         }
 
         if (saLimitAmount < zero)

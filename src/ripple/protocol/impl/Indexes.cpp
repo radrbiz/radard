@@ -238,4 +238,52 @@ getRippleStateIndex (Account const& a, Issue const& issue)
     return getRippleStateIndex (a, issue.account, issue.currency);
 }
 
+uint256
+getAssetIndex (Account const& a, Currency const& currency)
+{
+    Serializer  s (42);
+    
+    s.add16 (spaceAsset);
+    
+    s.add160 (a);
+    s.add160 (currency);
+    
+    return s.getSHA512Half ();
+}
+
+uint256
+getAssetIndex (Issue const& issue)
+{
+    return getAssetIndex (issue.account, issue.currency);
+}
+
+uint256
+getAssetStateIndex (Account const& a, Account const& b, Currency const& currency)
+{
+    Serializer  s (62);
+    
+    s.add16 (spaceAssetState);
+
+    if (a < b)
+    {
+        s.add160 (a);
+        s.add160 (b);
+    }
+    else
+    {
+        s.add160 (b);
+        s.add160 (a);
+    }
+
+    s.add160 (currency);
+    
+    return s.getSHA512Half ();
+}
+
+uint256
+getAssetStateIndex (Account const& a, Issue const& issue)
+{
+    return getAssetStateIndex (a, issue.account, issue.currency);
+}
+
 }

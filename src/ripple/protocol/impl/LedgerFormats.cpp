@@ -49,7 +49,23 @@ LedgerFormats::LedgerFormats ()
             << SOElement (sfDividendVSprd,       SOE_OPTIONAL)
             << SOElement (sfDividendTSprd,       SOE_OPTIONAL)
             ;
+    
+    add ("Asset", ltASSET)
+            << SOElement (sfAmount,              SOE_REQUIRED)  // Initial amount
+            << SOElement (sfRegularKey,          SOE_REQUIRED)  // Hot wallet
+            << SOElement (sfReleaseSchedule,     SOE_OPTIONAL)
+            << SOElement (sfPreviousTxnID,       SOE_REQUIRED)
+            << SOElement (sfPreviousTxnLgrSeq,   SOE_REQUIRED)
+            ;
 
+    add ("AssetState", ltASSET_STATE)
+            << SOElement (sfAccount,             SOE_REQUIRED)  // Asset holder
+            << SOElement (sfAmount,              SOE_REQUIRED)  // Initial amount
+            << SOElement (sfDeliveredAmount,     SOE_OPTIONAL)  // Amount delieverd
+            << SOElement (sfPreviousTxnID,       SOE_REQUIRED)
+            << SOElement (sfPreviousTxnLgrSeq,   SOE_REQUIRED)
+            ;
+    
     add ("DirectoryNode", ltDIR_NODE)
             << SOElement (sfOwner,               SOE_OPTIONAL)  // for owner directories
             << SOElement (sfTakerPaysCurrency,   SOE_OPTIONAL)  // for order book directories
@@ -132,8 +148,6 @@ LedgerFormats::LedgerFormats ()
     add("Refer", ltREFER)
             << SOElement (sfAccount,             SOE_OPTIONAL)
             << SOElement (sfReferences,          SOE_OPTIONAL)
-//            << SOElement(sfReference,            SOE_REQUIRED)
-//            << SOElement(sfReferee,              SOE_REQUIRED)
             ;
 }
 

@@ -208,6 +208,22 @@ public:
             return temBAD_SEND_XRP_NO_DIRECT;
         }
 
+        // additional checking for currency ASSET.
+        if (assetCurrency() == uSrcCurrency) {
+            if (saDstAmount.getIssuer() == mTxnAccountID) {
+                m_journal.trace << "STK payment from issuer is not allowed";
+                return temDISABLED;
+            }
+
+            if (saDstAmount.getIssuer() == uDstAccountID) {
+                // Return STK to issuer is not allowed.
+                m_journal.trace << "Return STK to issuer is not allowed"
+                                << " src=" << to_string(mTxnAccountID) << " dst=" << to_string(uDstAccountID) << " src_cur=" << to_string(uSrcCurrency) << " dst_cur=" << to_string(uDstCurrency);
+
+                return temDISABLED;
+            }
+        }
+
         //
         // Open a ledger for editing.
         auto const index = getAccountRootIndex (uDstAccountID);

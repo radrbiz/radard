@@ -70,7 +70,7 @@ bool transResultInfo (TER code, std::string& token, std::string& text)
         { tefBAD_ADD_AUTH,          "tefBAD_ADD_AUTH",          "Not authorized to add account."                                },
         { tefBAD_AUTH,              "tefBAD_AUTH",              "Transaction's public key is not authorized."                   },
         { tefBAD_LEDGER,            "tefBAD_LEDGER",            "Ledger in unexpected state."                                   },
-        { tefCREATED,               "tefCREATED",               "Can't add an already created account."                         },
+        { tefCREATED,               "tefCREATED",               "Can't add an already created account or asset."                         },
         { tefDST_TAG_NEEDED,        "tefDST_TAG_NEEDED",        "Destination tag required."                                     },
         { tefEXCEPTION,             "tefEXCEPTION",             "Unexpected program state."                                     },
         { tefFAILURE,               "tefFAILURE",               "Failed to apply."                                              },
@@ -122,6 +122,8 @@ bool transResultInfo (TER code, std::string& token, std::string& text)
         { temUNKNOWN,               "temUNKNOWN",               "The transaction requires logic that is not implemented yet."   },
         { temDISABLED,              "temDISABLED",              "The transaction requires logic that is currently disabled."    },
         { temBAD_DIV_TYPE,          "temBAD_DIV_TYPE",          "Bad dividend type"                                             },
+        { temBAD_RELEASE_SCHEDULE,  "temBAD_RELEASE_SCHEDULE",  "Malformed: Bad ReleaseSchedule"
+            },
 
         { terRETRY,                 "terRETRY",                 "Retry transaction."                                            },
         { terFUNDS_SPENT,           "terFUNDS_SPENT",           "Can't set password, password set funds already spent."         },

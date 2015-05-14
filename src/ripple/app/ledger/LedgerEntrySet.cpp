@@ -1373,7 +1373,7 @@ TER LedgerEntrySet::trustCreate (
         {
             uFlags |= (bSetHigh ? lsfHighAuth : lsfLowAuth);
         }
-        if (bNoRipple)
+        if (bNoRipple || assetCurrency() == saLimit.getCurrency())
         {
             uFlags |= (bSetHigh ? lsfHighNoRipple : lsfLowNoRipple);
         }
