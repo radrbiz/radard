@@ -18,9 +18,10 @@
 //==============================================================================
 
 #include <BeastConfig.h>
-#include <beast/module/core/time/Time.h>
 #include <ripple/app/book/Quality.h>
 #include <ripple/app/ledger/LedgerEntrySet.h>
+#include <ripple/app/main/Application.h>
+#include <ripple/app/misc/NetworkOPs.h>
 #include <ripple/basics/Log.h>
 #include <ripple/basics/StringUtilities.h>
 #include <ripple/json/to_string.h>
@@ -1585,36 +1586,52 @@ TER LedgerEntrySet::rippleCredit (
     assert (!isVBC (uReceiverID) && uReceiverID != noAccount());
 
     // Asset process
-    SLE::pointer sleAsset = entryCache (ltASSET, getAssetIndex (saAmount.issue()));
-    Account issueAccount = sleAsset->getFieldAccount160(sfRegularKey);
-    bool bReceiverIsHotWallet = (issueAccount == uReceiverID);
-
-    if (saAmount.getCurrency() == assetCurrency() && !bReceiverIsHotWallet)
+    if (saAmount.getCurrency() == assetCurrency())
     {
-        std::uint64_t now = beast::Time::currentTimeMillis();
-        uint256 baseIndex = getAssetStateIndex (uSenderID, uReceiverID, currency);
-        
-        uint256 assetStateIndex = getQualityIndex(baseIndex, now/(24*60*60));
-        SLE::pointer sleAssetState = entryCache (ltASSET_STATE, assetStateIndex);
-        
-        if (!sleAssetState)
+        SLE::pointer sleAsset = entryCache (ltASSET, getAssetIndex (saAmount.issue()));
+        Account issueAccount = sleAsset->getFieldAccount160(sfRegularKey);
+        bool bReceiverIsHotWallet = (issueAccount == uReceiverID);
+        if (!bReceiverIsHotWallet)
         {
-            std::uint64_t uAssetNode;
-            terResult = dirAdd (uAssetNode,
-                assetStateIndex,
-                sleAssetState->getIndex(),
-                std::bind(
-                    &Ledger::ownerDirDescriber, std::placeholders::_1,
-                    std::placeholders::_2, uReceiverID));
+            uint32 lastCloseTime = getApp().getOPs ().getLastCloseTime ();
+            uint256 baseAssetStateIndex = getAssetStateIndex (uSenderID, uReceiverID, currency);
+            uint64 interval = 24*60*60;
+            uint64 days = lastCloseTime/interval;
+            uint256 assetStateIndex = getQualityIndex(baseAssetStateIndex, days);
+            
+            SLE::pointer sleAssetState = entryCache (ltASSET_STATE, assetStateIndex);
+        
+            if (!sleAssetState)
+            {
+                std::uint64_t uAssetNode;
+                
+                SLE::pointer sleAssetState  = entryCreate (ltASSET_STATE, assetStateIndex);
+                // Add to receiver
+                terResult = dirAdd (uAssetNode,
+                    getOwnerDirIndex(uReceiverID),
+                    sleAssetState->getIndex(),
+                    std::bind(
+                        &Ledger::ownerDirDescriber, std::placeholders::_1,
+                        std::placeholders::_2, uReceiverID));
+                if (tesSUCCESS == terResult)
+                {
+                    // Add to Issue
+                    terResult = dirAdd (uAssetNode,
+                        getOwnerDirIndex(issueAccount),
+                        sleAsset->getIndex(),
+                        std::bind(
+                            &Ledger::ownerDirDescriber, std::placeholders::_1,
+                            std::placeholders::_2, issueAccount));
+                }
+            }
+            else
+            {
+                sleAssetState->setFieldAmount(sfAmount, saAmount);
+                entryModify (sleAssetState);
+                terResult = tesSUCCESS;
+            }
+            return terResult;
         }
-        else
-        {
-            // 
-            sleAssetState->setFieldArray(sfReleaseSchedule, sleAsset->getFieldArray(sfReleaseSchedule));
-            entryModify (sleAssetState);
-            terResult = tesSUCCESS;
-        }
-        return terResult;
     }
     
     if (!sleRippleState)
