@@ -18,6 +18,7 @@
 //==============================================================================
 
 #include <BeastConfig.h>
+#include <beast/module/core/time/Time.h>
 #include <ripple/app/book/Quality.h>
 #include <ripple/app/ledger/LedgerEntrySet.h>
 #include <ripple/basics/Log.h>
@@ -1583,6 +1584,39 @@ TER LedgerEntrySet::rippleCredit (
     assert (!isVBC (uSenderID) && uSenderID != noAccount());
     assert (!isVBC (uReceiverID) && uReceiverID != noAccount());
 
+    // Asset process
+    SLE::pointer sleAsset = entryCache (ltASSET, getAssetIndex (saAmount.issue()));
+    Account issueAccount = sleAsset->getFieldAccount160(sfRegularKey);
+    bool bReceiverIsHotWallet = (issueAccount == uReceiverID);
+
+    if (saAmount.getCurrency() == assetCurrency() && !bReceiverIsHotWallet)
+    {
+        std::uint64_t now = beast::Time::currentTimeMillis();
+        uint256 baseIndex = getAssetStateIndex (uSenderID, uReceiverID, currency);
+        
+        uint256 assetStateIndex = getQualityIndex(baseIndex, now/(24*60*60));
+        SLE::pointer sleAssetState = entryCache (ltASSET_STATE, assetStateIndex);
+        
+        if (!sleAssetState)
+        {
+            std::uint64_t uAssetNode;
+            terResult = dirAdd (uAssetNode,
+                assetStateIndex,
+                sleAssetState->getIndex(),
+                std::bind(
+                    &Ledger::ownerDirDescriber, std::placeholders::_1,
+                    std::placeholders::_2, uReceiverID));
+        }
+        else
+        {
+            // 
+            sleAssetState->setFieldArray(sfReleaseSchedule, sleAsset->getFieldArray(sfReleaseSchedule));
+            entryModify (sleAssetState);
+            terResult = tesSUCCESS;
+        }
+        return terResult;
+    }
+    
     if (!sleRippleState)
     {
         STAmount saReceiverLimit({currency, uReceiverID});
