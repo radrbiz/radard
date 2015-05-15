@@ -20,8 +20,6 @@
 #include <BeastConfig.h>
 #include <ripple/app/book/Quality.h>
 #include <ripple/app/ledger/LedgerEntrySet.h>
-#include <ripple/app/main/Application.h>
-#include <ripple/app/misc/NetworkOPs.h>
 #include <ripple/basics/Log.h>
 #include <ripple/basics/StringUtilities.h>
 #include <ripple/json/to_string.h>
@@ -1589,18 +1587,22 @@ TER LedgerEntrySet::rippleCredit (
     if (saAmount.getCurrency() == assetCurrency())
     {
         SLE::pointer sleAsset = entryCache (ltASSET, getAssetIndex (saAmount.issue()));
+        if (!sleAsset)
+        {
+            return temBAD_ISSUER;
+        }
         Account issueAccount = sleAsset->getFieldAccount160(sfRegularKey);
         bool bReceiverIsHotWallet = (issueAccount == uReceiverID);
         if (!bReceiverIsHotWallet)
         {
-            uint32 lastCloseTime = getApp().getOPs ().getLastCloseTime ();
+            uint32 parentCloseTime = getLedger()->getParentCloseTimeNC ();
             uint256 baseAssetStateIndex = getAssetStateIndex (uSenderID, uReceiverID, currency);
+            // Multiple of 86400
             uint64 interval = 24*60*60;
-            uint64 days = lastCloseTime/interval;
-            uint256 assetStateIndex = getQualityIndex(baseAssetStateIndex, days);
+            uint256 assetStateIndex = getQualityIndex (baseAssetStateIndex,
+                parentCloseTime - parentCloseTime%interval);
             
             SLE::pointer sleAssetState = entryCache (ltASSET_STATE, assetStateIndex);
-        
             if (!sleAssetState)
             {
                 std::uint64_t uAssetNode;
@@ -1626,7 +1628,8 @@ TER LedgerEntrySet::rippleCredit (
             }
             else
             {
-                sleAssetState->setFieldAmount(sfAmount, saAmount);
+                STAmount before = sleAssetState->getFieldAmount(sfAmount);
+                sleAssetState->setFieldAmount(sfAmount, before + saAmount);
                 entryModify (sleAssetState);
                 terResult = tesSUCCESS;
             }
