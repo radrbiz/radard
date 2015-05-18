@@ -1280,7 +1280,7 @@ STAmount LedgerEntrySet::rippleTransferFee (
     Account const& issuer,
     STAmount const& saAmount)
 {
-    if (uSenderID != issuer && uReceiverID != issuer)
+    if (saAmount.getCurrency() != assetCurrency() && uSenderID != issuer && uReceiverID != issuer)
     {
         std::uint32_t uTransitRate = rippleTransferRate (*this, issuer);
 
@@ -1584,7 +1584,7 @@ TER LedgerEntrySet::rippleCredit (
     assert (!isVBC (uReceiverID) && uReceiverID != noAccount());
 
     // Asset process
-    if (saAmount.getCurrency() == assetCurrency())
+    if (saAmount.getCurrency() == assetCurrency() && uReceiverID != issuer)
     {
         SLE::pointer sleAsset = entryCache (ltASSET, getAssetIndex (saAmount.issue()));
         if (!sleAsset)
@@ -1625,6 +1625,8 @@ TER LedgerEntrySet::rippleCredit (
                             &Ledger::ownerDirDescriber, std::placeholders::_1,
                             std::placeholders::_2, issueAccount));
                 }
+                sleAssetState->setFieldAccount(sfAccount, uReceiverID);
+                sleAssetState->setFieldAmount(sfAmount, saAmount);
             }
             else
             {
