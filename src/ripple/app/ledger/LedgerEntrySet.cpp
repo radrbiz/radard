@@ -1647,6 +1647,60 @@ TER LedgerEntrySet::rippleCredit (
     assert (!isVBC (uSenderID) && uSenderID != noAccount());
     assert (!isVBC (uReceiverID) && uReceiverID != noAccount());
 
+    // Asset process
+    if (saAmount.getCurrency() == assetCurrency())
+    {
+        SLE::pointer sleAsset = entryCache (ltASSET, getAssetIndex (saAmount.issue()));
+        if (!sleAsset)
+        {
+            return temBAD_ISSUER;
+        }
+        Account issueAccount = sleAsset->getFieldAccount160(sfRegularKey);
+        bool bReceiverIsHotWallet = (issueAccount == uReceiverID);
+        if (!bReceiverIsHotWallet)
+        {
+            uint32 parentCloseTime = getLedger()->getParentCloseTimeNC ();
+            uint256 baseAssetStateIndex = getAssetStateIndex (uSenderID, uReceiverID, currency);
+            // Multiple of 86400
+            uint64 interval = 24*60*60;
+            uint256 assetStateIndex = getQualityIndex (baseAssetStateIndex,
+                parentCloseTime - parentCloseTime%interval);
+            
+            SLE::pointer sleAssetState = entryCache (ltASSET_STATE, assetStateIndex);
+            if (!sleAssetState)
+            {
+                std::uint64_t uAssetNode;
+                
+                SLE::pointer sleAssetState  = entryCreate (ltASSET_STATE, assetStateIndex);
+                // Add to receiver
+                terResult = dirAdd (uAssetNode,
+                    getOwnerDirIndex(uReceiverID),
+                    sleAssetState->getIndex(),
+                    std::bind(
+                        &Ledger::ownerDirDescriber, std::placeholders::_1,
+                        std::placeholders::_2, uReceiverID));
+                if (tesSUCCESS == terResult)
+                {
+                    // Add to Issue
+                    terResult = dirAdd (uAssetNode,
+                        getOwnerDirIndex(issueAccount),
+                        sleAsset->getIndex(),
+                        std::bind(
+                            &Ledger::ownerDirDescriber, std::placeholders::_1,
+                            std::placeholders::_2, issueAccount));
+                }
+            }
+            else
+            {
+                STAmount before = sleAssetState->getFieldAmount(sfAmount);
+                sleAssetState->setFieldAmount(sfAmount, before + saAmount);
+                entryModify (sleAssetState);
+                terResult = tesSUCCESS;
+            }
+            return terResult;
+        }
+    }
+    
     if (!sleRippleState)
     {
         STAmount saReceiverLimit({currency, uReceiverID});

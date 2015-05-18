@@ -142,6 +142,7 @@ JSS ( random );
 JSS ( raw_meta );
 JSS ( referee );
 JSS ( request );
+JSS ( reserve );
 JSS ( reserve_base );
 JSS ( reserve_base_xrp );
 JSS ( reserve_inc );

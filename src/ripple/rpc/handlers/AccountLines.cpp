@@ -20,6 +20,7 @@
 #include <BeastConfig.h>
 #include <ripple/rpc/impl/Tuning.h>
 #include <ripple/app/paths/RippleState.h>
+#include <ripple/protocol/Indexes.h>
 
 namespace ripple {
 
@@ -31,12 +32,64 @@ struct VisitData
     Account const& raPeerAccount;
 };
 
-void addLine (Json::Value& jsonLines, RippleState const& line)
+void addLine (Json::Value& jsonLines, RippleState const& line, Ledger::pointer ledger)
 {
-    STAmount const& saBalance (line.getBalance ());
+    STAmount saBalance (line.getBalance ());
     STAmount const& saLimit (line.getLimit ());
     STAmount const& saLimitPeer (line.getLimitPeer ());
     Json::Value& jPeer (jsonLines.append (Json::objectValue));
+
+    // calculate released & reserved balance for asset.
+    if (assetCurrency() == saBalance.getCurrency()) {
+        STAmount reserved;
+        uint256 baseIndex = getAssetStateIndex(line.getAccountID(), line.getAccountIDPeer(), assetCurrency());
+        uint256 assetStateIndex = getQualityIndex(baseIndex);
+        uint256 assetStateEnd = getQualityNext(assetStateIndex);
+
+        for (;;) {
+            auto const& sle = ledger->getSLEi(assetStateIndex);
+            uint64_t boughtTime = getQuality(assetStateIndex);
+            if (sle) {
+                Account const& owner = sle->getFieldAccount160(sfAccount);
+                STAmount const& amount = sle->getFieldAmount(sfAmount);
+                STAmount const& delivered = sle->getFieldAmount(sfDeliveredAmount);
+
+                auto const& sleAsset = ledger->getSLEi(getAssetIndex(amount.issue()));
+
+                if (sleAsset) {
+                    auto const& releaseSchedule = sleAsset->getFieldArray(sfReleaseSchedule);
+                    uint32_t releaseRate = 0;
+
+                    for (auto const& releasePoint : releaseSchedule) {
+                        if (boughtTime + releasePoint.getFieldU32(sfExpiration) > ledger->getCloseTimeNC())
+                            break;
+
+                        releaseRate = releasePoint.getFieldU32(sfReleaseRate);
+                    }
+
+                    STAmount released = multiply(amount, amountFromRate(releaseRate), amount.issue());
+
+                    if (owner == line.getAccountID()) {
+                        saBalance += released - delivered;
+                        reserved += amount - released;
+                    } else if (owner == line.getAccountIDPeer()) {
+                        saBalance -= released - delivered;
+                        reserved -= amount - released;
+                    }
+                }
+            }
+
+            auto const nextAssetState(
+                ledger->getNextLedgerIndex(assetStateIndex, assetStateEnd));
+
+            if (nextAssetState.isZero())
+                break;
+
+            assetStateIndex = nextAssetState;
+
+            jPeer[jss::reserve] = reserved.getText ();
+        }
+    }
 
     jPeer[jss::account] = to_string (line.getAccountIDPeer ());
     // Amount reported is positive if current account holds other
@@ -183,7 +236,7 @@ Json::Value doAccountLines (RPC::Context& context)
         if (line == nullptr)
             return rpcError (rpcINVALID_PARAMS);
 
-        addLine (jsonLines, *line);
+        addLine (jsonLines, *line, ledger);
         visitData.items.reserve (reserve);
     }
     else
@@ -223,7 +276,7 @@ Json::Value doAccountLines (RPC::Context& context)
     result[jss::account] = rippleAddress.humanAccountID ();
 
     for (auto const& item : visitData.items)
-        addLine (jsonLines, *item.get ());
+        addLine (jsonLines, *item.get (), ledger);
 
     context.loadType = Resource::feeMediumBurdenRPC;
     return result;
