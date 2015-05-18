@@ -1635,6 +1635,25 @@ TER LedgerEntrySet::rippleCredit (
                 entryModify (sleAssetState);
                 terResult = tesSUCCESS;
             }
+
+            if (!sleRippleState) {
+                STAmount saReceiverLimit({currency, uReceiverID});
+                STAmount saBalance({currency, noAccount()});
+
+                WriteLog(lsDEBUG, LedgerEntrySet) << "rippleCredit: create line: " << to_string(uSenderID) << " -> " << to_string(uReceiverID) << " : " << saAmount.getFullText();
+
+                terResult = trustCreate(
+                    bSenderHigh,
+                    uSenderID,
+                    uReceiverID,
+                    uIndex,
+                    entryCache(ltACCOUNT_ROOT, getAccountRootIndex(uReceiverID)),
+                    false,
+                    true,
+                    false,
+                    saBalance,
+                    saReceiverLimit);
+            }
             return terResult;
         }
     }

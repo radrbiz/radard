@@ -51,8 +51,8 @@ void addLine (Json::Value& jsonLines, RippleState const& line, Ledger::pointer l
             uint64_t boughtTime = getQuality(assetStateIndex);
             if (sle) {
                 Account const& owner = sle->getFieldAccount160(sfAccount);
-                STAmount const& amount = sle->getFieldAmount(sfAmount);
-                STAmount const& delivered = sle->getFieldAmount(sfDeliveredAmount);
+                STAmount amount = sle->getFieldAmount(sfAmount);
+                STAmount delivered = sle->getFieldAmount(sfDeliveredAmount);
 
                 auto const& sleAsset = ledger->getSLEi(getAssetIndex(amount.issue()));
 
@@ -69,13 +69,16 @@ void addLine (Json::Value& jsonLines, RippleState const& line, Ledger::pointer l
 
                     STAmount released = multiply(amount, amountFromRate(releaseRate), amount.issue());
 
-                    if (owner == line.getAccountID()) {
-                        saBalance += released - delivered;
-                        reserved += amount - released;
-                    } else if (owner == line.getAccountIDPeer()) {
-                        saBalance -= released - delivered;
-                        reserved -= amount - released;
+                    if (owner == line.getAccountIDPeer()) {
+                        amount.negate();
+                        delivered.negate();
+                        released.negate();
                     }
+                    saBalance += delivered ? released - delivered : released;
+                    if (reserved)
+                        reserved += amount - released;
+                    else
+                        reserved = amount - released;
                 }
             }
 
@@ -86,9 +89,9 @@ void addLine (Json::Value& jsonLines, RippleState const& line, Ledger::pointer l
                 break;
 
             assetStateIndex = nextAssetState;
-
-            jPeer[jss::reserve] = reserved.getText ();
         }
+        if (reserved)
+            jPeer[jss::reserve] = reserved.getText();
     }
 
     jPeer[jss::account] = to_string (line.getAccountIDPeer ());
