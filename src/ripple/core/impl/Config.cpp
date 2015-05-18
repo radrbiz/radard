@@ -56,6 +56,8 @@ namespace ripple {
 #define DEFAULT_FEE_NONE_NATIVE         1000
 #define DEFAULT_FEE_RATE_NATIVE         0.001
 
+#define DEFAULT_ASSET_TX_MIN            5
+
 // Fee in fee units
 #define DEFAULT_TRANSACTION_FEE_BASE    10
 
@@ -256,6 +258,8 @@ Config::Config ()
     FEE_DEFAULT_CREATE      = DEFAULT_FEE_CREATE;
     FEE_DEFAULT_NONE_NATIVE = DEFAULT_FEE_NONE_NATIVE;
     FEE_DEFAULT_RATE_NATIVE = DEFAULT_FEE_RATE_NATIVE;
+    
+    ASSET_TX_MIN            = DEFAULT_ASSET_TX_MIN;
     
 
     LEDGER_HISTORY          = 256;

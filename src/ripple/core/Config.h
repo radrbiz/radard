@@ -302,6 +302,8 @@ public:
     std::uint64_t                      FEE_DEFAULT_CREATE;     // fee for create account
     std::uint64_t                      FEE_DEFAULT_NONE_NATIVE;// fee for nonnative payment
     double                             FEE_DEFAULT_RATE_NATIVE;// fee rate for native(VBC/VRP) payment
+    
+    int                                ASSET_TX_MIN;           // Minimum amount for asset TXs.
 
     // Node storage configuration
     std::uint32_t                      LEDGER_HISTORY;

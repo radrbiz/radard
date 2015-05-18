@@ -287,6 +287,9 @@ public:
     {
         return (mValue == 0) && mIsNative;
     }
+    
+    bool
+    isMathematicalInteger () const;
 
 private:
     STAmount*
