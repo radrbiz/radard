@@ -56,10 +56,10 @@ namespace ripple {
 #define DEFAULT_FEE_NONE_NATIVE         1000
 #define DEFAULT_FEE_RATE_NATIVE         0.001
 
-#define DEFAULT_ASSET_TX_MIN            5
-
 // Fee in fee units
-#define DEFAULT_TRANSACTION_FEE_BASE    10
+#define DEFAULT_TRANSACTION_FEE_BASE    1000
+
+#define DEFAULT_ASSET_TX_MIN            5
 
 #define SECTION_DEFAULT_NAME    ""
 
