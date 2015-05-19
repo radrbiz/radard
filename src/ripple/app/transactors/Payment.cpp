@@ -207,6 +207,19 @@ public:
         }
 
         // additional checking for currency ASSET.
+        if (assetCurrency() == uDstCurrency) {
+            if (saDstAmount.getIssuer() == uDstAccountID) {
+                // Return Asset to issuer is not allowed.
+                m_journal.trace << "Return Asset to issuer is not allowed"
+                                << " src=" << to_string(mTxnAccountID) << " dst=" << to_string(uDstAccountID) << " src_cur=" << to_string(uSrcCurrency) << " dst_cur=" << to_string(uDstCurrency);
+
+                return temDISABLED;
+            }
+            
+            if (saDstAmount < STAmount(saDstAmount.issue(), getConfig().ASSET_TX_MIN) || !saDstAmount.isMathematicalInteger())
+                return temINVALID;
+        }
+
         if (assetCurrency() == uSrcCurrency) {
             if (bMax)
                 return temBAD_SEND_XRP_MAX;
@@ -214,19 +227,8 @@ public:
             if (partialPaymentAllowed)
                 return temBAD_SEND_XRP_PARTIAL;
 
-            if (saDstAmount < STAmount(saDstAmount.issue(), getConfig().ASSET_TX_MIN) || !saDstAmount.isMathematicalInteger())
-                return temINVALID;
-
             if (saDstAmount.getIssuer() == mTxnAccountID) {
-                m_journal.trace << "STK payment from issuer is not allowed";
-                return temDISABLED;
-            }
-
-            if (saDstAmount.getIssuer() == uDstAccountID) {
-                // Return STK to issuer is not allowed.
-                m_journal.trace << "Return STK to issuer is not allowed"
-                                << " src=" << to_string(mTxnAccountID) << " dst=" << to_string(uDstAccountID) << " src_cur=" << to_string(uSrcCurrency) << " dst_cur=" << to_string(uDstCurrency);
-
+                m_journal.trace << "Asset payment from issuer is not allowed";
                 return temDISABLED;
             }
         }

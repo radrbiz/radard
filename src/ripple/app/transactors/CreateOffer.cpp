@@ -183,7 +183,7 @@ CreateOffer::doApply()
         if (saTakerPays < STAmount(saTakerPays.issue(), getConfig().ASSET_TX_MIN) || !saTakerPays.isMathematicalInteger())
             return temBAD_OFFER;
         if (uPaysIssuerID == mTxnAccountID || uGetsIssuerID == mTxnAccountID) {
-            m_journal.trace << "Creating STK offer is not allowed for issuer";
+            m_journal.trace << "Creating Asset offer is not allowed for issuer";
             return temDISABLED;
         }
     }
