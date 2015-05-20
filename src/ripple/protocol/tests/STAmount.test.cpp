@@ -263,7 +263,7 @@ public:
         unexpected (STAmount ().getText () != "0", "STAmount fail");
         unexpected (STAmount (31).getText () != "31", "STAmount fail");
         unexpected (STAmount (310).getText () != "310", "STAmount fail");
-        unexpected (to_string (Currency ()) != "XRP", "cHC(XRP)");
+        unexpected (to_string (Currency ()) != "VRP", "cHC(VRP)");
         Currency c;
         unexpected (!to_currency (c, "USD"), "create USD currency");
         unexpected (to_string (c) != "USD", "check USD currency");
@@ -272,6 +272,10 @@ public:
         unexpected (!to_currency (c, cur), "create custom currency");
         unexpected (to_string (c) != cur, "check custom currency");
         unexpected (c != Currency (cur), "check custom currency");
+        
+        unexpected (to_string (vbcCurrency ()) != "VBC", "cHC(VBC)");
+        unexpected (!to_currency (c, "VBC"), "create VBC currency");
+        unexpected (to_string (c) != "VBC", "check VBC currency");
     }
 
     //--------------------------------------------------------------------------

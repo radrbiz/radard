@@ -180,10 +180,16 @@ CreateOffer::doApply()
 
     // additional checking for currency ASSET.
     if (assetCurrency() == uPaysCurrency) {
+        if (saTakerPays < STAmount(saTakerPays.issue(), getConfig().ASSET_TX_MIN) || !saTakerPays.isMathematicalInteger())
+            return temBAD_OFFER;
         if (uPaysIssuerID == mTxnAccountID || uGetsIssuerID == mTxnAccountID) {
-            m_journal.trace << "Creating STK offer is not allowed for issuer";
+            m_journal.trace << "Creating Asset offer is not allowed for issuer";
             return temDISABLED;
         }
+    }
+    if (assetCurrency() == uGetsCurrency) {
+        if (saTakerGets < STAmount(saTakerGets.issue(), getConfig().ASSET_TX_MIN) || !saTakerGets.isMathematicalInteger())
+            return temBAD_OFFER;
     }
 
     if (uTxFlags & tfOfferCreateMask)

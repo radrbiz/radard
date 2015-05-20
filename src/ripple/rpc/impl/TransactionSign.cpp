@@ -213,7 +213,6 @@ static void autofill_fee (
             RPC::inject_error (rpcINVALID_PARAMS, "no destination account", result);
             return;
         }
-        Config d;
         std::string dstAccountID = tx["Destination"].asString();
         RippleAddress dstAddress;
         if (!dstAddress.setAccountID(dstAccountID))
@@ -225,7 +224,7 @@ static void autofill_fee (
         //dst account not exist yet, charge a fix amount of fee(0.01) for creating
         if (!ledgerFacade.isAccountExist(dstAddress.getAccountID()))
         {
-            feeByTrans = d.FEE_DEFAULT_CREATE;
+            feeByTrans = getConfig().FEE_DEFAULT_CREATE;
         }
 
         //if currency is native(VRP/VBC), charge 1/1000 of transfer amount,
@@ -238,9 +237,7 @@ static void autofill_fee (
                 RPC::inject_error (rpcINVALID_PARAMS, "wrong amount format", result);
                 return;
             }
-            //feeByTrans += amount.isNative() ? amount.getNValue() * d.FEE_DEFAULT_RATE_NATIVE : d.FEE_DEFAULT_NONE_NATIVE;
-            // 1000 at least
-            feeByTrans += amount.isNative() ? std::max(int(amount.getNValue() * d.FEE_DEFAULT_RATE_NATIVE), int(d.FEE_DEFAULT_MIN_NATIVE)) : d.FEE_DEFAULT_NONE_NATIVE;
+            feeByTrans += amount.isNative() ? std::max(int(amount.getNValue() * getConfig().FEE_DEFAULT_RATE_NATIVE), int(getConfig().FEE_DEFAULT_MIN_NATIVE)) : getConfig().FEE_DEFAULT_NONE_NATIVE;
         }
     }
     
@@ -286,11 +283,11 @@ static void autofill_fee (
                 RPC::inject_error (rpcINVALID_PARAMS, "wrong amount format", result);
                 return;
             }
-            feeByTrans += amount.isNative() ? std::max(int(amount.getNValue() * d.FEE_DEFAULT_RATE_NATIVE), int(d.FEE_DEFAULT_MIN_NATIVE)) : d.FEE_DEFAULT_NONE_NATIVE;
+            feeByTrans += amount.isNative() ? std::max(int(amount.getNValue() * getConfig().FEE_DEFAULT_RATE_NATIVE), int(getConfig().FEE_DEFAULT_MIN_NATIVE)) : getConfig().FEE_DEFAULT_NONE_NATIVE;
         }
         else
         {
-            feeByTrans += d.FEE_DEFAULT_MIN_NATIVE;
+            feeByTrans += getConfig().FEE_DEFAULT_MIN_NATIVE;
         }
     }
     
