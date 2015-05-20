@@ -1636,72 +1636,7 @@ TER LedgerEntrySet::rippleCredit (
                 sleAssetState->setFieldAmount(sfAmount, saAmount);
             }
             else
-            {
-                // Move released amount to TrustLine
-                {
-                    STAmount totalReleased(saAmount.issue(), 0);
-                    STAmount totalDelivered(saAmount.issue(), 0);
-                    uint256 baseIndex = getAssetStateIndex(uSenderID, saAmount.issue());
-                    uint256 assetStateIndex = getQualityIndex(baseIndex);
-                    
-                    // calc totalReleased
-                    for (;;)
-                    {
-                        auto const sle = getLedger()->getSLEi(assetStateIndex);
-                        uint256 assetStateEnd = getQualityNext(assetStateIndex);
-                        if (sle)
-                        {
-                            STAmount amount = sle->getFieldAmount(sfAmount);
-                            STAmount delivered = sle->getFieldAmount(sfAmount);
-                            uint64 lastBuy = getQuality(assetStateIndex);
-                            
-                            auto const& sleAsset = getLedger()->getSLEi(getAssetIndex(amount.issue()));
-                            
-                            if (sleAsset)
-                            {
-                                STArray const& releaseSchedule = sleAsset->getFieldArray(sfReleaseSchedule);
-                                uint32 releaseRate = 0;
-                            
-                                for (auto releasePoint : releaseSchedule)
-                                {
-                                    if (lastBuy + releasePoint.getFieldU32(sfExpiration) > parentCloseTime)
-                                        break;
-                                        
-                                    releaseRate = releasePoint.getFieldU32(sfReleaseRate);
-                                }
-
-                                STAmount released = multiply(amount, amountFromRate(releaseRate), amount.issue());
-                                totalReleased += delivered ? released - delivered : released;
-                                // calc delivered
-                                totalDelivered += delivered;
-                            }
-                        }
-                        auto const nextAssetState = getLedger()->getNextLedgerIndex(assetStateIndex, assetStateEnd);
-                        
-                        if (nextAssetState.isZero())
-                            break;
-
-                        assetStateIndex = nextAssetState;
-                    }
-                    // Move assetState to rippleState
-                    if (sleRippleState)
-                    {
-                        if (totalReleased > totalDelivered)
-                        {
-                            sleRippleState->setFieldAmount(sfBalance, totalReleased - totalDelivered);
-                        }
-                        else if (totalReleased == totalDelivered)
-                        {
-                            trustDelete(sleRippleState, uSenderID, issueAccount);
-                        }
-                        else if (totalReleased < totalDelivered)
-                        {
-                            // Is it possible?
-                        }
-                        sleAssetState->setFieldAmount(sfDeliveredAmount, totalReleased);
-                    }
-                }
-                
+            {   
                 STAmount before = sleAssetState->getFieldAmount(sfAmount);
                 sleAssetState->setFieldAmount(sfAmount, before + saAmount);
                 entryModify (sleAssetState);
