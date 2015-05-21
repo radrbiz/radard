@@ -1128,18 +1128,63 @@ STAmount LedgerEntrySet::rippleHolds (
     {
         saBalance.clear (IssueRef (currency, issuer));
     }
-    else if (account > issuer)
-    {
-        saBalance   = sleRippleState->getFieldAmount (sfBalance);
-        saBalance.negate ();    // Put balance in account terms.
-
-        saBalance.setIssuer (issuer);
-    }
     else
     {
-        saBalance   = sleRippleState->getFieldAmount (sfBalance);
+        saBalance = sleRippleState->getFieldAmount(sfBalance);
 
-        saBalance.setIssuer (issuer);
+        if (assetCurrency() == currency) {
+            uint256 const baseIndex = getAssetStateIndex(account, issuer, currency);
+            uint256 assetStateIndex = getQualityIndex(baseIndex);
+            uint256 const assetStateEnd = getQualityNext(assetStateIndex);
+            for (;;) {
+                auto const& sleAssetState = entryCache(ltASSET_STATE, assetStateIndex);
+                if (sleAssetState) {
+                    STAmount const& amount = sleAssetState->getFieldAmount(sfAmount);
+                    if ((sleAssetState->getFieldAccount160(sfAccount) == account && amount.getIssuer() == issuer) ||
+                        (sleAssetState->getFieldAccount160(sfAccount) == issuer && amount.getIssuer() == account)) {
+                        auto const& sleAsset = entryCache(ltASSET, getAssetIndex(amount.issue()));
+                        if (sleAsset) {
+                            uint64 const boughtTime = getQuality(assetStateIndex);
+                            uint32 releaseRate = 0;
+
+                            STArray const& releaseSchedule = sleAsset->getFieldArray(sfReleaseSchedule);
+                            for (auto releasePoint : releaseSchedule) {
+                                if (boughtTime + releasePoint.getFieldU32(sfExpiration) > getLedger()->getCloseTimeNC())
+                                    break;
+
+                                releaseRate = releasePoint.getFieldU32(sfReleaseRate);
+                            }
+
+                            if (releaseRate > 0) {
+                                STAmount const released = mulRound(amount, amountFromRate(releaseRate), amount.issue(), false);
+                                STAmount delivered = sleAssetState->getFieldAmount(sfDeliveredAmount);
+                                if (!delivered)
+                                    delivered.setIssue(amount.issue());
+                                if (released > delivered) {
+                                    saBalance.setIssuer(amount.getIssuer());
+                                    saBalance += released - delivered;
+                                    sleAssetState->setFieldAmount(sfDeliveredAmount, released);
+                                    entryModify(sleAssetState);
+                                    sleRippleState->setFieldAmount(sfBalance, saBalance);
+                                    entryModify(sleRippleState);
+                                }
+                            }
+                        }
+                    }
+                }
+                auto const nextAssetStateIndex = getNextLedgerIndex(assetStateIndex, assetStateEnd);
+
+                if (nextAssetStateIndex.isZero())
+                    break;
+
+                assetStateIndex = nextAssetStateIndex;
+            }
+        }
+
+        if (account > issuer)
+            saBalance.negate(); // Put balance in account terms.
+
+        saBalance.setIssuer(issuer);
     }
 
     return saBalance;
@@ -1645,8 +1690,10 @@ TER LedgerEntrySet::rippleCredit (
                         {
                             STAmount amount = sle->getFieldAmount(sfAmount);
                             STAmount delivered = sle->getFieldAmount(sfDeliveredAmount);
+                            if (!delivered)
+                                delivered.setIssue(amount.issue());
                             
-                            auto const& sleAsset = getLedger()->getSLEi(getAssetIndex(uSenderID, currency));
+                            auto const& sleAsset = getLedger()->getSLEi(getAssetIndex(amount.issue()));
                             
                             if (sleAsset)
                             {
