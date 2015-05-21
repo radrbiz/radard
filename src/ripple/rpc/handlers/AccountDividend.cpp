@@ -1,3 +1,6 @@
+#include <ripple/app/data/DatabaseCon.h>
+#include <ripple/app/tx/TransactionMaster.h>
+
 namespace ripple {
 
 // account_dividend [account]

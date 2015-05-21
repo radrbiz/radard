@@ -155,6 +155,7 @@ JSS ( seqNum );
 JSS ( server_state );
 JSS ( server_status );
 JSS ( stand_alone );
+JSS ( states );
 JSS ( status );
 JSS ( success );
 JSS ( system_time_offset );
