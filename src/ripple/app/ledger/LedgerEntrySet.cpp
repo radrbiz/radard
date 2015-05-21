@@ -1676,75 +1676,11 @@ TER LedgerEntrySet::rippleCredit (
             }
             else
             {
-                // Move released amount to TrustLine
-                {
-                    STAmount balance = sleAssetState->getFieldAmount(sfAmount);
-                    uint256 baseIndex = getAssetStateIndex(uSenderID, saAmount.issue());
-                    uint256 assetStateIndex = getQualityIndex(baseIndex);
-                    uint256 assetStateEnd = getQualityNext(assetStateIndex);
-                    for (;;)
-                    {
-                        uint64 boughtTime = getQuality(assetStateIndex);
-                        auto const& sle = getLedger()->getSLEi(assetStateIndex);
-                        if (sle)
-                        {
-                            STAmount amount = sle->getFieldAmount(sfAmount);
-                            STAmount delivered = sle->getFieldAmount(sfDeliveredAmount);
-                            if (!delivered)
-                                delivered.setIssue(amount.issue());
-                            
-                            auto const& sleAsset = getLedger()->getSLEi(getAssetIndex(amount.issue()));
-                            
-                            if (sleAsset)
-                            {
-                                STArray const& releaseSchedule = sleAsset->getFieldArray(sfReleaseSchedule);
-                                uint32 releaseRate = 0;
-                            
-                                for (auto releasePoint : releaseSchedule)
-                                {
-                                    if (boughtTime + releasePoint.getFieldU32(sfExpiration) > getLedger()->getCloseTimeNC())
-                                        break;
-                                        
-                                    releaseRate = releasePoint.getFieldU32(sfReleaseRate);
-                                }
-
-                                STAmount released = multiply(amount, amountFromRate(releaseRate), amount.issue());
-                                balance += delivered ? released - delivered : released;
-
-                                // Move assetState to rippleState
-                                if (sleAssetState)
-                                {
-                                    if (balance > delivered)
-                                    {
-                                        sleRippleState->setFieldAmount(sfBalance, balance - delivered);
-                                    }
-                                    else if (balance == delivered)
-                                    {
-                                        trustDelete(sleRippleState, uSenderID, issueAccount);
-                                    }
-                                    else if (balance < delivered)
-                                    {
-                                        // Is it possible?
-                                    }
-                                    sleAssetState->setFieldAmount(sfDeliveredAmount, balance);
-                                }
-                            }
-                        }
-                        auto const nextAssetStateIndex = getLedger()->getNextLedgerIndex(assetStateIndex, assetStateEnd);
-                        
-                        if (nextAssetStateIndex.isZero())
-                            break;
-
-                        assetStateIndex = nextAssetStateIndex;
-                    }
-                }
-                
                 STAmount before = sleAssetState->getFieldAmount(sfAmount);
                 sleAssetState->setFieldAmount(sfAmount, before + saAmount);
                 entryModify (sleAssetState);
                 terResult = tesSUCCESS;
             }
-
             if (!sleRippleState) {
                 STAmount saReceiverLimit({currency, uReceiverID});
                 STAmount saBalance({currency, noAccount()});
@@ -1763,6 +1699,67 @@ TER LedgerEntrySet::rippleCredit (
                     saBalance,
                     saReceiverLimit);
             }
+            // Move released amount to TrustLine
+            {
+                STAmount balance = sleRippleState->getFieldAmount(sfBalance);
+                uint256 baseIndex = getAssetStateIndex(uSenderID, saAmount.issue());
+                uint256 assetStateIndex = getQualityIndex(baseIndex);
+                uint256 assetStateEnd = getQualityNext(assetStateIndex);
+                for (;;)
+                {
+                    uint64 boughtTime = getQuality(assetStateIndex);
+                    auto const& sle = getLedger()->getSLEi(assetStateIndex);
+                    if (sle)
+                    {
+                        STAmount amount = sle->getFieldAmount(sfAmount);
+                        STAmount delivered = sle->getFieldAmount(sfDeliveredAmount);
+                        if (!delivered)
+                            delivered.setIssue(amount.issue());
+                        
+                        auto const& sleAsset = getLedger()->getSLEi(getAssetIndex(uSenderID, currency));
+                        
+                        if (sleAsset)
+                        {
+                            STArray const& releaseSchedule = sleAsset->getFieldArray(sfReleaseSchedule);
+                            uint32 releaseRate = 0;
+                            bool bIsReleaseFinished = false;
+                            for (auto releasePoint : releaseSchedule)
+                            {
+                                if (boughtTime + releasePoint.getFieldU32(sfExpiration) > getLedger()->getCloseTimeNC())
+                                    break;
+                                else if (releasePoint == releaseSchedule.back())
+                                    bIsReleaseFinished = true;
+                                    
+                                releaseRate = releasePoint.getFieldU32(sfReleaseRate);
+                            }
+
+                            STAmount released = multiply(amount, amountFromRate(releaseRate), amount.issue());
+                            balance += released - delivered;
+                            if (bIsReleaseFinished)
+                            {
+                                sle->setFieldAmount(sfAmount,
+                                    multiply(amount, amountFromRate(QUALITY_ONE - releaseRate), amount.issue()));
+                                entryModify(sle);
+                            }
+                            // Move assetState to rippleState
+                            if (balance > delivered)
+                            {
+                                sleRippleState->setFieldAmount(sfBalance, balance - delivered);
+                                entryModify(sleRippleState);
+                            }
+                            sleAssetState->setFieldAmount(sfDeliveredAmount, balance);
+                            entryModify(sleAssetState);
+                        }
+                    }
+                    auto const nextAssetStateIndex = getLedger()->getNextLedgerIndex(assetStateIndex, assetStateEnd);
+                    
+                    if (nextAssetStateIndex.isZero())
+                        break;
+
+                    assetStateIndex = nextAssetStateIndex;
+                }
+            }
+
             return terResult;
         }
     }
