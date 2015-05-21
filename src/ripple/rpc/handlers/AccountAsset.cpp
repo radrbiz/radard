@@ -1,5 +1,6 @@
 #include <BeastConfig.h>
 #include <ripple/rpc/impl/Tuning.h>
+#include <ripple/rpc/impl/AccountFromString.h>
 #include <ripple/app/paths/RippleState.h>
 #include <ripple/protocol/Indexes.h>
 
@@ -16,7 +17,9 @@ Json::Value doAccountAsset (RPC::Context& context)
 {
     auto const& params(context.params);
     if (!params.isMember(jss::accounts))
-        return RPC::missing_field_error("accounts");
+        return RPC::missing_field_error("account");
+    if (!params.isMember(jss::peer))
+        return RPC::missing_field_error("peer");
     if (!params.isMember(jss::currency))
         return RPC::missing_field_error("currency");
 
@@ -25,29 +28,51 @@ Json::Value doAccountAsset (RPC::Context& context)
     if (!ledger)
         return result;
 
-    RippleAddress naA;
-    RippleAddress naB;
-    Currency uCurrency;
-    if (!params[jss::accounts].isArray() ||
-        2 != params[jss::accounts].size() ||
-        !params[jss::accounts][0u].isString() ||
-        !params[jss::accounts][1u].isString() ||
-        (params[jss::accounts][0u].asString() == params[jss::accounts][1u].asString())) {
-        return RPC::make_error(rpcSRC_ACT_MISSING, "Invalid field 'accounts', two accounts needed.");
-    } else if (!naA.setAccountID(params[jss::accounts][0u].asString()) ||
-               !naB.setAccountID(params[jss::accounts][1u].asString())) {
-        return RPC::make_error(rpcSRC_ACT_MALFORMED, "Invalid field 'accounts', bad account.");
-    } else if (!to_currency(uCurrency, params[jss::currency].asString())) {
-        return RPC::make_error(rpcSRC_CUR_MALFORMED, "Invalid field 'currency', bad currency.");
+    std::string strIdent(params[jss::account].asString());
+    bool bIndex(params.isMember(jss::account_index));
+    int iIndex(bIndex ? params[jss::account_index].asUInt() : 0);
+    RippleAddress rippleAddress;
+
+    Json::Value const jv(RPC::accountFromString(ledger, rippleAddress, bIndex,
+                                                strIdent, iIndex, false, context.netOps));
+    if (!jv.empty()) {
+        for (Json::Value::const_iterator it(jv.begin()); it != jv.end(); ++it)
+            result[it.memberName()] = it.key();
+
+        return result;
     }
 
-    uint256 uNodeIndex = getRippleStateIndex(naA.getAccountID(), naB.getAccountID(), uCurrency);
+    if (!ledger->hasAccount(rippleAddress))
+        return rpcError(rpcACT_NOT_FOUND);
+
+    std::string strPeer(params.isMember(jss::peer) ? params[jss::peer].asString() : "");
+    bool bPeerIndex(params.isMember(jss::peer_index));
+    int iPeerIndex(bIndex ? params[jss::peer_index].asUInt() : 0);
+    RippleAddress rippleAddressPeer;
+
+    Json::Value const jvPeer(RPC::accountFromString(ledger, rippleAddressPeer, bPeerIndex,
+                                                    strPeer, iPeerIndex, false, context.netOps));
+    if (!jvPeer.empty()) {
+        return result;
+    }
+
+    if (!ledger->hasAccount(rippleAddressPeer))
+        return rpcError(rpcACT_NOT_FOUND);
+
+    Currency uCurrency;
+    if (!to_currency(uCurrency, params[jss::currency].asString()))
+        return RPC::make_error(rpcSRC_CUR_MALFORMED, "Invalid field 'currency', bad currency.");
+
+    Account const& raAccount(rippleAddress.getAccountID());
+    Account const& raPeerAccount(rippleAddressPeer.getAccountID());
+
+    uint256 uNodeIndex = getRippleStateIndex(raAccount, raPeerAccount, uCurrency);
     auto sleNode = context.netOps.getSLEi(ledger, uNodeIndex);
-    auto const line(RippleState::makeItem(naA.getAccountID(), sleNode));
+    auto const line(RippleState::makeItem(raAccount, sleNode));
 
     if (line == nullptr ||
-        naA.getAccountID() != line->getAccountID() ||
-        naB.getAccountID() != line->getAccountIDPeer())
+        raAccount != line->getAccountID() ||
+        raPeerAccount != line->getAccountIDPeer())
         return result;
 
     Json::Value jsonLines(Json::arrayValue);
@@ -74,7 +99,6 @@ Json::Value doAccountAsset (RPC::Context& context)
                 if (sleAsset) {
                     Json::Value& state(jsonAssetStates.append(Json::objectValue));
                     uint64_t boughtTime = getQuality(assetStateIndex);
-                    state[jss::date] = static_cast<Json::UInt>(boughtTime);
 
                     auto const& releaseSchedule = sleAsset->getFieldArray(sfReleaseSchedule);
                     uint32_t releaseRate = 0;
@@ -94,6 +118,9 @@ Json::Value doAccountAsset (RPC::Context& context)
                     }
 
                     auto reserved = amount - released;
+                    
+                    state[jss::date] = static_cast<Json::UInt>(boughtTime);
+                    state[jss::amount] = amount.getText();
                     state[jss::reserve] = reserved.getText();
                 }
             }

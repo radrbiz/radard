@@ -44,6 +44,7 @@ JSS ( accountTreeHash );
 JSS ( affected );
 JSS ( age );
 JSS ( amendment_blocked );
+JSS ( amount );
 JSS ( asks );
 JSS ( authorized );
 JSS ( balance );
