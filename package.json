@@ -1,7 +1,7 @@
 {
-  "name": "rippled",
+  "name": "radard",
   "version": "0.0.1",
-  "description": "Rippled Server",
+  "description": "Radr Server",
 
   "private": true,
 
