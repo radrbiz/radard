@@ -1584,16 +1584,10 @@ TER LedgerEntrySet::rippleCredit (
     assert (!isVBC (uReceiverID) && uReceiverID != noAccount());
 
     // Asset process
-    if (currency == assetCurrency())
+    SLE::pointer sleRecAsset = entryCache(ltASSET, getAssetIndex(uReceiverID, currency));
+    if (currency == assetCurrency() && !sleRecAsset)
     {
-        /*
-        SLE::pointer sleRecAsset = entryCache(ltASSET, getAssetIndex(uReceiverID, currency));
-        if (sleRecAsset->getFieldAmount(sfAmount))
-        {
-            return temBAD_ISSUER;
-        }*/
-        
-        SLE::pointer sleAsset = entryCache (ltASSET, getAssetIndex (saAmount.issue()));
+        SLE::pointer sleAsset = entryCache (ltASSET, getAssetIndex (uSenderID, currency));
         if (!sleAsset)
         {
             return temBAD_ISSUER;
@@ -1636,7 +1630,68 @@ TER LedgerEntrySet::rippleCredit (
                 sleAssetState->setFieldAmount(sfAmount, saAmount);
             }
             else
-            {   
+            {
+                // Move released amount to TrustLine
+                {
+                    STAmount balance = sleAssetState->getFieldAmount(sfAmount);
+                    uint256 baseIndex = getAssetStateIndex(uSenderID, saAmount.issue());
+                    uint256 assetStateIndex = getQualityIndex(baseIndex);
+                    uint256 assetStateEnd = getQualityNext(assetStateIndex);
+                    for (;;)
+                    {
+                        uint64 boughtTime = getQuality(assetStateIndex);
+                        auto const& sle = getLedger()->getSLEi(assetStateIndex);
+                        if (sle)
+                        {
+                            STAmount amount = sle->getFieldAmount(sfAmount);
+                            STAmount delivered = sle->getFieldAmount(sfDeliveredAmount);
+                            
+                            auto const& sleAsset = getLedger()->getSLEi(getAssetIndex(uSenderID, currency));
+                            
+                            if (sleAsset)
+                            {
+                                STArray const& releaseSchedule = sleAsset->getFieldArray(sfReleaseSchedule);
+                                uint32 releaseRate = 0;
+                            
+                                for (auto releasePoint : releaseSchedule)
+                                {
+                                    if (boughtTime + releasePoint.getFieldU32(sfExpiration) > getLedger()->getCloseTimeNC())
+                                        break;
+                                        
+                                    releaseRate = releasePoint.getFieldU32(sfReleaseRate);
+                                }
+
+                                STAmount released = multiply(amount, amountFromRate(releaseRate), amount.issue());
+                                balance += delivered ? released - delivered : released;
+
+                                // Move assetState to rippleState
+                                if (sleAssetState)
+                                {
+                                    if (balance > delivered)
+                                    {
+                                        sleRippleState->setFieldAmount(sfBalance, balance - delivered);
+                                    }
+                                    else if (balance == delivered)
+                                    {
+                                        trustDelete(sleRippleState, uSenderID, issueAccount);
+                                    }
+                                    else if (balance < delivered)
+                                    {
+                                        // Is it possible?
+                                    }
+                                    sleAssetState->setFieldAmount(sfDeliveredAmount, balance);
+                                }
+                            }
+                        }
+                        auto const nextAssetStateIndex = getLedger()->getNextLedgerIndex(assetStateIndex, assetStateEnd);
+                        
+                        if (nextAssetStateIndex.isZero())
+                            break;
+
+                        assetStateIndex = nextAssetStateIndex;
+                    }
+                }
+                
                 STAmount before = sleAssetState->getFieldAmount(sfAmount);
                 sleAssetState->setFieldAmount(sfAmount, before + saAmount);
                 entryModify (sleAssetState);
