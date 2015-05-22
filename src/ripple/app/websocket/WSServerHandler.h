@@ -121,7 +121,7 @@ public:
     {
         try
         {
-            WriteLog (broadcast ? lsTRACE : lsDEBUG, WSServerHandlerLog)
+            WriteLog (broadcast ? lsTRACE : lsINFO, WSServerHandlerLog)
                     << "Ws:: Sending '" << strMessage << "'";
 
             cpClient->send (strMessage);
@@ -389,7 +389,7 @@ public:
 
         try
         {
-            WriteLog (lsDEBUG, WSServerHandlerLog) <<
+            WriteLog (lsINFO, WSServerHandlerLog) <<
                 "Ws:: Receiving(" << cpClient->get_socket ().remote_endpoint () <<
                 ") '" << mpMessage->get_payload () << "'";
         }
