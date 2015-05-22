@@ -1122,20 +1122,15 @@ LedgerEntrySet::assetHolds (
     for (;;)
     {
         
-        auto const& sle = entryCache(ltASSET_STATE, assetStateIndex);
-        if (sle)
+        auto const& sleAssetState = entryCache(ltASSET_STATE, assetStateIndex);
+        if (sleAssetState)
         {
-            STAmount amount = sle->getFieldAmount(sfAmount);
-            auto a = sle->getFieldAccount160(sfAccount);
-            //if((sle->getFieldAccount160(sfAccount) == account &&
-            //        amount.getIssuer() == issuer) ||
-            //    (sle->getFieldAccount160(sfAccount) == issuer &&
-            //        amount.getIssuer() == account))
-            //{
-                STAmount delivered = sle->getFieldAmount(sfDeliveredAmount);
-                if (!delivered)
-                    delivered.setIssue(amount.issue());
-                
+            STAmount amount = sleAssetState->getFieldAmount(sfAmount);
+            if((sleAssetState->getFieldAccount160(sfAccount) == account &&
+                    amount.getIssuer() == issuer) ||
+                (sleAssetState->getFieldAccount160(sfAccount) == issuer &&
+                    amount.getIssuer() == account))
+            {
                 auto const& sleAsset = entryCache(ltASSET, getAssetIndex(account, currency));
                 
                 if (sleAsset)
@@ -1157,27 +1152,35 @@ LedgerEntrySet::assetHolds (
                     }
                     if (releaseRate > 0)
                     {
-                        STAmount released = multiply(amount, amountFromRate(releaseRate), amount.issue());
+                        STAmount released = mulRound(amount, amountFromRate(releaseRate), amount.issue(), false);
+                        STAmount delivered = sleAssetState->getFieldAmount(sfDeliveredAmount);
+                        if (!delivered)
+                            delivered.setIssue(amount.issue());
                         // Move asset that locked forever to first entry.
                         if (bIsReleaseFinished)
                         {
                             sleZero->setFieldAmount(sfAmount, amount - released);
                             entryModify(sleZero);
                             if (released == amount)
-                                entryDelete(sle);
+                                entryDelete(sleAssetState);
                         }
                         if (released > delivered)
                         {
-                            saBalance.setIssuer(amount.getIssuer());
+                            if (account < issuer) {
+                                released.negate();
+                                delivered.negate();
+                            }
+                            released.setIssue(saBalance.issue());
+                            delivered.setIssue(saBalance.issue());
                             saBalance += released - delivered;
                             sleRippleState->setFieldAmount(sfBalance, saBalance);
                             entryModify(sleRippleState);
+                            sleAssetState->setFieldAmount(sfDeliveredAmount, released);
+                            entryModify(sleAssetState);
                         }
-                        sle->setFieldAmount(sfDeliveredAmount, released);
-                        entryModify(sle);
                     }
                 }
-            //}
+            }
         }
         auto const nextAssetStateIndex = getNextLedgerIndex(assetStateIndex, assetStateEnd);
         
@@ -1212,57 +1215,8 @@ STAmount LedgerEntrySet::rippleHolds (
     }
     else
     {
-        saBalance = sleRippleState->getFieldAmount(sfBalance);
         assetHolds(account, currency, issuer, sleRippleState);
-        /*
-        if (assetCurrency() == currency) {
-            uint256 const baseIndex = getAssetStateIndex(account, issuer, currency);
-            uint256 assetStateIndex = getQualityIndex(baseIndex);
-            uint256 const assetStateEnd = getQualityNext(assetStateIndex);
-            for (;;) {
-                auto const& sleAssetState = entryCache(ltASSET_STATE, assetStateIndex);
-                if (sleAssetState) {
-                    STAmount const& amount = sleAssetState->getFieldAmount(sfAmount);
-                    if ((sleAssetState->getFieldAccount160(sfAccount) == account && amount.getIssuer() == issuer) ||
-                        (sleAssetState->getFieldAccount160(sfAccount) == issuer && amount.getIssuer() == account)) {
-                        auto const& sleAsset = entryCache(ltASSET, getAssetIndex(amount.issue()));
-                        if (sleAsset) {
-                            uint64 const boughtTime = getQuality(assetStateIndex);
-                            uint32 releaseRate = 0;
-
-                            STArray const& releaseSchedule = sleAsset->getFieldArray(sfReleaseSchedule);
-                            for (auto releasePoint : releaseSchedule) {
-                                if (boughtTime + releasePoint.getFieldU32(sfExpiration) > getLedger()->getCloseTimeNC())
-                                    break;
-
-                                releaseRate = releasePoint.getFieldU32(sfReleaseRate);
-                            }
-
-                            if (releaseRate > 0) {
-                                STAmount const released = mulRound(amount, amountFromRate(releaseRate), amount.issue(), false);
-                                STAmount delivered = sleAssetState->getFieldAmount(sfDeliveredAmount);
-                                if (!delivered)
-                                    delivered.setIssue(amount.issue());
-                                if (released > delivered) {
-                                    saBalance.setIssuer(amount.getIssuer());
-                                    saBalance += released - delivered;
-                                    sleAssetState->setFieldAmount(sfDeliveredAmount, released);
-                                    entryModify(sleAssetState);
-                                    sleRippleState->setFieldAmount(sfBalance, saBalance);
-                                    entryModify(sleRippleState);
-                                }
-                            }
-                        }
-                    }
-                }
-                auto const nextAssetStateIndex = getNextLedgerIndex(assetStateIndex, assetStateEnd);
-
-                if (nextAssetStateIndex.isZero())
-                    break;
-
-                assetStateIndex = nextAssetStateIndex;
-            }
-        }*/
+        saBalance = sleRippleState->getFieldAmount(sfBalance);
 
         if (account > issuer)
             saBalance.negate(); // Put balance in account terms.
@@ -1730,7 +1684,9 @@ TER LedgerEntrySet::rippleCredit (
             uint64 interval = 24*60*60;
             uint256 assetStateIndex = getQualityIndex (baseAssetStateIndex,
                 parentCloseTime - parentCloseTime%interval);
-            
+
+            STAmount amount(saAmount);
+            amount.setIssuer(uSenderID);
             SLE::pointer sleAssetState = entryCache (ltASSET_STATE, assetStateIndex);
             if (!sleAssetState)
             {
@@ -1755,12 +1711,12 @@ TER LedgerEntrySet::rippleCredit (
                             std::placeholders::_2, issueAccount));
                 }
                 sleAssetState->setFieldAccount(sfAccount, uReceiverID);
-                sleAssetState->setFieldAmount(sfAmount, saAmount);
+                sleAssetState->setFieldAmount(sfAmount, amount);
             }
             else
             {
                 STAmount before = sleAssetState->getFieldAmount(sfAmount);
-                sleAssetState->setFieldAmount(sfAmount, before + saAmount);
+                sleAssetState->setFieldAmount(sfAmount, before + amount);
                 entryModify (sleAssetState);
                 terResult = tesSUCCESS;
             }
@@ -1783,74 +1739,7 @@ TER LedgerEntrySet::rippleCredit (
                     saReceiverLimit);
             }
             // Move released amount to TrustLine
-            assetHolds(uSenderID, currency, issuer, sleRippleState);
-            /*
-            {
-                STAmount balance = sleRippleState->getFieldAmount(sfBalance);
-                uint256 baseIndex = getAssetStateIndex(uSenderID, saAmount.issue());
-                uint256 assetStateIndex = getQualityIndex(baseIndex);
-                uint256 assetStateEnd = getQualityNext(assetStateIndex);
-                for (;;)
-                {
-                    uint64 boughtTime = getQuality(assetStateIndex);
-                    auto const& sle = entryCache(ltASSET_STATE, assetStateIndex);
-                    if (sle)
-                    {
-                        STAmount amount = sle->getFieldAmount(sfAmount);
-                        STAmount delivered = sle->getFieldAmount(sfDeliveredAmount);
-                        if (!delivered)
-                            delivered.setIssue(amount.issue());
-                        
-                        auto const& sleAsset = entryCache(ltASSET, getAssetIndex(uSenderID, currency));
-                        
-                        if (sleAsset)
-                        {
-                            STArray const& releaseSchedule = sleAsset->getFieldArray(sfReleaseSchedule);
-                            uint32 releaseRate = 0;
-                            bool bIsReleaseFinished = false;
-                            for (auto releasePoint : releaseSchedule)
-                            {
-                                if (boughtTime + releasePoint.getFieldU32(sfExpiration) > getLedger()->getCloseTimeNC())
-                                    break;
-                                else if (releasePoint == releaseSchedule.back())
-                                    bIsReleaseFinished = true;
-                                    
-                                releaseRate = releasePoint.getFieldU32(sfReleaseRate);
-                            }
-                            STAmount released = multiply(amount, amountFromRate(releaseRate), amount.issue());
-                            balance += released - delivered;
-                            // Move asset that locked forever to first entry.
-                            if (bIsReleaseFinished)
-                            {
-                                //TODO
-                                sle->setFieldAmount(sfAmount,
-                                    multiply(amount, amountFromRate(QUALITY_ONE - releaseRate), amount.issue()));
-                                entryModify(sle);
-                            }
-                            if (released > delivered)
-                            {
-                                sleRippleState->setFieldAmount(sfBalance, balance);
-                                entryModify(sleRippleState);
-                            }
-                            else
-                            {
-                                // Is released < delivered possible ?
-                                entryDelete(sle);
-                            }
-                            auto const& sleAssetState = entryCache(ltASSET_STATE, assetStateIndex);
-                            sleAssetState->setFieldAmount(sfDeliveredAmount, released);
-                            entryModify(sleAssetState);
-                        }
-                    }
-                    auto const nextAssetStateIndex = getNextLedgerIndex(assetStateIndex, assetStateEnd);
-                    
-                    if (nextAssetStateIndex.isZero())
-                        break;
-
-                    assetStateIndex = nextAssetStateIndex;
-                }
-            }
-            */
+            assetHolds(uSenderID, currency, uReceiverID, sleRippleState);
             return terResult;
         }
     }
