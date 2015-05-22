@@ -328,6 +328,10 @@ private:
     STAmount rippleHolds (
         Account const& account, Currency const& currency,
         Account const& issuer, FreezeHandling zeroIfFrozen);
+
+    TER assetHolds (
+        Account const& account, Currency const& currency,
+        Account const& issuer, SLE::ref sleRippleState);
 };
 
 // NIKB FIXME: move these to the right place
