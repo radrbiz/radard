@@ -231,6 +231,10 @@ public:
         Account const& uSenderID, Account const& uReceiverID,
         const STAmount & saAmount);
 
+    TER assetHolds (
+        Account const& account, Currency const& currency,
+        Account const& issuer, SLE::ref sleRippleState);
+
     TER trustCreate (
         const bool      bSrcHigh,
         Account const&  uSrcAccountID,
@@ -328,10 +332,6 @@ private:
     STAmount rippleHolds (
         Account const& account, Currency const& currency,
         Account const& issuer, FreezeHandling zeroIfFrozen);
-
-    TER assetHolds (
-        Account const& account, Currency const& currency,
-        Account const& issuer, SLE::ref sleRippleState);
 };
 
 // NIKB FIXME: move these to the right place

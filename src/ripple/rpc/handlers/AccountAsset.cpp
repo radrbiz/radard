@@ -9,14 +9,16 @@ namespace ripple {
 void addLine (Json::Value& jsonLines, RippleState const& line, Ledger::pointer ledger);
 
 // {
-//   accounts: [<account>|<account_public_key>]
+//   account: [<account>|<account_public_key>]
+//   peer: [<account>|<account_public_key>]
+//   currency: <currency>
 //   ledger_hash : <ledger>
 //   ledger_index : <ledger_index>
 // }
 Json::Value doAccountAsset (RPC::Context& context)
 {
     auto const& params(context.params);
-    if (!params.isMember(jss::accounts))
+    if (!params.isMember(jss::account))
         return RPC::missing_field_error("account");
     if (!params.isMember(jss::peer))
         return RPC::missing_field_error("peer");
