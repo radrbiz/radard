@@ -1118,6 +1118,7 @@ LedgerEntrySet::assetHolds (
     uint256 baseIndex = getAssetStateIndex(account, issuer, currency);
     uint256 assetStateIndex = getQualityIndex(baseIndex);
     uint256 assetStateEnd = getQualityNext(assetStateIndex);
+    SLE::pointer sleZero;
     for (;;)
     {
         
@@ -1145,6 +1146,8 @@ LedgerEntrySet::assetHolds (
                     bool bIsReleaseFinished = false;
                     for (auto releasePoint : releaseSchedule)
                     {
+                        if (releasePoint == releaseSchedule.front())
+                            sleZero = entryCache(ltASSET_STATE, assetStateIndex);
                         if (boughtTime + releasePoint.getFieldU32(sfExpiration) > getLedger()->getCloseTimeNC())
                             break;
                         else if (releasePoint == releaseSchedule.back())
@@ -1158,10 +1161,10 @@ LedgerEntrySet::assetHolds (
                         // Move asset that locked forever to first entry.
                         if (bIsReleaseFinished)
                         {
-                            //TODO
-                            sle->setFieldAmount(sfAmount,
-                                multiply(amount, amountFromRate(QUALITY_ONE - releaseRate), amount.issue()));
-                            entryModify(sle);
+                            sleZero->setFieldAmount(sfAmount, amount - released);
+                            entryModify(sleZero);
+                            if (released == amount)
+                                entryDelete(sle);
                         }
                         if (released > delivered)
                         {
@@ -1169,11 +1172,6 @@ LedgerEntrySet::assetHolds (
                             saBalance += released - delivered;
                             sleRippleState->setFieldAmount(sfBalance, saBalance);
                             entryModify(sleRippleState);
-                        }
-                        else
-                        {
-                            // Is released < delivered possible ?
-                            entryDelete(sle);
                         }
                         sle->setFieldAmount(sfDeliveredAmount, released);
                         entryModify(sle);
