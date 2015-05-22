@@ -230,6 +230,10 @@ public:
         Account const& uSenderID, Account const& uReceiverID,
         const STAmount & saAmount);
 
+    TER assetHolds (
+        Account const& account, Currency const& currency,
+        Account const& issuer, SLE::ref sleRippleState);
+
     TER trustCreate (
         const bool      bSrcHigh,
         Account const&  uSrcAccountID,

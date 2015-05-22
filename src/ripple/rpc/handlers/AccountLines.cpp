@@ -61,7 +61,7 @@ void addLine (Json::Value& jsonLines, RippleState const& line, Ledger::pointer l
                     uint32_t releaseRate = 0;
 
                     for (auto const& releasePoint : releaseSchedule) {
-                        if (boughtTime + releasePoint.getFieldU32(sfExpiration) > ledger->getCloseTimeNC())
+                        if (boughtTime + releasePoint.getFieldU32(sfExpiration) > ledger->getParentCloseTimeNC())
                             break;
 
                         releaseRate = releasePoint.getFieldU32(sfReleaseRate);

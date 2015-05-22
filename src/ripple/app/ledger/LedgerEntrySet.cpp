@@ -1107,6 +1107,91 @@ TER LedgerEntrySet::offerDelete (SLE::pointer sleOffer)
     return (terResult == tesSUCCESS) ? terResult2 : terResult;
 }
 
+TER
+LedgerEntrySet::assetHolds (
+    Account const& account,
+    Currency const& currency,
+    Account const& issuer,
+    SLE::ref sleRippleState)
+{
+    STAmount saBalance = sleRippleState->getFieldAmount(sfBalance);
+    uint256 baseIndex = getAssetStateIndex(account, issuer, currency);
+    uint256 assetStateIndex = getQualityIndex(baseIndex);
+    uint256 assetStateEnd = getQualityNext(assetStateIndex);
+    SLE::pointer sleZero;
+    for (;;)
+    {
+        
+        auto const& sleAssetState = entryCache(ltASSET_STATE, assetStateIndex);
+        if (sleAssetState)
+        {
+            STAmount amount = sleAssetState->getFieldAmount(sfAmount);
+            if((sleAssetState->getFieldAccount160(sfAccount) == account &&
+                    amount.getIssuer() == issuer) ||
+                (sleAssetState->getFieldAccount160(sfAccount) == issuer &&
+                    amount.getIssuer() == account))
+            {
+                auto const& sleAsset = entryCache(ltASSET, getAssetIndex(account, currency));
+                
+                if (sleAsset)
+                {
+                    uint64 boughtTime = getQuality(assetStateIndex);
+                    STArray const& releaseSchedule = sleAsset->getFieldArray(sfReleaseSchedule);
+                    uint32 releaseRate = 0;
+                    bool bIsReleaseFinished = false;
+                    for (auto releasePoint : releaseSchedule)
+                    {
+                        if (releasePoint == releaseSchedule.front())
+                            sleZero = entryCache(ltASSET_STATE, assetStateIndex);
+                        if (boughtTime + releasePoint.getFieldU32(sfExpiration) > getLedger()->getCloseTimeNC())
+                            break;
+                        else if (releasePoint == releaseSchedule.back())
+                            bIsReleaseFinished = true;
+                            
+                        releaseRate = releasePoint.getFieldU32(sfReleaseRate);
+                    }
+                    if (releaseRate > 0)
+                    {
+                        STAmount released = mulRound(amount, amountFromRate(releaseRate), amount.issue(), false);
+                        STAmount delivered = sleAssetState->getFieldAmount(sfDeliveredAmount);
+                        if (!delivered)
+                            delivered.setIssue(amount.issue());
+                        // Move asset that locked forever to first entry.
+                        if (bIsReleaseFinished)
+                        {
+                            sleZero->setFieldAmount(sfAmount, amount - released);
+                            entryModify(sleZero);
+                            if (released == amount)
+                                entryDelete(sleAssetState);
+                        }
+                        if (released > delivered)
+                        {
+                            if (account < issuer) {
+                                released.negate();
+                                delivered.negate();
+                            }
+                            released.setIssue(saBalance.issue());
+                            delivered.setIssue(saBalance.issue());
+                            saBalance += released - delivered;
+                            sleRippleState->setFieldAmount(sfBalance, saBalance);
+                            entryModify(sleRippleState);
+                            sleAssetState->setFieldAmount(sfDeliveredAmount, released);
+                            entryModify(sleAssetState);
+                        }
+                    }
+                }
+            }
+        }
+        auto const nextAssetStateIndex = getNextLedgerIndex(assetStateIndex, assetStateEnd);
+        
+        if (nextAssetStateIndex.isZero())
+            break;
+
+        assetStateIndex = nextAssetStateIndex;
+    }
+    return tesSUCCESS;
+}
+
 // Return how much of issuer's currency IOUs that account holds.  May be
 // negative.
 // <-- IOU's account has of issuer.
@@ -1128,18 +1213,15 @@ STAmount LedgerEntrySet::rippleHolds (
     {
         saBalance.clear (IssueRef (currency, issuer));
     }
-    else if (account > issuer)
-    {
-        saBalance   = sleRippleState->getFieldAmount (sfBalance);
-        saBalance.negate ();    // Put balance in account terms.
-
-        saBalance.setIssuer (issuer);
-    }
     else
     {
-        saBalance   = sleRippleState->getFieldAmount (sfBalance);
+        assetHolds(account, currency, issuer, sleRippleState);
+        saBalance = sleRippleState->getFieldAmount(sfBalance);
 
-        saBalance.setIssuer (issuer);
+        if (account > issuer)
+            saBalance.negate(); // Put balance in account terms.
+
+        saBalance.setIssuer(issuer);
     }
 
     return saBalance;
@@ -1648,9 +1730,10 @@ TER LedgerEntrySet::rippleCredit (
     assert (!isVBC (uReceiverID) && uReceiverID != noAccount());
 
     // Asset process
-    if (saAmount.getCurrency() == assetCurrency() && uReceiverID != issuer)
+    SLE::pointer sleRecAsset = entryCache(ltASSET, getAssetIndex(uReceiverID, currency));
+    if (currency == assetCurrency() && !sleRecAsset)
     {
-        SLE::pointer sleAsset = entryCache (ltASSET, getAssetIndex (saAmount.issue()));
+        SLE::pointer sleAsset = entryCache (ltASSET, getAssetIndex (uSenderID, currency));
         if (!sleAsset)
         {
             return temBAD_ISSUER;
@@ -1665,7 +1748,9 @@ TER LedgerEntrySet::rippleCredit (
             uint64 interval = 24*60*60;
             uint256 assetStateIndex = getQualityIndex (baseAssetStateIndex,
                 parentCloseTime - parentCloseTime%interval);
-            
+
+            STAmount amount(saAmount);
+            amount.setIssuer(uSenderID);
             SLE::pointer sleAssetState = entryCache (ltASSET_STATE, assetStateIndex);
             if (!sleAssetState)
             {
@@ -1690,16 +1775,15 @@ TER LedgerEntrySet::rippleCredit (
                             std::placeholders::_2, issueAccount));
                 }
                 sleAssetState->setFieldAccount(sfAccount, uReceiverID);
-                sleAssetState->setFieldAmount(sfAmount, saAmount);
+                sleAssetState->setFieldAmount(sfAmount, amount);
             }
             else
             {
                 STAmount before = sleAssetState->getFieldAmount(sfAmount);
-                sleAssetState->setFieldAmount(sfAmount, before + saAmount);
+                sleAssetState->setFieldAmount(sfAmount, before + amount);
                 entryModify (sleAssetState);
                 terResult = tesSUCCESS;
             }
-
             if (!sleRippleState) {
                 STAmount saReceiverLimit({currency, uReceiverID});
                 STAmount saBalance({currency, noAccount()});
@@ -1718,6 +1802,8 @@ TER LedgerEntrySet::rippleCredit (
                     saBalance,
                     saReceiverLimit);
             }
+            // Move released amount to TrustLine
+            assetHolds(uSenderID, currency, uReceiverID, sleRippleState);
             return terResult;
         }
     }
