@@ -322,6 +322,7 @@ extern SField const sfBaseFee;
 extern SField const sfExchangeRate;
 extern SField const sfLowNode;
 extern SField const sfHighNode;
+extern SField const sfAssetNode;
 
 extern SField const sfDividendCoins;
 extern SField const sfDividendCoinsVBC;

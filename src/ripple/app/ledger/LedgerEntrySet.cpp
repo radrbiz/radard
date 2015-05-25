@@ -1118,10 +1118,9 @@ LedgerEntrySet::assetHolds (
     uint256 baseIndex = getAssetStateIndex(account, issuer, currency);
     uint256 assetStateIndex = getQualityIndex(baseIndex);
     uint256 assetStateEnd = getQualityNext(assetStateIndex);
-    SLE::pointer sleZero;
+    uint256 assetStateIndexZero = assetStateIndex;
     for (;;)
     {
-        
         auto const& sleAssetState = entryCache(ltASSET_STATE, assetStateIndex);
         if (sleAssetState)
         {
@@ -1141,8 +1140,6 @@ LedgerEntrySet::assetHolds (
                     bool bIsReleaseFinished = false;
                     for (auto releasePoint : releaseSchedule)
                     {
-                        if (releasePoint == releaseSchedule.front())
-                            sleZero = entryCache(ltASSET_STATE, assetStateIndex);
                         if (boughtTime + releasePoint.getFieldU32(sfExpiration) > getLedger()->getCloseTimeNC())
                             break;
                         else if (releasePoint == releaseSchedule.back())
@@ -1156,14 +1153,7 @@ LedgerEntrySet::assetHolds (
                         STAmount delivered = sleAssetState->getFieldAmount(sfDeliveredAmount);
                         if (!delivered)
                             delivered.setIssue(amount.issue());
-                        // Move asset that locked forever to first entry.
-                        if (bIsReleaseFinished)
-                        {
-                            sleZero->setFieldAmount(sfAmount, amount - released);
-                            entryModify(sleZero);
-                            if (released == amount)
-                                entryDelete(sleAssetState);
-                        }
+
                         if (released > delivered)
                         {
                             if (account < issuer) {
@@ -1177,6 +1167,48 @@ LedgerEntrySet::assetHolds (
                             entryModify(sleRippleState);
                             sleAssetState->setFieldAmount(sfDeliveredAmount, released);
                             entryModify(sleAssetState);
+                        }
+                        if (bIsReleaseFinished)
+                        {
+                            // Move unlocked asset to assetStateZero
+                            SLE::pointer sleAssetStateZero = entryCache (ltASSET_STATE, assetStateIndexZero);
+                            if (sleAssetStateZero)
+                            {   
+                                sleAssetStateZero->setFieldAmount (sfAmount, 
+                                    sleAssetStateZero->getFieldAmount(sfAmount) + amount - released);
+                                sleAssetStateZero->setFieldAccount (sfAccount, issuer);
+                                entryModify (sleAssetStateZero);
+                            }
+                            else
+                            {
+                                sleAssetStateZero = entryCreate (ltASSET_STATE, assetStateIndexZero);
+                                uint64 uAssetNode;
+                                uint64 uOwnerNode;
+                                // Add to receiver
+                                dirAdd (uOwnerNode,
+                                    getOwnerDirIndex(issuer),
+                                    sleAssetStateZero->getIndex(),
+                                    std::bind(
+                                        &Ledger::ownerDirDescriber, std::placeholders::_1,
+                                        std::placeholders::_2, issuer));
+                                // Add to Issue
+                                dirAdd (uAssetNode,
+                                    getOwnerDirIndex(account),
+                                    sleAsset->getIndex(),
+                                    std::bind(
+                                        &Ledger::ownerDirDescriber, std::placeholders::_1,
+                                        std::placeholders::_2, account));
+                                sleAssetStateZero->setFieldU64(sfAssetNode, uAssetNode);
+                                sleAssetStateZero->setFieldU64(sfOwnerNode, uOwnerNode);
+                                sleAssetStateZero->setFieldAccount(sfAccount, issuer);
+                                sleAssetStateZero->setFieldAmount(sfAmount,
+                                    released.negative()?(amount + released):(amount - released));
+                            }
+                            entryDelete (sleAssetState);
+                            uint64 uAssetNode = sleAssetState->getFieldU64(sfAssetNode);
+                            uint64 uOwnerNode = sleAssetState->getFieldU64(sfOwnerNode);
+                            dirDelete(false, uOwnerNode, getOwnerDirIndex(issuer), sleAssetState->getIndex(), true, false);
+                            dirDelete(false, uAssetNode, getOwnerDirIndex(account), sleAsset->getIndex(), true, false);
                         }
                     }
                 }
@@ -1690,11 +1722,11 @@ TER LedgerEntrySet::rippleCredit (
             SLE::pointer sleAssetState = entryCache (ltASSET_STATE, assetStateIndex);
             if (!sleAssetState)
             {
-                std::uint64_t uAssetNode;
-                
+                uint64 uAssetNode;
+                uint64 uOwnerNode;
                 SLE::pointer sleAssetState  = entryCreate (ltASSET_STATE, assetStateIndex);
                 // Add to receiver
-                terResult = dirAdd (uAssetNode,
+                terResult = dirAdd (uOwnerNode,
                     getOwnerDirIndex(uReceiverID),
                     sleAssetState->getIndex(),
                     std::bind(
@@ -1710,6 +1742,8 @@ TER LedgerEntrySet::rippleCredit (
                             &Ledger::ownerDirDescriber, std::placeholders::_1,
                             std::placeholders::_2, issueAccount));
                 }
+                sleAssetState->setFieldU64 (sfOwnerNode, uOwnerNode);
+                sleAssetState->setFieldU64 (sfAssetNode, uAssetNode);
                 sleAssetState->setFieldAccount(sfAccount, uReceiverID);
                 sleAssetState->setFieldAmount(sfAmount, amount);
             }
