@@ -50,37 +50,24 @@ void addLine (Json::Value& jsonLines, RippleState const& line, Ledger::pointer l
             auto const& sle = ledger->getSLEi(assetStateIndex);
             uint64_t boughtTime = getQuality(assetStateIndex);
             if (sle) {
-                Account const& owner = sle->getFieldAccount160(sfAccount);
                 STAmount amount = sle->getFieldAmount(sfAmount);
+                STAmount released;
+                bool bIsReleaseFinished;
+                LedgerEntrySet les(ledger, tapNONE, true);
+                std::tie(released, bIsReleaseFinished) = les.assetReleased(amount, assetStateIndex);
+
                 STAmount delivered = sle->getFieldAmount(sfDeliveredAmount);
 
-                auto const& sleAsset = ledger->getSLEi(getAssetIndex(amount.issue()));
-
-                if (sleAsset) {
-                    auto const& releaseSchedule = sleAsset->getFieldArray(sfReleaseSchedule);
-                    uint32_t releaseRate = 0;
-
-                    for (auto const& releasePoint : releaseSchedule) {
-                        if (boughtTime + releasePoint.getFieldU32(sfExpiration) > ledger->getParentCloseTimeNC())
-                            break;
-
-                        releaseRate = releasePoint.getFieldU32(sfReleaseRate);
-                    }
-
-                    STAmount released = mulRound(amount, amountFromRate(releaseRate), amount.issue(), true);
-                    released.floor();
-
-                    if (owner == line.getAccountIDPeer()) {
-                        amount.negate();
-                        delivered.negate();
-                        released.negate();
-                    }
-                    saBalance += delivered ? released - delivered : released;
-                    if (reserved)
-                        reserved += amount - released;
-                    else
-                        reserved = amount - released;
+                if (sle->getFieldAccount160(sfAccount) == line.getAccountIDPeer()) {
+                    amount.negate();
+                    delivered.negate();
+                    released.negate();
                 }
+                saBalance += delivered ? released - delivered : released;
+                if (reserved)
+                    reserved += amount - released;
+                else
+                    reserved = amount - released;
             }
 
             auto const nextAssetState(

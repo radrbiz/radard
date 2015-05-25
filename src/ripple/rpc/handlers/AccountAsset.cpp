@@ -92,40 +92,23 @@ Json::Value doAccountAsset (RPC::Context& context)
         for (;;) {
             auto const& sle = ledger->getSLEi(assetStateIndex);
             if (sle) {
-                Account const& owner = sle->getFieldAccount160(sfAccount);
                 STAmount amount = sle->getFieldAmount(sfAmount);
-                STAmount delivered = sle->getFieldAmount(sfDeliveredAmount);
+                STAmount released;
+                bool bIsReleaseFinished;
+                LedgerEntrySet les (ledger, tapNONE, true);
+                std::tie(released, bIsReleaseFinished) = les.assetReleased(amount, assetStateIndex);
 
-                auto const& sleAsset = ledger->getSLEi(getAssetIndex(amount.issue()));
-
-                if (sleAsset) {
-                    Json::Value& state(jsonAssetStates.append(Json::objectValue));
-                    uint64_t boughtTime = getQuality(assetStateIndex);
-
-                    auto const& releaseSchedule = sleAsset->getFieldArray(sfReleaseSchedule);
-                    uint32_t releaseRate = 0;
-
-                    for (auto const& releasePoint : releaseSchedule) {
-                        if (boughtTime + releasePoint.getFieldU32(sfExpiration) > ledger->getParentCloseTimeNC())
-                            break;
-
-                        releaseRate = releasePoint.getFieldU32(sfReleaseRate);
-                    }
-
-                    STAmount released = mulRound(amount, amountFromRate(releaseRate), amount.issue(), true);
-                    released.floor();
-
-                    if (owner == line->getAccountIDPeer()) {
-                        amount.negate();
-                        released.negate();
-                    }
-
-                    auto reserved = amount - released;
-                    
-                    state[jss::date] = static_cast<Json::UInt>(boughtTime);
-                    state[jss::amount] = amount.getText();
-                    state[jss::reserve] = reserved.getText();
+                if (sle->getFieldAccount160(sfAccount) == line->getAccountIDPeer()) {
+                    amount.negate();
+                    released.negate();
                 }
+
+                auto reserved = amount - released;
+
+                Json::Value& state(jsonAssetStates.append(Json::objectValue));
+                state[jss::date] = static_cast<Json::UInt>(getQuality(assetStateIndex));
+                state[jss::amount] = amount.getText();
+                state[jss::reserve] = reserved.getText();
             }
 
             auto const nextAssetState(

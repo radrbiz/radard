@@ -1107,6 +1107,35 @@ TER LedgerEntrySet::offerDelete (SLE::pointer sleOffer)
     return (terResult == tesSUCCESS) ? terResult2 : terResult;
 }
 
+std::tuple<STAmount, bool>
+LedgerEntrySet::assetReleased (
+    STAmount const& amount,
+    uint256 assetStateIndex)
+{
+    STAmount released(amount.issue());
+    bool bIsReleaseFinished = false;
+    auto const& sleAsset = entryCache(ltASSET, getAssetIndex(amount.issue()));
+
+    if (sleAsset) {
+        uint64 boughtTime = getQuality(assetStateIndex);
+        STArray const& releaseSchedule = sleAsset->getFieldArray(sfReleaseSchedule);
+        uint32 releaseRate = 0;
+        for (auto releasePoint : releaseSchedule) {
+            if (boughtTime + releasePoint.getFieldU32(sfExpiration) > getLedger()->getCloseTimeNC())
+                break;
+            else if (releasePoint == releaseSchedule.back())
+                bIsReleaseFinished = true;
+
+            releaseRate = releasePoint.getFieldU32(sfReleaseRate);
+        }
+        if (releaseRate > 0) {
+            released = mulRound(amount, amountFromRate(releaseRate), amount.issue(), true);
+            released.floor();
+        }
+    }
+    return {released, bIsReleaseFinished};
+}
+
 TER
 LedgerEntrySet::assetHolds (
     Account const& account,
@@ -1131,112 +1160,89 @@ LedgerEntrySet::assetHolds (
                 (sleAssetState->getFieldAccount160(sfAccount) == issuer &&
                     amount.getIssuer() == account))
             {
-                auto const& sleAsset = entryCache(ltASSET, getAssetIndex(account, currency));
+                STAmount released;
+                bool bIsReleaseFinished;
+                std::tie(released, bIsReleaseFinished) = assetReleased(amount, assetStateIndex);
                 
-                if (sleAsset)
-                {
-                    uint64 boughtTime = getQuality(assetStateIndex);
-                    STArray const& releaseSchedule = sleAsset->getFieldArray(sfReleaseSchedule);
-                    uint32 releaseRate = 0;
-                    bool bIsReleaseFinished = false;
-                    for (auto releasePoint : releaseSchedule)
-                    {
-                        if (boughtTime + releasePoint.getFieldU32(sfExpiration) > getLedger()->getCloseTimeNC())
-                            break;
-                        else if (releasePoint == releaseSchedule.back())
-                            bIsReleaseFinished = true;
-                            
-                        releaseRate = releasePoint.getFieldU32(sfReleaseRate);
-                    }
-                    if (releaseRate > 0)
-                    {
-                        STAmount released = mulRound(amount, amountFromRate(releaseRate), amount.issue(), true);
-                        released.floor();
-                        STAmount delivered = sleAssetState->getFieldAmount(sfDeliveredAmount);
-                        if (!delivered)
-                            delivered.setIssue(amount.issue());
+                STAmount delivered = sleAssetState->getFieldAmount(sfDeliveredAmount);
+                if (!delivered)
+                    delivered.setIssue(amount.issue());
 
-                        if (released > delivered)
-                        {
-                            if (account < issuer) {
-                                released.negate();
-                                delivered.negate();
-                            }
-                            released.setIssue(saBalance.issue());
-                            delivered.setIssue(saBalance.issue());
-                            saBalance += released - delivered;
-                            sleRippleState->setFieldAmount(sfBalance, saBalance);
-                            entryModify(sleRippleState);
-                            sleAssetState->setFieldAmount(sfDeliveredAmount, released);
-                            entryModify(sleAssetState);
+                if (released > delivered) {
+                    if (account < issuer) {
+                        released.negate();
+                        delivered.negate();
+                    }
+                    released.setIssue(saBalance.issue());
+                    delivered.setIssue(saBalance.issue());
+                    saBalance += released - delivered;
+                    sleRippleState->setFieldAmount(sfBalance, saBalance);
+                    entryModify(sleRippleState);
+                    sleAssetState->setFieldAmount(sfDeliveredAmount, released);
+                    entryModify(sleAssetState);
+
+                    if (bIsReleaseFinished) {
+                        // Move unlocked asset to assetStateZero
+                        SLE::pointer sleAssetStateZero = entryCache(ltASSET_STATE, assetStateIndexZero);
+                        if (sleAssetStateZero) {
+                            sleAssetStateZero->setFieldAmount(sfAmount,
+                                                              sleAssetStateZero->getFieldAmount(sfAmount) + amount - released);
+                            sleAssetStateZero->setFieldAccount(sfAccount, issuer);
+                            entryModify(sleAssetStateZero);
+                        } else {
+                            sleAssetStateZero = entryCreate(ltASSET_STATE, assetStateIndexZero);
+                            uint64 uAssetNode;
+                            uint64 uOwnerNode;
+                            // Add to receiver
+                            terResult = dirAdd(uOwnerNode,
+                                               getOwnerDirIndex(issuer),
+                                               sleAssetStateZero->getIndex(),
+                                               std::bind(
+                                                   &Ledger::ownerDirDescriber, std::placeholders::_1,
+                                                   std::placeholders::_2, issuer));
+                            if (tesSUCCESS != terResult)
+                                break;
+                            // Add to Issue
+                            terResult = dirAdd(uAssetNode,
+                                               getOwnerDirIndex(account),
+                                               sleAssetStateZero->getIndex(),
+                                               std::bind(
+                                                   &Ledger::ownerDirDescriber, std::placeholders::_1,
+                                                   std::placeholders::_2, account));
+                            if (tesSUCCESS != terResult)
+                                break;
+                            bool bOwnerIsHigh = (uOwnerNode > uAssetNode);
+                            sleAssetStateZero->setFieldU64(sfLowNode,
+                                                           bOwnerIsHigh ? uAssetNode : uOwnerNode);
+                            sleAssetStateZero->setFieldU64(sfHighNode,
+                                                           !bOwnerIsHigh ? uAssetNode : uOwnerNode);
+                            sleAssetStateZero->setFieldAccount(sfAccount, issuer);
+                            sleAssetStateZero->setFieldAmount(sfAmount,
+                                                              released.negative() ? (amount + released) : (amount - released));
                         }
-                        if (bIsReleaseFinished)
-                        {
-                            // Move unlocked asset to assetStateZero
-                            SLE::pointer sleAssetStateZero = entryCache (ltASSET_STATE, assetStateIndexZero);
-                            if (sleAssetStateZero)
-                            {
-                                sleAssetStateZero->setFieldAmount (sfAmount, 
-                                    sleAssetStateZero->getFieldAmount(sfAmount) + amount - released);
-                                sleAssetStateZero->setFieldAccount (sfAccount, issuer);
-                                entryModify (sleAssetStateZero);
-                            }
-                            else
-                            {
-                                sleAssetStateZero = entryCreate (ltASSET_STATE, assetStateIndexZero);
-                                uint64 uAssetNode;
-                                uint64 uOwnerNode;
-                                // Add to receiver
-                                terResult = dirAdd(uOwnerNode,
-                                                   getOwnerDirIndex(issuer),
-                                                   sleAssetStateZero->getIndex(),
-                                                   std::bind(
-                                                       &Ledger::ownerDirDescriber, std::placeholders::_1,
-                                                       std::placeholders::_2, issuer));
-                                if (tesSUCCESS != terResult)
-                                    break;
-                                // Add to Issue
-                                terResult = dirAdd(uAssetNode,
-                                                   getOwnerDirIndex(account),
-                                                   sleAssetState->getIndex(),
-                                                   std::bind(
-                                                       &Ledger::ownerDirDescriber, std::placeholders::_1,
-                                                       std::placeholders::_2, account));
-                                if (tesSUCCESS != terResult)
-                                    break;
-                                bool bOwnerIsHigh = (uOwnerNode > uAssetNode);
-                                sleAssetStateZero->setFieldU64 (sfLowNode,
-                                    bOwnerIsHigh ? uAssetNode : uOwnerNode);
-                                sleAssetStateZero->setFieldU64 (sfHighNode, 
-                                    !bOwnerIsHigh ? uAssetNode : uOwnerNode);
-                                sleAssetStateZero->setFieldAccount(sfAccount, issuer);
-                                sleAssetStateZero->setFieldAmount(sfAmount,
-                                                                  released.negative() ? (amount + released) : (amount - released));
-                            }
-                            if (tesSUCCESS != terResult)
-                                break;
-                            entryDelete(sleAssetState);
-                            uint64 uLowNode = sleAssetState->getFieldU64(sfLowNode);
-                            uint64 uHighNode = sleAssetState->getFieldU64(sfHighNode);
-                            terResult = dirDelete(
-                                false,
-                                uLowNode,
-                                getOwnerDirIndex(issuer),
-                                sleAssetState->getIndex(),
-                                true,
-                                false);
-                            if (tesSUCCESS != terResult)
-                                break;
-                            terResult = dirDelete(
-                                false, 
-                                uHighNode, 
-                                getOwnerDirIndex(account), 
-                                sleAsset->getIndex(), 
-                                true, 
-                                false);
-                            if (tesSUCCESS != terResult)
-                                break;
-                        }
+                        if (tesSUCCESS != terResult)
+                            break;
+                        entryDelete(sleAssetState);
+                        uint64 uLowNode = sleAssetState->getFieldU64(sfLowNode);
+                        uint64 uHighNode = sleAssetState->getFieldU64(sfHighNode);
+                        terResult = dirDelete(
+                            false,
+                            uLowNode,
+                            getOwnerDirIndex(issuer),
+                            sleAssetState->getIndex(),
+                            true,
+                            false);
+                        if (tesSUCCESS != terResult)
+                            break;
+                        terResult = dirDelete(
+                            false,
+                            uHighNode,
+                            getOwnerDirIndex(account),
+                            sleAssetState->getIndex(),
+                            true,
+                            false);
+                        if (tesSUCCESS != terResult)
+                            break;
                     }
                 }
             }
