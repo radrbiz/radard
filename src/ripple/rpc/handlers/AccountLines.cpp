@@ -48,7 +48,6 @@ void addLine (Json::Value& jsonLines, RippleState const& line, Ledger::pointer l
 
         for (;;) {
             auto const& sle = ledger->getSLEi(assetStateIndex);
-            uint64_t boughtTime = getQuality(assetStateIndex);
             if (sle) {
                 STAmount amount = sle->getFieldAmount(sfAmount);
                 STAmount released;
