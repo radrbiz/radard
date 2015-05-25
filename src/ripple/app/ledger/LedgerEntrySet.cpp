@@ -1133,7 +1133,7 @@ LedgerEntrySet::assetReleased (
             released.floor();
         }
     }
-    return {released, bIsReleaseFinished};
+    return std::make_tuple(released, bIsReleaseFinished);
 }
 
 TER
