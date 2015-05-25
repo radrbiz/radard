@@ -568,23 +568,23 @@ public:
     {
         testcase ("flooring ");
 
-        STAmount smallValue (noIssue(), 25011000000000000ull, -14);
+        STAmount smallValue (noIssue(), (uint64_t)25011000000000000ull, -14);
         smallValue.floor();
-        expect (smallValue == STAmount(noIssue(), 25000000000000000ull, -14), "floor to integer failed");
+        expect (smallValue == STAmount(noIssue(), (uint64_t)25000000000000000ull, -14), "floor to integer failed");
         
-        smallValue = STAmount(noIssue(), 25011000000000000ull, -14);
+        smallValue = STAmount(noIssue(), (uint64_t)25011000000000000ull, -14);
         smallValue.floor(-1);
-        expect (smallValue == STAmount(noIssue(), 25010000000000000ull, -14), "floor to e-1 failed");
+        expect (smallValue == STAmount(noIssue(), (uint64_t)25010000000000000ull, -14), "floor to e-1 failed");
         
-        smallValue = STAmount(noIssue(), 25011980000000000ull, -14, true);
+        smallValue = STAmount(noIssue(), (uint64_t)25011980000000000ull, -14, true);
         smallValue.floor(-2);
-        expect (smallValue == STAmount(noIssue(), 25011000000000000ull, -14, true), "floor negative to e-2 failed");
+        expect (smallValue == STAmount(noIssue(), (uint64_t)25011000000000000ull, -14, true), "floor negative to e-2 failed");
         
-        smallValue = STAmount(noIssue(), 25011980000000000ull, -14, true);
+        smallValue = STAmount(noIssue(), (uint64_t)25011980000000000ull, -14, true);
         smallValue.floor(2);
-        expect (smallValue == STAmount(noIssue(), 20000000000000000ull, -14, true), "floor negative to e+2 failed");
+        expect (smallValue == STAmount(noIssue(), (uint64_t)20000000000000000ull, -14, true), "floor negative to e+2 failed");
         
-        smallValue = STAmount(noIssue(), 25011980000000000ull, -14);
+        smallValue = STAmount(noIssue(), (uint64_t)25011980000000000ull, -14);
         smallValue.floor(3);
         expect (smallValue == zero, "floor to e+3 failed");
     }
