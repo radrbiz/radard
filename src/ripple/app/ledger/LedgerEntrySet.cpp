@@ -1114,6 +1114,7 @@ LedgerEntrySet::assetHolds (
     Account const& issuer,
     SLE::ref sleRippleState)
 {
+    TER terResult = tesSUCCESS;
     STAmount saBalance = sleRippleState->getFieldAmount(sfBalance);
     uint256 baseIndex = getAssetStateIndex(account, issuer, currency);
     uint256 assetStateIndex = getQualityIndex(baseIndex);
@@ -1149,7 +1150,8 @@ LedgerEntrySet::assetHolds (
                     }
                     if (releaseRate > 0)
                     {
-                        STAmount released = mulRound(amount, amountFromRate(releaseRate), amount.issue(), false);
+                        STAmount released = mulRound(amount, amountFromRate(releaseRate), amount.issue(), true);
+                        released.floor();
                         STAmount delivered = sleAssetState->getFieldAmount(sfDeliveredAmount);
                         if (!delivered)
                             delivered.setIssue(amount.issue());
@@ -1185,43 +1187,53 @@ LedgerEntrySet::assetHolds (
                                 uint64 uAssetNode;
                                 uint64 uOwnerNode;
                                 // Add to receiver
-                                dirAdd (uOwnerNode,
-                                    getOwnerDirIndex(issuer),
-                                    sleAssetStateZero->getIndex(),
-                                    std::bind(
-                                        &Ledger::ownerDirDescriber, std::placeholders::_1,
-                                        std::placeholders::_2, issuer));
+                                terResult = dirAdd(uOwnerNode,
+                                                   getOwnerDirIndex(issuer),
+                                                   sleAssetStateZero->getIndex(),
+                                                   std::bind(
+                                                       &Ledger::ownerDirDescriber, std::placeholders::_1,
+                                                       std::placeholders::_2, issuer));
+                                if (tesSUCCESS != terResult)
+                                    break;
                                 // Add to Issue
-                                dirAdd (uAssetNode,
-                                    getOwnerDirIndex(account),
-                                    sleAsset->getIndex(),
-                                    std::bind(
-                                        &Ledger::ownerDirDescriber, std::placeholders::_1,
-                                        std::placeholders::_2, account));
+                                terResult = dirAdd(uAssetNode,
+                                                   getOwnerDirIndex(account),
+                                                   sleAsset->getIndex(),
+                                                   std::bind(
+                                                       &Ledger::ownerDirDescriber, std::placeholders::_1,
+                                                       std::placeholders::_2, account));
+                                if (tesSUCCESS != terResult)
+                                    break;
                                 sleAssetStateZero->setFieldU64(sfAssetNode, uAssetNode);
                                 sleAssetStateZero->setFieldU64(sfOwnerNode, uOwnerNode);
                                 sleAssetStateZero->setFieldAccount(sfAccount, issuer);
                                 sleAssetStateZero->setFieldAmount(sfAmount,
-                                    released.negative()?(amount + released):(amount - released));
+                                                                  released.negative() ? (amount + released) : (amount - released));
                             }
-                            entryDelete (sleAssetState);
+                            if (tesSUCCESS != terResult)
+                                break;
+                            entryDelete(sleAssetState);
                             uint64 uAssetNode = sleAssetState->getFieldU64(sfAssetNode);
                             uint64 uOwnerNode = sleAssetState->getFieldU64(sfOwnerNode);
-                            dirDelete(false, uOwnerNode, getOwnerDirIndex(issuer), sleAssetState->getIndex(), true, false);
-                            dirDelete(false, uAssetNode, getOwnerDirIndex(account), sleAsset->getIndex(), true, false);
+                            terResult = dirDelete(false, uOwnerNode, getOwnerDirIndex(issuer), sleAssetState->getIndex(), true, false);
+                            if (tesSUCCESS != terResult)
+                                break;
+                            terResult = dirDelete(false, uAssetNode, getOwnerDirIndex(account), sleAsset->getIndex(), true, false);
+                            if (tesSUCCESS != terResult)
+                                break;
                         }
                     }
                 }
             }
         }
         auto const nextAssetStateIndex = getNextLedgerIndex(assetStateIndex, assetStateEnd);
-        
+
         if (nextAssetStateIndex.isZero())
             break;
 
         assetStateIndex = nextAssetStateIndex;
     }
-    return tesSUCCESS;
+    return terResult;
 }
 
 // Return how much of issuer's currency IOUs that account holds.  May be
@@ -1742,10 +1754,12 @@ TER LedgerEntrySet::rippleCredit (
                             &Ledger::ownerDirDescriber, std::placeholders::_1,
                             std::placeholders::_2, issueAccount));
                 }
-                sleAssetState->setFieldU64 (sfOwnerNode, uOwnerNode);
-                sleAssetState->setFieldU64 (sfAssetNode, uAssetNode);
-                sleAssetState->setFieldAccount(sfAccount, uReceiverID);
-                sleAssetState->setFieldAmount(sfAmount, amount);
+                if (tesSUCCESS == terResult) {
+                    sleAssetState->setFieldU64 (sfOwnerNode, uOwnerNode);
+                    sleAssetState->setFieldU64 (sfAssetNode, uAssetNode);
+                    sleAssetState->setFieldAccount(sfAccount, uReceiverID);
+                    sleAssetState->setFieldAmount(sfAmount, amount);
+                }
             }
             else
             {
@@ -1754,7 +1768,7 @@ TER LedgerEntrySet::rippleCredit (
                 entryModify (sleAssetState);
                 terResult = tesSUCCESS;
             }
-            if (!sleRippleState) {
+            if (tesSUCCESS == terResult && !sleRippleState) {
                 STAmount saReceiverLimit({currency, uReceiverID});
                 STAmount saBalance({currency, noAccount()});
 
@@ -1771,9 +1785,12 @@ TER LedgerEntrySet::rippleCredit (
                     false,
                     saBalance,
                     saReceiverLimit);
+                if (tesSUCCESS == terResult)
+                    sleRippleState = entryCache(ltRIPPLE_STATE, uIndex);
             }
             // Move released amount to TrustLine
-            assetHolds(uSenderID, currency, uReceiverID, sleRippleState);
+            if (tesSUCCESS == terResult)
+                assetHolds(uSenderID, currency, uReceiverID, sleRippleState);
             return terResult;
         }
     }

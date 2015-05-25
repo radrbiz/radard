@@ -291,6 +291,8 @@ public:
     bool
     isMathematicalInteger () const;
 
+    void floor(int offset = 0);
+
 private:
     STAmount*
     duplicate() const override;

@@ -67,7 +67,8 @@ void addLine (Json::Value& jsonLines, RippleState const& line, Ledger::pointer l
                         releaseRate = releasePoint.getFieldU32(sfReleaseRate);
                     }
 
-                    STAmount released = multiply(amount, amountFromRate(releaseRate), amount.issue());
+                    STAmount released = mulRound(amount, amountFromRate(releaseRate), amount.issue(), true);
+                    released.floor();
 
                     if (owner == line.getAccountIDPeer()) {
                         amount.negate();
