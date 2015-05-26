@@ -798,6 +798,15 @@ bool STAmount::isMathematicalInteger() const
     return __builtin_ctzll(mantissa()) >= -exponent();
 }
 
+void STAmount::floor(int offset)
+{
+    while (mOffset < offset) {
+        mValue /= 10;
+        ++mOffset;
+    }
+    canonicalize();
+}
+
 STAmount*
 STAmount::duplicate () const
 {

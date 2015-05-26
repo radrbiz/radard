@@ -230,6 +230,10 @@ public:
         Account const& uSenderID, Account const& uReceiverID,
         const STAmount & saAmount);
 
+    std::tuple<STAmount, bool> assetReleased(
+        STAmount const& amount,
+        uint256 assetStateIndex);
+
     TER assetHolds (
         Account const& account, Currency const& currency,
         Account const& issuer, SLE::ref sleRippleState);

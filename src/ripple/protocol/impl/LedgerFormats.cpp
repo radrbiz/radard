@@ -64,6 +64,8 @@ LedgerFormats::LedgerFormats ()
             << SOElement (sfDeliveredAmount,     SOE_OPTIONAL)  // Amount delieverd
             << SOElement (sfPreviousTxnID,       SOE_REQUIRED)
             << SOElement (sfPreviousTxnLgrSeq,   SOE_REQUIRED)
+            << SOElement (sfLowNode,             SOE_OPTIONAL)
+            << SOElement (sfHighNode,            SOE_OPTIONAL)
             ;
     
     add ("DirectoryNode", ltDIR_NODE)
