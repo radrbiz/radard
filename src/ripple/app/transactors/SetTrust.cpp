@@ -111,10 +111,13 @@ public:
                 "Malformed transaction: Native credit limit: " <<
                 saLimitAmount.getFullText ();
             return temBAD_LIMIT;
-        } else if (bClearNoRipple && assetCurrency() == currency) {
+        }
+        /*
+        else if (bClearNoRipple && assetCurrency() == currency) {
             m_journal.trace << "Malformed transaction: tfClearNoRipple is not allowed on asset";
             return temINVALID_FLAG;
         }
+        */
 
         if (saLimitAmount < zero)
         {
@@ -311,6 +314,43 @@ public:
 
             bool        bReserveIncrease    = false;
 
+            if (assetCurrency() == currency && bLowReserveClear
+                && bClearNoRipple && saHighBalance <= zero && !saHighLimit
+                && !uHighQualityIn && !uHighQualityOut)
+            {
+                uint256 baseIndex = getAssetStateIndex(mTxnAccountID, saLimitAmount.issue());
+                uint256 assetStateIndex = getQualityIndex(baseIndex);
+                uint256 assetStateEnd = getQualityNext(assetStateIndex);
+                bool bIsAssetStateEmpty = true;
+                for(;;)
+                {
+                    // Check AssetState is totally empty
+                    auto const& sleAssetState = mEngine->entryCache(ltASSET_STATE, assetStateIndex);
+                    if (sleAssetState)
+                        bIsAssetStateEmpty = false;
+                        break;
+                    uint256 nextAssetStateIndex = mEngine->getLedger()->getNextLedgerIndex(assetStateIndex, assetStateEnd);
+                    if (nextAssetStateIndex.isZero())
+                        break;
+                    assetStateIndex = nextAssetStateIndex;
+                }
+                
+                if (bIsAssetStateEmpty)
+                {
+                    mEngine->view ().decrementOwnerCount (sleLowAccount);
+                    mEngine->view ().decrementOwnerCount (sleHighAccount);
+                    return mEngine->view ().trustDelete (sleRippleState, uLowAccountID, uHighAccountID); 
+                }
+                else
+                {
+                    return temINVALID_FLAG;
+                }
+            }
+            else if (assetCurrency() == currency && bClearNoRipple) {
+                m_journal.trace << "Malformed transaction: tfClearNoRipple is not allowed on asset";
+                return temINVALID_FLAG;
+            }
+            
             if (bSetAuth)
             {
                 uFlagsOut |= (bHigh ? lsfHighAuth : lsfLowAuth);
