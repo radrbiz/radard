@@ -1698,6 +1698,70 @@ TER LedgerEntrySet::shareFeeWithReferee(Account const& uSenderID, Account const&
     }
     return terResult;
 }
+    
+TER LedgerEntrySet::addRefer(Account const& refereeID, Account const& referenceID)
+{
+    // Open a ledger for editing.
+    SLE::pointer sleReferee(entryCache(ltACCOUNT_ROOT, getAccountRootIndex(refereeID)));
+    SLE::pointer sleReference(entryCache(ltACCOUNT_ROOT, getAccountRootIndex(referenceID)));
+    
+    auto const refereeReferIndex = getAccountReferIndex (refereeID);
+    SLE::pointer sleRefereeRefer(entryCache (ltREFER, refereeReferIndex));
+    SLE::pointer sleReferenceRefer(entryCache (ltREFER, getAccountReferIndex(referenceID)));
+    
+    if (!sleReferee) {
+        // Referee account does not exist.
+        WriteLog (lsTRACE, LedgerEntrySet) << "Referee account does not exist.";
+        return terNO_ACCOUNT;
+    } else if (!sleReference) {
+        // Reference account does not exist.
+        WriteLog (lsTRACE, LedgerEntrySet) << "Reference account does not exist.";
+        return terNO_ACCOUNT;
+    } else if (sleReference->isFieldPresent(sfReferee)
+               && sleReference->getFieldAccount(sfReferee).getAccountID().isNonZero()) {
+        // Reference account already has referee
+        WriteLog (lsTRACE, LedgerEntrySet) << "Referee has been set.";
+        return tefREFEREE_EXIST;
+    } else if ((sleReferenceRefer && !sleReferenceRefer->getFieldArray(sfReferences).empty())) {
+        // Reference account already has references
+        WriteLog (lsTRACE, LedgerEntrySet) << "Reference has been set.";
+        return tefREFERENCE_EXIST;
+    } else {
+        // Modify references for referee account
+        STArray references(sfReferences);
+        if (sleRefereeRefer) {
+            if (sleRefereeRefer->isFieldPresent(sfReferences)) {
+                references = sleRefereeRefer->getFieldArray(sfReferences);
+                for (const auto & it: references) {
+                    if (it.getFieldAccount(sfReference).getAccountID() == referenceID) {
+                        WriteLog (lsTRACE, LedgerEntrySet) << "Reference already exists in referee.";
+                        return tefREFERENCE_EXIST;
+                    }
+                }
+            }
+            entryModify(sleRefereeRefer);
+        }
+        else
+            sleRefereeRefer = entryCreate(ltREFER, refereeReferIndex);
+        
+        references.push_back(STObject(sfReferenceHolder));
+        references.back().setFieldAccount(sfReference, referenceID);
+        sleRefereeRefer->setFieldArray(sfReferences, references);
+        // Fix bug, add account for referee
+        sleRefereeRefer->setFieldAccount(sfAccount, refereeID);
+        
+        // Modify referee&referenceHeight for reference account
+        entryModify(sleReference);
+        sleReference->setFieldAccount(sfReferee, refereeID);
+        
+        int referenceHeight=0;
+        if (sleReferee->isFieldPresent(sfReferenceHeight))
+            referenceHeight=sleReferee->getFieldU32(sfReferenceHeight);
+        sleReference->setFieldU32(sfReferenceHeight, referenceHeight+1);
+    }
+    
+    return tesSUCCESS;
+}
 
 // Direct send w/o fees:
 // - Redeeming IOUs and/or sending sender's own IOUs.

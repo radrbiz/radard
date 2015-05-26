@@ -69,7 +69,7 @@ public:
         //if currency is native(VRP/VBC), charge 1/1000 of transfer amount,
         //otherwise charge a fix amount of fee(0.001)
         STAmount const amount (mTxn.getFieldAmount (sfAmount));
-        feeByTrans += amount.isNative() ? amount.getNValue() * getConfig().FEE_DEFAULT_RATE_NATIVE : getConfig().FEE_DEFAULT_NONE_NATIVE;
+        feeByTrans += amount.isNative() ? std::max(int(amount.getNValue() * getConfig().FEE_DEFAULT_RATE_NATIVE), int(getConfig().FEE_DEFAULT_MIN_NATIVE)) : getConfig().FEE_DEFAULT_NONE_NATIVE;
 
         mFeeDue = std::max(mFeeDue, STAmount(feeByTrans, false));
     }

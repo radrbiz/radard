@@ -38,4 +38,5 @@
 #include <ripple/app/transactors/CreateTicket.cpp>
 #include <ripple/app/transactors/CancelTicket.cpp>
 #include <ripple/app/transactors/AddReferee.cpp>
+#include <ripple/app/transactors/ActiveAccount.cpp>
 #include <ripple/app/transactors/Issue.cpp>
