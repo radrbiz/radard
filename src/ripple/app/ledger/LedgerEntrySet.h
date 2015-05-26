@@ -234,9 +234,11 @@ public:
         STAmount const& amount,
         uint256 assetStateIndex);
 
-    TER assetHolds (
-        Account const& account, Currency const& currency,
-        Account const& issuer, SLE::ref sleRippleState);
+    TER assetRelease(
+        Account const& uSrcAccountID,
+        Account const& uDstAccountID,
+        Currency const& currency,
+        SLE::ref sleRippleState);
 
     TER trustCreate (
         const bool      bSrcHigh,

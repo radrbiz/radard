@@ -61,7 +61,7 @@ STAmount creditBalance (
     if (sleRippleState)
     {
         if (assetCurrency() == currency)
-            ledger.assetHolds(account, currency, issuer, sleRippleState);
+            ledger.assetRelease(account, issuer, currency, sleRippleState);
 
         result = sleRippleState->getFieldAmount (sfBalance);
         if (account < issuer)
