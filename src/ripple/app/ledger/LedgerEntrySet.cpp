@@ -22,6 +22,7 @@
 #include <ripple/app/ledger/LedgerEntrySet.h>
 #include <ripple/basics/Log.h>
 #include <ripple/basics/StringUtilities.h>
+#include <ripple/core/Config.h>
 #include <ripple/json/to_string.h>
 #include <ripple/protocol/Indexes.h>
 #include <ripple/app/misc/DividendMaster.h>
@@ -1795,8 +1796,7 @@ TER LedgerEntrySet::rippleCredit (
     assert (!isVBC (uReceiverID) && uReceiverID != noAccount());
 
     // Asset process
-    SLE::pointer sleRecAsset = entryCache(ltASSET, getAssetIndex(uReceiverID, currency));
-    if (currency == assetCurrency() && !sleRecAsset)
+    if (currency == assetCurrency() && entryCache(ltASSET, getAssetIndex(uReceiverID, currency))==nullptr)
     {
         SLE::pointer sleAsset = entryCache (ltASSET, getAssetIndex (uSenderID, currency));
         if (!sleAsset)
@@ -1809,10 +1809,8 @@ TER LedgerEntrySet::rippleCredit (
         {
             uint32 parentCloseTime = getLedger()->getParentCloseTimeNC ();
             uint256 baseAssetStateIndex = getAssetStateIndex (uSenderID, uReceiverID, currency);
-            // Multiple of 86400
-            uint64 interval = 24*60*60;
             uint256 assetStateIndex = getQualityIndex (baseAssetStateIndex,
-                parentCloseTime - parentCloseTime%interval);
+                parentCloseTime - parentCloseTime%getConfig().ASSET_INTERVAL_MIN);
 
             STAmount amount(saAmount);
             amount.setIssuer(uSenderID);
@@ -1857,7 +1855,7 @@ TER LedgerEntrySet::rippleCredit (
                 terResult = tesSUCCESS;
             }
             if (tesSUCCESS == terResult && !sleRippleState) {
-                STAmount saReceiverLimit({currency, uReceiverID});
+                STAmount saReceiverLimit({currency, uReceiverID}, getConfig().ASSET_LIMIT_DEFAULT);
                 STAmount saBalance({currency, noAccount()});
 
                 WriteLog(lsDEBUG, LedgerEntrySet) << "rippleCredit: create line: " << to_string(uSenderID) << " -> " << to_string(uReceiverID) << " : " << saAmount.getFullText();

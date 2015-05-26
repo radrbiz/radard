@@ -304,7 +304,9 @@ public:
     double                             FEE_DEFAULT_RATE_NATIVE;// fee rate for native(VBC/VRP) payment
     std::uint64_t                      FEE_DEFAULT_MIN_NATIVE; // Minimal fee for native transaction
 
-    int                                ASSET_TX_MIN;           // Minimum amount for asset TXs.
+    int                                ASSET_TX_MIN;           // Minimal amount for asset TXs.
+    std::uint64_t                       ASSET_LIMIT_DEFAULT;    // default limit for asset.
+    int                                 ASSET_INTERVAL_MIN;     // Minimal interval for asset release schedule.
 
     // Node storage configuration
     std::uint32_t                      LEDGER_HISTORY;

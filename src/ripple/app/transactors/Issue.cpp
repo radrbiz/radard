@@ -56,7 +56,7 @@ public:
                 return temBAD_RELEASE_SCHEDULE;
 
             const auto& expire = releasePoint.getFieldU32(sfExpiration);
-            if (expire%86400>0 || expire <= lastExpiration)
+            if (expire % getConfig().ASSET_INTERVAL_MIN > 0 || expire <= lastExpiration)
                 return temBAD_RELEASE_SCHEDULE;
 
             lastExpiration = expire;
