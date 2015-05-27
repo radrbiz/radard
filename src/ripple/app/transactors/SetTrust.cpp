@@ -327,8 +327,10 @@ public:
                     // Check AssetState is totally empty
                     auto const& sleAssetState = mEngine->entryCache(ltASSET_STATE, assetStateIndex);
                     if (sleAssetState)
+                    {
                         bIsAssetStateEmpty = false;
                         break;
+                    }
                     uint256 nextAssetStateIndex = mEngine->getLedger()->getNextLedgerIndex(assetStateIndex, assetStateEnd);
                     if (nextAssetStateIndex.isZero())
                         break;
