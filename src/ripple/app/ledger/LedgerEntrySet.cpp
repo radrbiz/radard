@@ -1838,7 +1838,7 @@ TER LedgerEntrySet::rippleCredit (
                     // Add to Issue
                     terResult = dirAdd (bSenderHigh ? uHighNode : uLowNode,
                         getOwnerDirIndex(uSenderID),
-                        sleAsset->getIndex(),
+                        sleAssetState->getIndex(),
                         std::bind(
                             &Ledger::ownerDirDescriber, std::placeholders::_1,
                             std::placeholders::_2, uSenderID));
