@@ -93,8 +93,8 @@ public:
         }
 
         bool const bSetAuth = (uTxFlags & tfSetfAuth);
-        bool const bSetNoRipple = (assetCurrency() == currency)?true:(uTxFlags & tfSetNoRipple);
         bool const bClearNoRipple  = (uTxFlags & tfClearNoRipple);
+        bool const bSetNoRipple = (assetCurrency() == currency && !bClearNoRipple)?true:(uTxFlags & tfSetNoRipple);
         bool const bSetFreeze = (uTxFlags & tfSetFreeze);
         bool const bClearFreeze = (uTxFlags & tfClearFreeze);
 
@@ -112,12 +112,6 @@ public:
                 saLimitAmount.getFullText ();
             return temBAD_LIMIT;
         }
-        /*
-        else if (bClearNoRipple && assetCurrency() == currency) {
-            m_journal.trace << "Malformed transaction: tfClearNoRipple is not allowed on asset";
-            return temINVALID_FLAG;
-        }
-        */
 
         if (saLimitAmount < zero)
         {
@@ -345,12 +339,12 @@ public:
                 }
                 else
                 {
-                    return temINVALID_FLAG;
+                    return temDISABLED;
                 }
             }
             else if (assetCurrency() == currency && bClearNoRipple) {
                 m_journal.trace << "Malformed transaction: tfClearNoRipple is not allowed on asset";
-                return temINVALID_FLAG;
+                return temDISABLED;
             }
             
             if (bSetAuth)
