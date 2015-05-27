@@ -376,6 +376,7 @@ extern SField const sfSendMax;
 extern SField const sfMinimumOffer;
 extern SField const sfRippleEscrow;
 extern SField const sfDeliveredAmount;
+extern SField const sfReserve;
 
 // variable length
 extern SField const sfPublicKey;

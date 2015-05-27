@@ -39,55 +39,22 @@ void addLine (Json::Value& jsonLines, RippleState const& line, Ledger::pointer l
     STAmount const& saLimitPeer (line.getLimitPeer ());
     Json::Value& jPeer (jsonLines.append (Json::objectValue));
 
-    // calculate released & reserved balance for asset.
-    if (assetCurrency() == saBalance.getCurrency()) {
-        STAmount reserved;
-        uint256 baseIndex = getAssetStateIndex(line.getAccountID(), line.getAccountIDPeer(), assetCurrency());
-        uint256 assetStateIndex = getQualityIndex(baseIndex);
-        uint256 assetStateEnd = getQualityNext(assetStateIndex);
-
-        for (;;) {
-            auto const& sle = ledger->getSLEi(assetStateIndex);
-            if (sle) {
-                STAmount amount = sle->getFieldAmount(sfAmount);
-                STAmount released;
-                bool bIsReleaseFinished;
-                LedgerEntrySet les(ledger, tapNONE, true);
-                std::tie(released, bIsReleaseFinished) = les.assetReleased(amount, assetStateIndex);
-
-                STAmount delivered = sle->getFieldAmount(sfDeliveredAmount);
-
-                if (sle->getFieldAccount160(sfAccount) == line.getAccountIDPeer()) {
-                    amount.negate();
-                    delivered.negate();
-                    released.negate();
-                }
-                saBalance += delivered ? released - delivered : released;
-                if (reserved)
-                    reserved += amount - released;
-                else
-                    reserved = amount - released;
-            }
-
-            auto const nextAssetState(
-                ledger->getNextLedgerIndex(assetStateIndex, assetStateEnd));
-
-            if (nextAssetState.isZero())
-                break;
-
-            assetStateIndex = nextAssetState;
-        }
-        if (reserved)
-            jPeer[jss::reserve] = reserved.getText();
-    }
-
     jPeer[jss::account] = to_string (line.getAccountIDPeer ());
-    // Amount reported is positive if current account holds other
-    // account's IOUs.
-    //
-    // Amount reported is negative if other account holds current
-    // account's IOUs.
-    jPeer[jss::balance] = saBalance.getText ();
+    if (assetCurrency() == saBalance.getCurrency()) {
+        // calculate released & reserved balance for asset.
+        LedgerEntrySet les(ledger, tapNONE, true);
+        auto sleRippleState = les.entryCache(ltRIPPLE_STATE, getRippleStateIndex(line.getAccountID(), line.getAccountIDPeer(), assetCurrency()));
+        les.assetRelease(line.getAccountID(), line.getAccountIDPeer(), assetCurrency(), sleRippleState);
+        jPeer[jss::reserve] = sleRippleState->getFieldAmount(sfReserve).getText();
+        jPeer[jss::balance] = sleRippleState->getFieldAmount(sfBalance).getText();
+    } else {
+        // Amount reported is positive if current account holds other
+        // account's IOUs.
+        //
+        // Amount reported is negative if other account holds current
+        // account's IOUs.
+        jPeer[jss::balance] = saBalance.getText();
+    }
     jPeer[jss::currency] = saBalance.getHumanCurrency ();
     jPeer[jss::limit] = saLimit.getText ();
     jPeer[jss::limit_peer] = saLimitPeer.getText ();

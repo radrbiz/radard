@@ -85,6 +85,10 @@ Json::Value doAccountAsset (RPC::Context& context)
     
     // get asset_states for currency ASSET.
     if (assetCurrency() == line->getBalance().getCurrency()) {
+        LedgerEntrySet les(ledger, tapNONE, true);
+        auto sleRippleState = les.entryCache(ltRIPPLE_STATE, getRippleStateIndex(raAccount, raPeerAccount, assetCurrency()));
+        les.assetRelease(raAccount, raPeerAccount, assetCurrency(), sleRippleState);
+
         uint256 baseIndex = getAssetStateIndex(line->getAccountID(), line->getAccountIDPeer(), assetCurrency());
         uint256 assetStateIndex = getQualityIndex(baseIndex);
         uint256 assetStateEnd = getQualityNext(assetStateIndex);
@@ -93,17 +97,14 @@ Json::Value doAccountAsset (RPC::Context& context)
             auto const& sle = ledger->getSLEi(assetStateIndex);
             if (sle) {
                 STAmount amount = sle->getFieldAmount(sfAmount);
-                STAmount released;
-                bool bIsReleaseFinished;
-                LedgerEntrySet les (ledger, tapNONE, true);
-                std::tie(released, bIsReleaseFinished) = les.assetReleased(amount, assetStateIndex);
+                STAmount released = sle->getFieldAmount(sfDeliveredAmount);
 
                 if (sle->getFieldAccount160(sfAccount) == line->getAccountIDPeer()) {
                     amount.negate();
                     released.negate();
                 }
 
-                auto reserved = amount - released;
+                auto reserved = released ? amount - released : amount;
 
                 Json::Value& state(jsonAssetStates.append(Json::objectValue));
                 state[jss::date] = static_cast<Json::UInt>(getQuality(assetStateIndex));

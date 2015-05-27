@@ -100,6 +100,7 @@ LedgerFormats::LedgerFormats ()
 
     add ("RippleState", ltRIPPLE_STATE)
             << SOElement (sfBalance,             SOE_REQUIRED)
+            << SOElement (sfReserve,             SOE_OPTIONAL)
             << SOElement (sfLowLimit,            SOE_REQUIRED)
             << SOElement (sfHighLimit,           SOE_REQUIRED)
             << SOElement (sfPreviousTxnID,       SOE_REQUIRED)

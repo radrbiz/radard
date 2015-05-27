@@ -220,6 +220,8 @@ SField const sfMinimumOffer    = make::one(&sfMinimumOffer,    STI_AMOUNT, 16, "
 SField const sfRippleEscrow    = make::one(&sfRippleEscrow,    STI_AMOUNT, 17, "RippleEscrow");
 SField const sfDeliveredAmount = make::one(&sfDeliveredAmount, STI_AMOUNT, 18, "DeliveredAmount");
 
+SField const sfReserve         = make::one(&sfReserve,         STI_AMOUNT, 182, "Reserve");
+
 // variable length
 SField const sfPublicKey     = make::one(&sfPublicKey,     STI_VL,  1, "PublicKey");
 SField const sfMessageKey    = make::one(&sfMessageKey,    STI_VL,  2, "MessageKey");

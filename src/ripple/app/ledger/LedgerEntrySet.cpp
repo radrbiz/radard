@@ -1146,10 +1146,23 @@ LedgerEntrySet::assetRelease (
 {
     TER terResult = tesSUCCESS;
     STAmount saBalance = sleRippleState->getFieldAmount(sfBalance);
+    STAmount saReserve;
     uint256 baseIndex = getAssetStateIndex(uSrcAccountID, uDstAccountID, currency);
     uint256 assetStateIndex = getQualityIndex(baseIndex);
     uint256 assetStateEnd = getQualityNext(assetStateIndex);
     uint256 assetStateIndexZero = assetStateIndex;
+    
+    auto const& sleAssetState = entryCache(ltASSET_STATE, assetStateIndexZero);
+    if (sleAssetState) {
+        STAmount amount = sleAssetState->getFieldAmount(sfAmount);
+        Account const& owner = sleAssetState->getFieldAccount160(sfAccount);
+        if ((owner == uSrcAccountID && amount.getIssuer() == uDstAccountID) ||
+            (owner == uDstAccountID && amount.getIssuer() == uSrcAccountID)) {
+            STAmount delivered = sleAssetState->getFieldAmount(sfDeliveredAmount);
+            saReserve = (amount.getIssuer() > owner) ? amount - delivered : delivered - amount;
+        }
+    }
+    
     for (;;)
     {
         assetStateIndex = getNextLedgerIndex(assetStateIndex, assetStateEnd);
@@ -1175,6 +1188,13 @@ LedgerEntrySet::assetRelease (
         STAmount delivered = sleAssetState->getFieldAmount(sfDeliveredAmount);
         if (!delivered)
             delivered.setIssue(amount.issue());
+
+        bool bIssuerHigh = amount.getIssuer() > owner;
+
+        // update reserve
+        if (!saReserve)
+            saReserve.setIssue(amount.issue());
+        saReserve += bIssuerHigh ? amount - released : released - amount;
 
         // no newly release.
         if (released <= delivered)
@@ -1255,13 +1275,20 @@ LedgerEntrySet::assetRelease (
         released.setIssue(saBalance.issue());
         delivered.setIssue(saBalance.issue());
 
-        if (amount.getIssuer() > owner)
+        if (bIssuerHigh)
             saBalance += released - delivered;
         else
             saBalance -= released - delivered;
         sleRippleState->setFieldAmount(sfBalance, saBalance);
         entryModify(sleRippleState);
     }
+
+    if (!sleRippleState->isFieldPresent(sfReserve) ||
+        sleRippleState->getFieldAmount(sfReserve) != saReserve) {
+        sleRippleState->setFieldAmount(sfReserve, saReserve);
+        entryModify(sleRippleState);
+    }
+
     return terResult;
 }
 
