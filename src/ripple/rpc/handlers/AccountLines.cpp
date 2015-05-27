@@ -45,8 +45,14 @@ void addLine (Json::Value& jsonLines, RippleState const& line, Ledger::pointer l
         LedgerEntrySet les(ledger, tapNONE, true);
         auto sleRippleState = les.entryCache(ltRIPPLE_STATE, getRippleStateIndex(line.getAccountID(), line.getAccountIDPeer(), assetCurrency()));
         les.assetRelease(line.getAccountID(), line.getAccountIDPeer(), assetCurrency(), sleRippleState);
-        jPeer[jss::reserve] = sleRippleState->getFieldAmount(sfReserve).getText();
-        jPeer[jss::balance] = sleRippleState->getFieldAmount(sfBalance).getText();
+        STAmount reserve = sleRippleState->getFieldAmount(sfReserve);
+        STAmount balance = sleRippleState->getFieldAmount(sfBalance);
+        if (line.getAccountID() == sleRippleState->getFieldAmount(sfHighLimit).getIssuer()) {
+            reserve.negate();
+            balance.negate();
+        }
+        jPeer[jss::reserve] = reserve.getText();
+        jPeer[jss::balance] = balance.getText();
     } else {
         // Amount reported is positive if current account holds other
         // account's IOUs.
