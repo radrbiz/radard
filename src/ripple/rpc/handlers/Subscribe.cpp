@@ -290,7 +290,7 @@ Json::Value doSubscribe (RPC::Context& context)
             context.netOps.subBook (ispSub, book);
 
             if (bBoth)
-                context.netOps.subBook (ispSub, book);
+                context.netOps.subBook (ispSub, reversed (book));
 
             if (bSnapshot)
             {
