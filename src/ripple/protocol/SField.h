@@ -291,6 +291,7 @@ extern SField const sfDestinationTag;
 extern SField const sfDividendLedger;
 extern SField const sfReferenceHeight;
 extern SField const sfReleaseRate;
+extern SField const sfNextReleaseTime;
 
 // 32-bit integers (uncommon)
 extern SField const sfHighQualityIn;

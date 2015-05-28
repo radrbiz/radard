@@ -239,6 +239,11 @@ public:
         Account const& uDstAccountID,
         Currency const& currency,
         SLE::ref sleRippleState);
+        
+    void assetNextReleaseTime(
+        uint256  baseIndex,
+        SLE::ref sleAsset,
+        SLE::ref sleAssetState);
 
     TER trustCreate (
         const bool      bSrcHigh,

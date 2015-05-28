@@ -134,6 +134,7 @@ SField const sfDestinationTag    = make::one(&sfDestinationTag,    STI_UINT32, 1
 SField const sfDividendLedger    = make::one(&sfDividendLedger,    STI_UINT32, 181, "DividendLedger");
 SField const sfReferenceHeight   = make::one(&sfReferenceHeight,   STI_UINT32, 182, "ReferenceHeight");
 SField const sfReleaseRate       = make::one(&sfReleaseRate,       STI_UINT32, 183, "ReleaseRate");
+SField const sfNextReleaseTime   = make::one(&sfNextReleaseTime,   STI_UINT32, 184, "NextReleaseTime");
 
 // 32-bit integers (uncommon)
 SField const sfHighQualityIn       = make::one(&sfHighQualityIn,       STI_UINT32, 16, "HighQualityIn");
