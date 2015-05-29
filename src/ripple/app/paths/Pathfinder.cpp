@@ -896,7 +896,7 @@ void Pathfinder::addLink (
                 addUniquePath (mCompletePaths, currentPath);
             }
         }
-        else if (assetCurrency () == uEndCurrency)
+        else if (!(addFlags & afAC_LAST) && assetCurrency () == uEndCurrency)
         {
             // ignore asset
         }
@@ -1057,7 +1057,7 @@ void Pathfinder::addLink (
 
             for (auto const& book : books)
             {
-                if (assetCurrency () != book->getCurrencyOut () &&
+                if ((bDestOnly || assetCurrency () != book->getCurrencyOut ()) &&
                     !currentPath.hasSeen (
                         xrpAccount (),
                         book->getCurrencyOut (),
