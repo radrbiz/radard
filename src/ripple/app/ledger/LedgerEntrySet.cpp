@@ -1111,7 +1111,8 @@ TER LedgerEntrySet::offerDelete (SLE::pointer sleOffer)
 std::tuple<STAmount, bool>
 LedgerEntrySet::assetReleased (
     STAmount const& amount,
-    uint256 assetStateIndex)
+    uint256 assetStateIndex,
+    SLE::ref sleAssetState)
 {
     STAmount released(amount.issue());
     bool bIsReleaseFinished = false;
@@ -1121,14 +1122,25 @@ LedgerEntrySet::assetReleased (
         uint64 boughtTime = getQuality(assetStateIndex);
         STArray const& releaseSchedule = sleAsset->getFieldArray(sfReleaseSchedule);
         uint32 releaseRate = 0;
+        uint32 nextInterval = 0;
+
         for (auto releasePoint : releaseSchedule) {
             if (boughtTime + releasePoint.getFieldU32(sfExpiration) > getLedger()->getCloseTimeNC())
+            {
+                nextInterval = releasePoint.getFieldU32(sfExpiration);
                 break;
+            }
             else if (releasePoint == releaseSchedule.back())
                 bIsReleaseFinished = true;
 
             releaseRate = releasePoint.getFieldU32(sfReleaseRate);
         }
+        if (nextInterval > 0)
+            sleAssetState->setFieldU32(sfNextReleaseTime, 
+                                        (uint32)boughtTime
+                                        + nextInterval
+                                        - (boughtTime+nextInterval)
+                                            %getConfig().ASSET_INTERVAL_MIN);
         if (releaseRate > 0) {
             released = mulRound(amount, amountFromRate(releaseRate), amount.issue(), true);
             released.floor();
@@ -1183,7 +1195,7 @@ LedgerEntrySet::assetRelease (
         STAmount released;
         bool bIsReleaseFinished;
 
-        std::tie(released, bIsReleaseFinished) = assetReleased(amount, assetStateIndex);
+        std::tie(released, bIsReleaseFinished) = assetReleased(amount, assetStateIndex, sleAssetState);
 
         STAmount delivered = sleAssetState->getFieldAmount(sfDeliveredAmount);
         if (!delivered)
@@ -1800,51 +1812,6 @@ TER LedgerEntrySet::addRefer(Account const& refereeID, Account const& referenceI
     return tesSUCCESS;
 }
 
-void LedgerEntrySet::assetNextReleaseTime (
-    uint256 baseIndex,
-    SLE::ref sleAsset,
-    SLE::ref sleAssetState)
-{
-    // Set next release time.
-    uint32 nextInterval = 0;
-    uint32 parentCloseTime = getLedger()->getParentCloseTimeNC ();
-    STArray releaseSchedule = sleAsset->getFieldArray(sfReleaseSchedule);
-    
-    uint256 assetStateIndex = getQualityIndex(baseIndex);
-    uint256 assetStateEnd = getQualityNext(assetStateIndex);
-    uint32 boughtTime = 0;
-    
-    for (;;)
-    {
-        assetStateIndex = getNextLedgerIndex(assetStateIndex, assetStateEnd);
-        if (sleAssetState)
-        {
-            boughtTime = (uint32)getQuality(assetStateIndex);
-            break;
-        }
-    }
-    
-    if (boughtTime == 0)
-    {
-        sleAssetState->setFieldU32(sfNextReleaseTime, 0);
-        return;
-    }
-    for (auto const& releasePoint : releaseSchedule)
-    {
-        if (boughtTime + releasePoint.getFieldU32(sfExpiration) > parentCloseTime)
-        {
-            nextInterval = releasePoint.getFieldU32(sfExpiration);
-            break;
-        }
-    }
-
-    sleAssetState->setFieldU32(sfNextReleaseTime,
-        boughtTime
-        + nextInterval
-        - (boughtTime + nextInterval) % getConfig().ASSET_INTERVAL_MIN);
-    return;
-}
-
 // Direct send w/o fees:
 // - Redeeming IOUs and/or sending sender's own IOUs.
 // - Create trust line of needed.
@@ -1920,16 +1887,12 @@ TER LedgerEntrySet::rippleCredit (
                     sleAssetState->setFieldU64 (sfHighNode, uHighNode);
                     sleAssetState->setFieldAccount(sfAccount, uReceiverID);
                     sleAssetState->setFieldAmount(sfAmount, amount);
-                    // calculate next release time and set
-                    assetNextReleaseTime (baseAssetStateIndex, sleAsset, sleAssetState);
                 }
             }
             else
             {
                 STAmount before = sleAssetState->getFieldAmount(sfAmount);
                 sleAssetState->setFieldAmount(sfAmount, before + amount);
-                
-                assetNextReleaseTime (baseAssetStateIndex, sleAsset, sleAssetState);
                 entryModify (sleAssetState);
                 terResult = tesSUCCESS;
             }

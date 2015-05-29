@@ -232,18 +232,14 @@ public:
 
     std::tuple<STAmount, bool> assetReleased(
         STAmount const& amount,
-        uint256 assetStateIndex);
+        uint256 assetStateIndex,
+        SLE::ref sleAssetState);
 
     TER assetRelease(
         Account const& uSrcAccountID,
         Account const& uDstAccountID,
         Currency const& currency,
         SLE::ref sleRippleState);
-        
-    void assetNextReleaseTime(
-        uint256  baseIndex,
-        SLE::ref sleAsset,
-        SLE::ref sleAssetState);
 
     TER trustCreate (
         const bool      bSrcHigh,
