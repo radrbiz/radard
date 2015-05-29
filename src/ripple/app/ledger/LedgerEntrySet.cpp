@@ -1123,16 +1123,7 @@ LedgerEntrySet::assetReleased (
         STArray const& releaseSchedule = sleAsset->getFieldArray(sfReleaseSchedule);
         uint32 releaseRate = 0;
         uint32 nextInterval = 0;
-        /*
-        uint32 nextReleaseTime = sleAssetState->getFieldU32(sfNextReleaseTime);
-        if (nextReleaseTime == 0)
-        {
-            releaseRate = releaseSchedule.back().getFieldU32(sfReleaseRate);
-            released = mulRound(amount, amountFromRate(releaseRate), amount.issue(), true); 
-            released.floor();
-            return std::make_tuple(released, true);
-        }
-        */
+
         for (auto releasePoint : releaseSchedule) {
             if (boughtTime + releasePoint.getFieldU32(sfExpiration) > getLedger()->getCloseTimeNC())
             {
@@ -1144,9 +1135,7 @@ LedgerEntrySet::assetReleased (
 
             releaseRate = releasePoint.getFieldU32(sfReleaseRate);
         }
-        if (nextInterval == 0)
-            sleAssetState->setFieldU32(sfNextReleaseTime, 0);
-        else
+        if (nextInterval > 0)
             sleAssetState->setFieldU32(sfNextReleaseTime, 
                                         (uint32)boughtTime
                                         + nextInterval
