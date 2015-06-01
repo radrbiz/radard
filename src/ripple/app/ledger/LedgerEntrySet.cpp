@@ -1194,6 +1194,15 @@ LedgerEntrySet::assetRelease (
 
         STAmount released;
         bool bIsReleaseFinished;
+        // Make sure next release time is up.
+        uint32 nextReleaseTime = sleAssetState->getFieldU32(sfNextReleaseTime);
+        uint64 boughtTime = getQuality(assetStateIndex);
+        auto const& sleAsset = entryCache(ltASSET, getAssetIndex(amount.issue()));
+        STArray schedule = sleAsset->getFieldArray(sfReleaseSchedule);
+        if (sleAsset &&
+            nextReleaseTime + boughtTime > getLedger()->getCloseTimeNC() &&
+            schedule.front().getFieldU32(sfExpiration) > 0)
+            continue;
 
         std::tie(released, bIsReleaseFinished) = assetReleased(amount, assetStateIndex, sleAssetState);
 
