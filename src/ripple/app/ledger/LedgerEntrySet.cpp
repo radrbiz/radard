@@ -1137,10 +1137,7 @@ LedgerEntrySet::assetReleased (
         }
         if (nextInterval > 0)
             sleAssetState->setFieldU32(sfNextReleaseTime, 
-                                        (uint32)boughtTime
-                                        + nextInterval
-                                        - (boughtTime+nextInterval)
-                                            %getConfig().ASSET_INTERVAL_MIN);
+                                        (uint32)boughtTime + nextInterval);
         if (releaseRate > 0) {
             released = mulRound(amount, amountFromRate(releaseRate), amount.issue(), true);
             released.floor();
@@ -1196,12 +1193,7 @@ LedgerEntrySet::assetRelease (
         bool bIsReleaseFinished;
         // Make sure next release time is up.
         uint32 nextReleaseTime = sleAssetState->getFieldU32(sfNextReleaseTime);
-        uint64 boughtTime = getQuality(assetStateIndex);
-        auto const& sleAsset = entryCache(ltASSET, getAssetIndex(amount.issue()));
-        STArray schedule = sleAsset->getFieldArray(sfReleaseSchedule);
-        if (sleAsset &&
-            nextReleaseTime + boughtTime > getLedger()->getCloseTimeNC() &&
-            schedule.front().getFieldU32(sfExpiration) > 0)
+        if (nextReleaseTime > getLedger()->getCloseTimeNC())
             continue;
 
         std::tie(released, bIsReleaseFinished) = assetReleased(amount, assetStateIndex, sleAssetState);
@@ -1905,6 +1897,7 @@ TER LedgerEntrySet::rippleCredit (
             {
                 STAmount before = sleAssetState->getFieldAmount(sfAmount);
                 sleAssetState->setFieldAmount(sfAmount, before + amount);
+                sleAssetState->setFieldU32(sfNextReleaseTime, 0);
                 entryModify (sleAssetState);
                 terResult = tesSUCCESS;
             }
