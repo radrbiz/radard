@@ -1269,7 +1269,6 @@ LedgerEntrySet::assetRelease (
             }
             if (tesSUCCESS != terResult)
                 break;
-            entryDelete(sleAssetState);
             uint64 uLowNode = sleAssetState->getFieldU64(sfLowNode);
             uint64 uHighNode = sleAssetState->getFieldU64(sfHighNode);
             terResult = dirDelete(
@@ -1290,6 +1289,8 @@ LedgerEntrySet::assetRelease (
                 false);
             if (tesSUCCESS != terResult)
                 break;
+            entryDelete (sleAssetState);
+            decrementOwnerCount (owner);
         }
 
         // update balance in RippleState
@@ -1896,6 +1897,8 @@ TER LedgerEntrySet::rippleCredit (
                     sleAssetState->setFieldU64 (sfHighNode, uHighNode);
                     sleAssetState->setFieldAccount(sfAccount, uReceiverID);
                     sleAssetState->setFieldAmount(sfAmount, amount);
+                    
+                    incrementOwnerCount(uReceiverID);
                 }
             }
             else
