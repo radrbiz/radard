@@ -1376,7 +1376,11 @@ bool Ledger::visitAccountItems (
 
             for (auto const& node : ownerDir->getFieldV256 (sfIndexes))
             {
-                if (func (getSLEi (node)) && limit-- <= 1)
+                if (!getSLEi (node))
+                {
+                    WriteLog (lsWARNING, Ledger) << "bad accout item " << node << " for " << accountID;
+                }
+                else if (func (getSLEi (node)) && limit-- <= 1)
                     return true;
             }
 
