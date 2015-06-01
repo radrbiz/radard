@@ -85,7 +85,8 @@ Json::Value doAccountAsset (RPC::Context& context)
     
     // get asset_states for currency ASSET.
     if (assetCurrency() == line->getBalance().getCurrency()) {
-        LedgerEntrySet les(ledger, tapNONE, true);
+        auto lpLedger = std::make_shared<Ledger> (std::ref (*ledger), false);
+        LedgerEntrySet les(lpLedger, tapNONE);
         auto sleRippleState = les.entryCache(ltRIPPLE_STATE, getRippleStateIndex(raAccount, raPeerAccount, assetCurrency()));
         les.assetRelease(raAccount, raPeerAccount, assetCurrency(), sleRippleState);
 

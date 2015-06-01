@@ -42,7 +42,8 @@ void addLine (Json::Value& jsonLines, RippleState const& line, Ledger::pointer l
     jPeer[jss::account] = to_string (line.getAccountIDPeer ());
     if (assetCurrency() == saBalance.getCurrency()) {
         // calculate released & reserved balance for asset.
-        LedgerEntrySet les(ledger, tapNONE, true);
+        auto lpLedger = std::make_shared<Ledger> (std::ref (*ledger), false);
+        LedgerEntrySet les(lpLedger, tapNONE);
         auto sleRippleState = les.entryCache(ltRIPPLE_STATE, getRippleStateIndex(line.getAccountID(), line.getAccountIDPeer(), assetCurrency()));
         les.assetRelease(line.getAccountID(), line.getAccountIDPeer(), assetCurrency(), sleRippleState);
         STAmount reserve = sleRippleState->getFieldAmount(sfReserve);
