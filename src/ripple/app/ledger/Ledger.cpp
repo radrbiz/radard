@@ -1351,9 +1351,17 @@ bool Ledger::visitAccountItems (
                     if (node == startAfter)
                         found = true;
                 }
-                else if (func (getSLEi (node)) && limit-- <= 1)
+                else
                 {
-                    return found;
+                    auto sle = getSLEi (node);
+                    if (!sle)
+                    {
+                        WriteLog (lsWARNING, Ledger) << "bad accout item " << node << " for " << accountID;
+                    }
+                    else if (func (getSLEi (node)) && limit-- <= 1)
+                    {
+                        return found;
+                    }
                 }
             }
 
@@ -1376,11 +1384,12 @@ bool Ledger::visitAccountItems (
 
             for (auto const& node : ownerDir->getFieldV256 (sfIndexes))
             {
-                if (!getSLEi (node))
+                auto sle = getSLEi (node);
+                if (!sle)
                 {
                     WriteLog (lsWARNING, Ledger) << "bad accout item " << node << " for " << accountID;
                 }
-                else if (func (getSLEi (node)) && limit-- <= 1)
+                else if (func (sle) && limit-- <= 1)
                     return true;
             }
 
