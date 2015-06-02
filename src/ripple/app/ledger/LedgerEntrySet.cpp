@@ -1189,18 +1189,18 @@ LedgerEntrySet::assetRelease (
             !(owner == uDstAccountID && amount.getIssuer() == uSrcAccountID))
             continue;
 
-        STAmount released;
-        bool bIsReleaseFinished;
-        // Make sure next release time is up.
-        uint32 nextReleaseTime = sleAssetState->getFieldU32(sfNextReleaseTime);
-        if (nextReleaseTime > getLedger()->getCloseTimeNC())
-            continue;
-
-        std::tie(released, bIsReleaseFinished) = assetReleased(amount, assetStateIndex, sleAssetState);
-
         STAmount delivered = sleAssetState->getFieldAmount(sfDeliveredAmount);
         if (!delivered)
             delivered.setIssue(amount.issue());
+
+        STAmount released;
+        bool bIsReleaseFinished = false;
+        // Make sure next release time is up.
+        uint32 nextReleaseTime = sleAssetState->getFieldU32(sfNextReleaseTime);
+        if (nextReleaseTime > getLedger ()->getCloseTimeNC ())
+            released = delivered;
+        else
+            std::tie (released, bIsReleaseFinished) = assetReleased (amount, assetStateIndex, sleAssetState);
 
         bool bIssuerHigh = amount.getIssuer() > owner;
 
