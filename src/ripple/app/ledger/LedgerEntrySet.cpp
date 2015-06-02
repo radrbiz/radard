@@ -1297,6 +1297,8 @@ LedgerEntrySet::assetRelease (
         entryModify(sleRippleState);
     }
 
+    saReserve.setIssue (saBalance.issue ());
+
     if (!sleRippleState->isFieldPresent(sfReserve) ||
         sleRippleState->getFieldAmount(sfReserve) != saReserve) {
         sleRippleState->setFieldAmount(sfReserve, saReserve);
@@ -1585,6 +1587,8 @@ TER LedgerEntrySet::trustCreate (
 
         // ONLY: Create ripple balance.
         sleRippleState->setFieldAmount (sfBalance, bSetHigh ? -saBalance : saBalance);
+        if (assetCurrency () == saLimit.getCurrency ())
+            sleRippleState->setFieldAmount (sfReserve, STAmount ({assetCurrency (), noAccount ()}));
     }
 
     return terResult;
