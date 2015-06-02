@@ -94,7 +94,7 @@ public:
 
         bool const bSetAuth = (uTxFlags & tfSetfAuth);
         bool const bClearNoRipple  = (uTxFlags & tfClearNoRipple);
-        bool const bSetNoRipple = (assetCurrency() == currency && !bClearNoRipple)?true:(uTxFlags & tfSetNoRipple);
+        bool const bSetNoRipple = (uTxFlags & tfSetNoRipple);
         bool const bSetFreeze = (uTxFlags & tfSetFreeze);
         bool const bClearFreeze = (uTxFlags & tfClearFreeze);
 
@@ -432,6 +432,10 @@ public:
         else if (badCurrency() == currency)
         {
             terResult = temBAD_CURRENCY;
+        }
+        else if (assetCurrency () == currency && bClearNoRipple)
+        {
+            terResult = temDISABLED;
         }
         else
         {
