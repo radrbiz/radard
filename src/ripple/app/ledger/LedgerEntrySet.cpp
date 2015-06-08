@@ -1136,19 +1136,19 @@ LedgerEntrySet::assetReleased (
                     nextInterval = iteReleasePoint->getFieldU32 (sfExpiration);
                     break;
                 }
+                
+                releaseRate = iteReleasePoint->getFieldU32 (sfReleaseRate);
             }
             if (iteReleasePoint == releaseSchedule.end ())
             {
                 bIsReleaseFinished = true;
                 releaseRate = releaseSchedule.back ().getFieldU32 (sfReleaseRate);
             }
-            else
+            else if (nextInterval > 0)
             {
-                releaseRate = iteReleasePoint->getFieldU32 (sfReleaseRate);
-                nextInterval = iteReleasePoint->getFieldU32 (sfExpiration);
-                if (nextInterval > 0)
-                    sleAssetState->setFieldU32 (sfNextReleaseTime,
-                                                (uint32)boughtTime + nextInterval);
+                sleAssetState->setFieldU32 (sfNextReleaseTime,
+                                            (uint32)boughtTime + nextInterval);
+                entryModify (sleAssetState);
             }
         }
         if (releaseRate > 0) {
