@@ -1168,7 +1168,7 @@ LedgerEntrySet::assetRelease (
 {
     TER terResult = tesSUCCESS;
     STAmount saBalance = sleRippleState->getFieldAmount(sfBalance);
-    STAmount saReserve;
+    STAmount saReserve ({assetCurrency (), noAccount ()});
     uint256 baseIndex = getAssetStateIndex(uSrcAccountID, uDstAccountID, currency);
     uint256 assetStateIndex = getQualityIndex(baseIndex);
     uint256 assetStateEnd = getQualityNext(assetStateIndex);
