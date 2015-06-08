@@ -218,6 +218,53 @@ Json::Value doLedgerEntry (RPC::Context& context)
             uNodeIndex = getAccountReferIndex(naAccount.getAccountID());
         }
     }
+    else if (context.params.isMember("asset")) {
+        RippleAddress naAccount;
+        Currency uCurrency;
+        Json::Value jvAsset = context.params["asset"];
+
+        if (!jvAsset.isObject()
+            || !jvAsset.isMember("currency")
+            || !jvAsset.isMember("account")
+            || !jvAsset["account"].isString()) {
+            jvResult["error"] = "malformedRequest";
+        } else if (!naAccount.setAccountID(
+                       jvAsset["account"].asString())) {
+            jvResult["error"] = "malformedAddress";
+        } else if (!to_currency(
+                       uCurrency, jvAsset["currency"].asString())) {
+            jvResult["error"] = "malformedCurrency";
+        } else {
+            uNodeIndex = getAssetIndex(naAccount.getAccountID(), uCurrency);
+        }
+    } else if (context.params.isMember("asset_state")) {
+        RippleAddress naA;
+        RippleAddress naB;
+        Currency uCurrency;
+        Json::Value jvAssetState = context.params["asset_state"];
+
+        if (!jvAssetState.isObject()
+            || !jvAssetState.isMember("currency")
+            || !jvAssetState.isMember("accounts")
+            || !jvAssetState["accounts"].isArray()
+            || 2 != jvAssetState["accounts"].size()
+            || !jvAssetState["accounts"][0u].isString()
+            || !jvAssetState["accounts"][1u].isString()
+            || (jvAssetState["accounts"][0u].asString() == jvAssetState["accounts"][1u].asString())) {
+            jvResult["error"] = "malformedRequest";
+        } else if (!naA.setAccountID(
+                       jvAssetState["accounts"][0u].asString()) ||
+                   !naB.setAccountID(
+                       jvAssetState["accounts"][1u].asString())) {
+            jvResult["error"] = "malformedAddress";
+        } else if (!to_currency(
+                       uCurrency, jvAssetState["currency"].asString())) {
+            jvResult["error"] = "malformedCurrency";
+        } else {
+            uNodeIndex = getAssetStateIndex(
+                naA.getAccountID(), naB.getAccountID(), uCurrency);
+        }
+    }
     else
     {
         jvResult["error"]   = "unknownOption";

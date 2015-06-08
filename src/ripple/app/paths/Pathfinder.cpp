@@ -896,6 +896,10 @@ void Pathfinder::addLink (
                 addUniquePath (mCompletePaths, currentPath);
             }
         }
+        else if (!(addFlags & afAC_LAST) && assetCurrency () == uEndCurrency)
+        {
+            // ignore asset
+        }
         else
         {
             // search for accounts to add
@@ -1053,8 +1057,9 @@ void Pathfinder::addLink (
 
             for (auto const& book : books)
             {
-                if (!currentPath.hasSeen (
-                        xrpAccount(),
+                if ((bDestOnly || assetCurrency () != book->getCurrencyOut ()) &&
+                    !currentPath.hasSeen (
+                        xrpAccount (),
                         book->getCurrencyOut (),
                         book->getIssuerOut ()) &&
                     !issueMatchesOrigin (book->book ().out) &&

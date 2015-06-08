@@ -93,8 +93,8 @@ public:
         }
 
         bool const bSetAuth = (uTxFlags & tfSetfAuth);
-        bool const bSetNoRipple = (uTxFlags & tfSetNoRipple);
         bool const bClearNoRipple  = (uTxFlags & tfClearNoRipple);
+        bool const bSetNoRipple = (uTxFlags & tfSetNoRipple);
         bool const bSetFreeze = (uTxFlags & tfSetFreeze);
         bool const bClearFreeze = (uTxFlags & tfClearFreeze);
 
@@ -308,6 +308,45 @@ public:
 
             bool        bReserveIncrease    = false;
 
+            if (assetCurrency() == currency && bLowReserveClear
+                && bClearNoRipple && saHighBalance <= zero && !saHighLimit
+                && !uHighQualityIn && !uHighQualityOut)
+            {
+                uint256 baseIndex = getAssetStateIndex(mTxnAccountID, saLimitAmount.issue());
+                uint256 assetStateIndex = getQualityIndex(baseIndex);
+                uint256 assetStateEnd = getQualityNext(assetStateIndex);
+                bool bIsAssetStateEmpty = true;
+                for(;;)
+                {
+                    // Check AssetState is totally empty
+                    auto const& sleAssetState = mEngine->entryCache(ltASSET_STATE, assetStateIndex);
+                    if (sleAssetState)
+                    {
+                        bIsAssetStateEmpty = false;
+                        break;
+                    }
+                    uint256 nextAssetStateIndex = mEngine->getLedger()->getNextLedgerIndex(assetStateIndex, assetStateEnd);
+                    if (nextAssetStateIndex.isZero())
+                        break;
+                    assetStateIndex = nextAssetStateIndex;
+                }
+                
+                if (bIsAssetStateEmpty)
+                {
+                    mEngine->view ().decrementOwnerCount (sleLowAccount);
+                    mEngine->view ().decrementOwnerCount (sleHighAccount);
+                    return mEngine->view ().trustDelete (sleRippleState, uLowAccountID, uHighAccountID); 
+                }
+                else
+                {
+                    return temDISABLED;
+                }
+            }
+            else if (assetCurrency() == currency && bClearNoRipple) {
+                m_journal.trace << "Malformed transaction: tfClearNoRipple is not allowed on asset";
+                return temDISABLED;
+            }
+            
             if (bSetAuth)
             {
                 uFlagsOut |= (bHigh ? lsfHighAuth : lsfLowAuth);
@@ -393,6 +432,10 @@ public:
         else if (badCurrency() == currency)
         {
             terResult = temBAD_CURRENCY;
+        }
+        else if (assetCurrency () == currency && bClearNoRipple)
+        {
+            terResult = temDISABLED;
         }
         else
         {

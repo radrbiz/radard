@@ -93,6 +93,18 @@ getRippleStateIndex (Account const& a, Account const& b, Currency const& currenc
 uint256
 getRippleStateIndex (Account const& a, Issue const& issue);
 
+uint256
+getAssetIndex (Account const& a, Currency const& currency);
+
+uint256
+getAssetIndex (Issue const& issue);
+
+uint256
+getAssetStateIndex (Account const& a, Account const& b, Currency const& currency);
+
+uint256
+getAssetStateIndex (Account const& a, Issue const& issue);
+
 }
 
 #endif

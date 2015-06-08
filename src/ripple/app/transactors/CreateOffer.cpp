@@ -178,6 +178,30 @@ CreateOffer::doApply()
     SLE::pointer sleCreator = mEngine->entryCache (
         ltACCOUNT_ROOT, getAccountRootIndex (mTxnAccountID));
 
+    // additional checking for currency ASSET.
+    // buy asset
+    if (assetCurrency() == uPaysCurrency) {
+        if (assetCurrency() == uGetsCurrency || // asset for asset
+            bSell)                              // tfSell set while buying asset
+            return temDISABLED;
+
+        if (saTakerPays < STAmount(saTakerPays.issue(), getConfig().ASSET_TX_MIN) || !saTakerPays.isMathematicalInteger())
+            return temBAD_OFFER;
+
+        if (uPaysIssuerID == mTxnAccountID || uGetsIssuerID == mTxnAccountID) {
+            m_journal.trace << "Creating Asset offer is not allowed for issuer";
+            return temDISABLED;
+        }
+    }
+    // sell asset
+    if (assetCurrency() == uGetsCurrency) {
+        if (!bSell) // tfSell not set while selling asset
+            return temDISABLED;
+
+        if (saTakerGets < STAmount(saTakerGets.issue(), getConfig().ASSET_TX_MIN) || !saTakerGets.isMathematicalInteger())
+            return temBAD_OFFER;
+    }
+
     if (uTxFlags & tfOfferCreateMask)
     {
         if (m_journal.debug) m_journal.debug <<

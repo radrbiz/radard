@@ -12,7 +12,7 @@ exports.server_default  = "alpha";
 
 exports.default_server_config = {
   // Where to find the binary.
-  rippled_path: path.resolve(__dirname, "../build/rippled")
+  rippled_path: path.resolve(__dirname, "../build/radard")
 };
 
 //

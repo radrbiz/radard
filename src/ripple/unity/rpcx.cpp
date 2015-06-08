@@ -37,18 +37,23 @@
 #include <ripple/rpc/impl/Utilities.cpp>
 
 #include <ripple/rpc/handlers/Handlers.h>
+#include <ripple/rpc/impl/LookupLedger.h>
+#include <ripple/rpc/handlers/AccountAsset.cpp>
 #include <ripple/rpc/handlers/AccountCurrencies.cpp>
+#include <ripple/rpc/handlers/AccountDividend.cpp>
 #include <ripple/rpc/handlers/AccountInfo.cpp>
 #include <ripple/rpc/handlers/AccountLines.cpp>
 #include <ripple/rpc/handlers/AccountOffers.cpp>
 #include <ripple/rpc/handlers/AccountTx.cpp>
 #include <ripple/rpc/handlers/AccountTxOld.cpp>
 #include <ripple/rpc/handlers/AccountTxSwitch.cpp>
+#include <ripple/rpc/handlers/Ancestors.cpp>
 #include <ripple/rpc/handlers/BlackList.cpp>
 #include <ripple/rpc/handlers/BookOffers.cpp>
 #include <ripple/rpc/handlers/CanDelete.cpp>
 #include <ripple/rpc/handlers/Connect.cpp>
 #include <ripple/rpc/handlers/ConsensusInfo.cpp>
+#include <ripple/rpc/handlers/DividendObject.cpp>
 #include <ripple/rpc/handlers/Feature.cpp>
 #include <ripple/rpc/handlers/FetchInfo.cpp>
 #include <ripple/rpc/handlers/GetCounts.cpp>
@@ -62,9 +67,6 @@
 #include <ripple/rpc/handlers/LedgerEntry.cpp>
 #include <ripple/rpc/handlers/LedgerHeader.cpp>
 #include <ripple/rpc/handlers/LedgerRequest.cpp>
-#include <ripple/rpc/handlers/DividendObject.cpp>
-#include <ripple/rpc/handlers/AccountDividend.cpp>
-#include <ripple/rpc/handlers/Ancestors.cpp>
 #include <ripple/rpc/handlers/LogLevel.cpp>
 #include <ripple/rpc/handlers/LogRotate.cpp>
 #include <ripple/rpc/handlers/OwnerInfo.cpp>

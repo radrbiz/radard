@@ -365,7 +365,7 @@ ServerHandlerImp::processRequest (
 
     Resource::Charge loadType = Resource::feeReferenceRPC;
 
-    m_journal.debug << "Query: " << strMethod << params;
+    m_journal.info << "Query: " << strMethod << to_string(params);
 
     // Provide the JSON-RPC method as the field "command" in the request.
     params[jss::command] = strMethod;
@@ -406,13 +406,13 @@ ServerHandlerImp::processRequest (
     response += '\n';
     usage.charge (loadType);
 
-    if (m_journal.debug.active())
+    if (m_journal.info.active())
     {
         static const int maxSize = 10000;
         if (response.size() <= maxSize)
-            m_journal.debug << "Reply: " << response;
+            m_journal.info << "Reply: " << response;
         else
-            m_journal.debug << "Reply: " << response.substr (0, maxSize);
+            m_journal.info << "Reply: " << response.substr (0, maxSize);
     }
 
     HTTPReply (200, response, output);

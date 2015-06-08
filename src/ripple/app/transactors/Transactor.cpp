@@ -38,6 +38,7 @@ TER transact_CreateTicket (STTx const& txn, TransactionEngineParams params, Tran
 TER transact_CancelTicket (STTx const& txn, TransactionEngineParams params, TransactionEngine* engine);
 TER transact_AddReferee(STTx const& txn, TransactionEngineParams params, TransactionEngine* engine);
 TER transact_ActiveAccount(STTx const& txn, TransactionEngineParams params, TransactionEngine* engine);
+TER transact_Issue(STTx const& txn, TransactionEngineParams params, TransactionEngine* engine);
 
 TER
 Transactor::transact (
@@ -55,6 +56,9 @@ Transactor::transact (
 
     case ttADDREFEREE:
         return transact_AddReferee(txn, params, engine);
+            
+    case ttISSUE:
+        return transact_Issue(txn, params, engine);
 
     case ttACTIVEACCOUNT:
         return transact_ActiveAccount(txn, params, engine);

@@ -20,6 +20,7 @@
 #include <BeastConfig.h>
 #include <ripple/rpc/impl/Tuning.h>
 #include <ripple/app/paths/RippleState.h>
+#include <ripple/protocol/Indexes.h>
 
 namespace ripple {
 
@@ -31,20 +32,36 @@ struct VisitData
     Account const& raPeerAccount;
 };
 
-void addLine (Json::Value& jsonLines, RippleState const& line)
+void addLine (Json::Value& jsonLines, RippleState const& line, Ledger::pointer ledger)
 {
-    STAmount const& saBalance (line.getBalance ());
+    STAmount saBalance (line.getBalance ());
     STAmount const& saLimit (line.getLimit ());
     STAmount const& saLimitPeer (line.getLimitPeer ());
     Json::Value& jPeer (jsonLines.append (Json::objectValue));
 
     jPeer[jss::account] = to_string (line.getAccountIDPeer ());
-    // Amount reported is positive if current account holds other
-    // account's IOUs.
-    //
-    // Amount reported is negative if other account holds current
-    // account's IOUs.
-    jPeer[jss::balance] = saBalance.getText ();
+    if (assetCurrency() == saBalance.getCurrency()) {
+        // calculate released & reserved balance for asset.
+        auto lpLedger = std::make_shared<Ledger> (std::ref (*ledger), false);
+        LedgerEntrySet les(lpLedger, tapNONE);
+        auto sleRippleState = les.entryCache(ltRIPPLE_STATE, getRippleStateIndex(line.getAccountID(), line.getAccountIDPeer(), assetCurrency()));
+        les.assetRelease(line.getAccountID(), line.getAccountIDPeer(), assetCurrency(), sleRippleState);
+        STAmount reserve = sleRippleState->getFieldAmount(sfReserve);
+        STAmount balance = sleRippleState->getFieldAmount(sfBalance);
+        if (line.getAccountID() == sleRippleState->getFieldAmount(sfHighLimit).getIssuer()) {
+            reserve.negate();
+            balance.negate();
+        }
+        jPeer[jss::reserve] = reserve.getText();
+        jPeer[jss::balance] = balance.getText();
+    } else {
+        // Amount reported is positive if current account holds other
+        // account's IOUs.
+        //
+        // Amount reported is negative if other account holds current
+        // account's IOUs.
+        jPeer[jss::balance] = saBalance.getText();
+    }
     jPeer[jss::currency] = saBalance.getHumanCurrency ();
     jPeer[jss::limit] = saLimit.getText ();
     jPeer[jss::limit_peer] = saLimitPeer.getText ();
@@ -183,7 +200,7 @@ Json::Value doAccountLines (RPC::Context& context)
         if (line == nullptr)
             return rpcError (rpcINVALID_PARAMS);
 
-        addLine (jsonLines, *line);
+        addLine (jsonLines, *line, ledger);
         visitData.items.reserve (reserve);
     }
     else
@@ -223,7 +240,7 @@ Json::Value doAccountLines (RPC::Context& context)
     result[jss::account] = rippleAddress.humanAccountID ();
 
     for (auto const& item : visitData.items)
-        addLine (jsonLines, *item.get ());
+        addLine (jsonLines, *item.get (), ledger);
 
     context.loadType = Resource::feeMediumBurdenRPC;
     return result;

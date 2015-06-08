@@ -39,7 +39,6 @@
 		34373C761A7B767A00487CE0 /* snappy.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 842448371A13B30300A37710 /* snappy.cpp */; settings = {COMPILER_FLAGS = " -I../../src/snappy/snappy -I../../src/snappy/config"; }; };
 		34373C791A7B767A00487CE0 /* validators.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 8424483C1A13B30300A37710 /* validators.cpp */; };
 		34373C7A1A7B767A00487CE0 /* websocket.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 8424483D1A13B30300A37710 /* websocket.cpp */; };
-		34373C831A7B770400487CE0 /* libmysqlclient.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 34373C821A7B770400487CE0 /* libmysqlclient.a */; };
 		34DD1F851A89C1CF00F3F599 /* ed25519.c in Sources */ = {isa = PBXBuildFile; fileRef = 52A240B31A7B8A9E009BB3F0 /* ed25519.c */; settings = {COMPILER_FLAGS = "-I../../src/ed25519-donna"; }; };
 		34DD1F861A89C1D500F3F599 /* git_id.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 52A240611A7B7E8D009BB3F0 /* git_id.cpp */; };
 		34DD1F871A89C1DB00F3F599 /* shamap.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 52A240631A7B7E8D009BB3F0 /* shamap.cpp */; };
@@ -136,7 +135,6 @@
 
 /* Begin PBXFileReference section */
 		34373C811A7B767A00487CE0 /* radard-mysql */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = "radard-mysql"; sourceTree = BUILT_PRODUCTS_DIR; };
-		34373C821A7B770400487CE0 /* libmysqlclient.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libmysqlclient.a; path = /usr/local/lib/libmysqlclient.a; sourceTree = "<absolute>"; };
 		3493343D1A3FE05000418C3F /* beast */ = {isa = PBXFileReference; lastKnownFileType = folder; name = beast; path = ../../src/beast; sourceTree = "<group>"; };
 		3493343F1A3FE05000418C3F /* ripple */ = {isa = PBXFileReference; lastKnownFileType = folder; name = ripple; path = ../../src/ripple; sourceTree = "<group>"; };
 		525A39B41A9DC46E00847815 /* lz4.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = lz4.c; path = ../../src/ripple/unity/lz4.c; sourceTree = "<group>"; };
@@ -186,7 +184,6 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				34373C831A7B770400487CE0 /* libmysqlclient.a in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -226,7 +223,6 @@
 				842448231A13B30300A37710 /* hyperleveldb.cpp */,
 				842448251A13B30300A37710 /* json.cpp */,
 				842448271A13B30300A37710 /* leveldb.cpp */,
-				34373C821A7B770400487CE0 /* libmysqlclient.a */,
 				842448291A13B30300A37710 /* net.cpp */,
 				8424482B1A13B30300A37710 /* nodestore.cpp */,
 				8424482C1A13B30300A37710 /* overlay.cpp */,
@@ -436,21 +432,14 @@
 		34373C7F1A7B767A00487CE0 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				CLANG_CXX_LANGUAGE_STANDARD = "c++0x";
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					"USE_MYSQL=1",
 					"${inherited}",
 				);
 				HEADER_SEARCH_PATHS = (
 					"$(inherited)",
-					/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/include,
-					/usr/local/include,
-					../../src,
-					../../src/beast,
-					../../build/proto,
 					/usr/include/mysql,
 				);
-				LIBRARY_SEARCH_PATHS = /usr/local/lib;
 				OTHER_CPLUSPLUSFLAGS = (
 					"$(OTHER_CFLAGS)",
 					"-Wall",
@@ -476,23 +465,8 @@
 					"-DRADAR_ASYNC_DIVIDEND",
 				);
 				OTHER_LDFLAGS = (
-					"-lboost_coroutine",
-					"-lboost_context",
-					"-lboost_date_time",
-					"-lboost_filesystem",
-					"-lboost_program_options",
-					"-lboost_regex",
-					"-lboost_system",
-					"-lboost_thread-mt",
-					"-ldl",
-					"-lcrypto",
-					"-lprotobuf",
-					"-lssl",
-					"-v",
-					"-framework",
-					AppKit,
-					"-framework",
-					Foundation,
+					"${inherited}",
+					"-lmysqlclient",
 				);
 				PRODUCT_NAME = "radard-mysql";
 			};
@@ -501,21 +475,14 @@
 		34373C801A7B767A00487CE0 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				CLANG_CXX_LANGUAGE_STANDARD = "c++0x";
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					"USE_MYSQL=1",
 					"${inherited}",
 				);
 				HEADER_SEARCH_PATHS = (
 					"$(inherited)",
-					/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/include,
-					/usr/local/include,
-					../../src,
-					../../src/beast,
-					../../build/proto,
 					/usr/include/mysql,
 				);
-				LIBRARY_SEARCH_PATHS = /usr/local/lib;
 				OTHER_CPLUSPLUSFLAGS = (
 					"$(OTHER_CFLAGS)",
 					"-Wall",
@@ -541,23 +508,8 @@
 					"-DRADAR_ASYNC_DIVIDEND",
 				);
 				OTHER_LDFLAGS = (
-					"-lboost_coroutine",
-					"-lboost_context",
-					"-lboost_date_time",
-					"-lboost_filesystem",
-					"-lboost_program_options",
-					"-lboost_regex",
-					"-lboost_system",
-					"-lboost_thread-mt",
-					"-ldl",
-					"-lcrypto",
-					"-lprotobuf",
-					"-lssl",
-					"-v",
-					"-framework",
-					AppKit,
-					"-framework",
-					Foundation,
+					"${inherited}",
+					"-lmysqlclient",
 				);
 				PRODUCT_NAME = "radard-mysql";
 			};
@@ -567,7 +519,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
-				CLANG_CXX_LANGUAGE_STANDARD = "gnu++0x";
+				CLANG_CXX_LANGUAGE_STANDARD = "c++0x";
 				CLANG_CXX_LIBRARY = "libc++";
 				CLANG_ENABLE_MODULES = YES;
 				CLANG_ENABLE_OBJC_ARC = NO;
@@ -596,10 +548,38 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
+				HEADER_SEARCH_PATHS = (
+					"$(inherited)",
+					/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/include,
+					/usr/local/include,
+					../../src,
+					../../src/beast,
+					../../build/proto,
+				);
+				LIBRARY_SEARCH_PATHS = /usr/local/lib;
 				MACOSX_DEPLOYMENT_TARGET = 10.10;
 				MTL_ENABLE_DEBUG_INFO = YES;
 				ONLY_ACTIVE_ARCH = YES;
 				OTHER_CPLUSPLUSFLAGS = "$(OTHER_CFLAGS)";
+				OTHER_LDFLAGS = (
+					"-lboost_coroutine",
+					"-lboost_context-mt",
+					"-lboost_date_time",
+					"-lboost_filesystem",
+					"-lboost_program_options",
+					"-lboost_regex",
+					"-lboost_system",
+					"-lboost_thread-mt",
+					"-ldl",
+					"-lcrypto",
+					"-lprotobuf",
+					"-lssl",
+					"-v",
+					"-framework",
+					AppKit,
+					"-framework",
+					Foundation,
+				);
 				SDKROOT = macosx;
 			};
 			name = Debug;
@@ -608,7 +588,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
-				CLANG_CXX_LANGUAGE_STANDARD = "gnu++0x";
+				CLANG_CXX_LANGUAGE_STANDARD = "c++0x";
 				CLANG_CXX_LIBRARY = "libc++";
 				CLANG_ENABLE_MODULES = YES;
 				CLANG_ENABLE_OBJC_ARC = NO;
@@ -632,16 +612,6 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				MACOSX_DEPLOYMENT_TARGET = 10.10;
-				MTL_ENABLE_DEBUG_INFO = NO;
-				SDKROOT = macosx;
-			};
-			name = Release;
-		};
-		8424405C1A13B2B900A37710 /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				CLANG_CXX_LANGUAGE_STANDARD = "c++0x";
 				HEADER_SEARCH_PATHS = (
 					"$(inherited)",
 					/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/include,
@@ -651,6 +621,34 @@
 					../../build/proto,
 				);
 				LIBRARY_SEARCH_PATHS = /usr/local/lib;
+				MACOSX_DEPLOYMENT_TARGET = 10.10;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				OTHER_LDFLAGS = (
+					"-lboost_coroutine",
+					"-lboost_context-mt",
+					"-lboost_date_time",
+					"-lboost_filesystem",
+					"-lboost_program_options",
+					"-lboost_regex",
+					"-lboost_system",
+					"-lboost_thread-mt",
+					"-ldl",
+					"-lcrypto",
+					"-lprotobuf",
+					"-lssl",
+					"-v",
+					"-framework",
+					AppKit,
+					"-framework",
+					Foundation,
+				);
+				SDKROOT = macosx;
+			};
+			name = Release;
+		};
+		8424405C1A13B2B900A37710 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
 				OTHER_CPLUSPLUSFLAGS = (
 					"$(OTHER_CFLAGS)",
 					"-Wall",
@@ -673,25 +671,6 @@
 					"-DNDEBUG",
 					"-DBEAST_COMPILE_OBJECTIVE_CPP=1",
 					"-DRADAR_ASYNC_DIVIDEND",
-				);
-				OTHER_LDFLAGS = (
-					"-lboost_coroutine",
-					"-lboost_context",
-					"-lboost_date_time",
-					"-lboost_filesystem",
-					"-lboost_program_options",
-					"-lboost_regex",
-					"-lboost_system",
-					"-lboost_thread-mt",
-					"-ldl",
-					"-lcrypto",
-					"-lprotobuf",
-					"-lssl",
-					"-v",
-					"-framework",
-					AppKit,
-					"-framework",
-					Foundation,
 				);
 				PRODUCT_NAME = radard;
 			};
@@ -700,16 +679,6 @@
 		8424405D1A13B2B900A37710 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				CLANG_CXX_LANGUAGE_STANDARD = "c++0x";
-				HEADER_SEARCH_PATHS = (
-					"$(inherited)",
-					/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/include,
-					/usr/local/include,
-					../../src,
-					../../src/beast,
-					../../build/proto,
-				);
-				LIBRARY_SEARCH_PATHS = /usr/local/lib;
 				OTHER_CPLUSPLUSFLAGS = (
 					"$(OTHER_CFLAGS)",
 					"-Wall",
@@ -732,25 +701,6 @@
 					"-DNDEBUG",
 					"-DBEAST_COMPILE_OBJECTIVE_CPP=1",
 					"-DRADAR_ASYNC_DIVIDEND",
-				);
-				OTHER_LDFLAGS = (
-					"-lboost_coroutine",
-					"-lboost_context",
-					"-lboost_date_time",
-					"-lboost_filesystem",
-					"-lboost_program_options",
-					"-lboost_regex",
-					"-lboost_system",
-					"-lboost_thread-mt",
-					"-ldl",
-					"-lcrypto",
-					"-lprotobuf",
-					"-lssl",
-					"-v",
-					"-framework",
-					AppKit,
-					"-framework",
-					Foundation,
 				);
 				PRODUCT_NAME = radard;
 			};
