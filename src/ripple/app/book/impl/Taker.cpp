@@ -83,8 +83,9 @@ Taker::flow (Amounts amount, Offer const& offer, Account const& taker)
         taker, amount.in, fhZERO_IF_FROZEN));
 
     // Get fee rate paid by taker
-    std::uint32_t const taker_charge_rate (rippleTransferRate (view (),
-        taker, offer.account (), amount.in.getIssuer()));
+    std::uint32_t const taker_charge_rate (
+        assetCurrency () == taker_funds.getCurrency () ? QUALITY_ONE : rippleTransferRate (view (),
+        taker, offer.account (), amount.in.getIssuer ()));
 
     // Skip some math when there's no fee
     if (taker_charge_rate == QUALITY_ONE)
@@ -107,8 +108,9 @@ Taker::flow (Amounts amount, Offer const& offer, Account const& taker)
         offer.account (), owner_amount.out, fhZERO_IF_FROZEN));
 
     // Get fee rate paid by owner
-    std::uint32_t const owner_charge_rate (rippleTransferRate (view (),
-        offer.account (), taker, amount.out.getIssuer()));
+    std::uint32_t const owner_charge_rate (
+        assetCurrency () == owner_funds.getCurrency () ? QUALITY_ONE : rippleTransferRate (view (),
+        offer.account (), taker, amount.out.getIssuer ()));
 
     if (owner_charge_rate == QUALITY_ONE)
     {
@@ -234,7 +236,25 @@ Taker::cross (Offer const& offer)
     assert (limit.out <= offer.amount().out);
     assert (limit.in <= m_remain.in);
 
-    Amounts const amount (flow (limit, offer, account ()));
+    Amounts amount (flow (limit, offer, account ()));
+    if (assetCurrency () == amount.out.getCurrency ())
+    {
+        if (!amount.out.isMathematicalInteger ())
+        {
+            amount.out.floor ();
+            limit = offer.quality ().ceil_out (limit, amount.out);
+            amount = flow (limit, offer, account ());
+        }
+    }
+    else if (assetCurrency () == amount.in.getCurrency ())
+    {
+        if (!amount.in.isMathematicalInteger ())
+        {
+            amount.in.floor ();
+            limit = offer.quality ().ceil_in (limit, amount.in);
+            amount = flow (limit, offer, account ());
+        }
+    }
 
     m_remain.out -= amount.out;
     m_remain.in -= amount.in;

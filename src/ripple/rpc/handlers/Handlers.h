@@ -22,18 +22,20 @@
 
 namespace ripple {
 
+Json::Value doAccountAsset          (RPC::Context&);
 Json::Value doAccountCurrencies     (RPC::Context&);
 Json::Value doAccountInfo           (RPC::Context&);
 Json::Value doAccountLines          (RPC::Context&);
 Json::Value doAccountOffers         (RPC::Context&);
 Json::Value doAccountTx             (RPC::Context&);
-Json::Value doAccountTxSwitch       (RPC::Context&);
 Json::Value doAccountTxOld          (RPC::Context&);
-Json::Value doBookOffers            (RPC::Context&);
+Json::Value doAccountTxSwitch       (RPC::Context&);
 Json::Value doBlackList             (RPC::Context&);
+Json::Value doBookOffers            (RPC::Context&);
 Json::Value doCanDelete             (RPC::Context&);
 Json::Value doConnect               (RPC::Context&);
 Json::Value doConsensusInfo         (RPC::Context&);
+Json::Value doDividendObject        (RPC::Context&);
 Json::Value doFeature               (RPC::Context&);
 Json::Value doFetchInfo             (RPC::Context&);
 Json::Value doGetCounts             (RPC::Context&);
@@ -46,7 +48,6 @@ Json::Value doLedgerData            (RPC::Context&);
 Json::Value doLedgerEntry           (RPC::Context&);
 Json::Value doLedgerHeader          (RPC::Context&);
 Json::Value doLedgerRequest         (RPC::Context&);
-Json::Value doDividendObject        (RPC::Context&);
 Json::Value doLogLevel              (RPC::Context&);
 Json::Value doLogRotate             (RPC::Context&);
 Json::Value doOwnerInfo             (RPC::Context&);

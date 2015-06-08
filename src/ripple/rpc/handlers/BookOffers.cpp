@@ -210,6 +210,7 @@ Json::Value doBookOffers (RPC::Context& context)
         ? context.params["marker"]
         : Json::Value (Json::nullValue));
 
+    lpLedger = std::make_shared<Ledger> (std::ref (*lpLedger), false);
     context.netOps.getBookPage (
         context.role == Role::ADMIN,
         lpLedger,

@@ -39,6 +39,12 @@ enum LedgerEntryType
 
     ltACCOUNT_ROOT      = 'a',
 
+    /// Describes an asset issuance
+    ltASSET             = 't',
+
+    /// Describes an asset holding
+    ltASSET_STATE       = 'S',
+
     /** Directory node.
 
         A directory is a vector 256-bit values. Usually they represent
@@ -49,11 +55,12 @@ enum LedgerEntryType
         (There's a little more information than this, see the template)
     */
     ltDIR_NODE          = 'd',
+    
+    ltDIVIDEND          = 'D',
 
     ltGENERATOR_MAP     = 'g',
 
-    ltDIVIDEND          = 'D',
-
+    /// References hold by referee.
     ltREFER             = 'R',
 
     /** Describes a trust line.
@@ -98,6 +105,8 @@ enum LedgerNameSpace
     spaceTicket         = 'T',
     spaceDividend       = 'D',
     spaceRefer          = 'R',
+    spaceAsset          = 't',
+    spaceAssetState     = 'S',
 
     // No longer used or supported. Left here to reserve the space and
     // avoid accidental reuse of the space.

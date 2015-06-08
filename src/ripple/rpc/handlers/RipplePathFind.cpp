@@ -194,6 +194,9 @@ Json::Value doRipplePathFind (RPC::Context& context)
                 return rpcError (rpcSRC_CUR_MALFORMED);
             }
 
+            if (uSrcCurrencyID == assetCurrency())
+                continue;
+
             if (isVBC(uSrcCurrencyID))
                 uSrcIssuerID = vbcAccount();
             else if (uSrcCurrencyID.isNonZero ())

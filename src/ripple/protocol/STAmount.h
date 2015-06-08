@@ -287,6 +287,11 @@ public:
     {
         return (mValue == 0) && mIsNative;
     }
+    
+    bool
+    isMathematicalInteger () const;
+
+    void floor(int offset = 0);
 
 private:
     STAmount*

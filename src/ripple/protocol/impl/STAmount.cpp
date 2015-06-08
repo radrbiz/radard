@@ -768,6 +768,45 @@ STAmount::isEquivalent (const STBase& t) const
     return v && (*v == *this);
 }
 
+#if (defined (_WIN32) || defined (_WIN64))
+// from https://llvm.org/svn/llvm-project/libcxx/trunk/include/support/win32/support.h
+static int __builtin_ctzll(uint64_t mask)
+{
+  unsigned long where;
+// Search from LSB to MSB for first set bit.
+// Returns zero if no set bit is found.
+#if defined(_WIN64)
+  if (_BitScanForward64(&where, mask))
+    return static_cast<int>(where);
+#elif defined(_WIN32)
+  // Win32 doesn't have _BitScanForward64 so emulate it with two 32 bit calls.
+  // Scan the Low Word.
+  if (_BitScanForward(&where, static_cast<unsigned long>(mask)))
+    return static_cast<int>(where);
+  // Scan the High Word.
+  if (_BitScanForward(&where, static_cast<unsigned long>(mask >> 32)))
+    return static_cast<int>(where + 32); // Create a bit offset from the LSB.
+#else
+#error "Implementation of __builtin_ctzll required"
+#endif
+  return 64;
+}
+#endif
+
+bool STAmount::isMathematicalInteger() const
+{
+    return __builtin_ctzll(mantissa()) >= -exponent();
+}
+
+void STAmount::floor(int offset)
+{
+    while (mOffset < offset) {
+        mValue /= 10;
+        ++mOffset;
+    }
+    canonicalize();
+}
+
 STAmount*
 STAmount::duplicate () const
 {
