@@ -1124,20 +1124,33 @@ LedgerEntrySet::assetReleased (
         uint32 releaseRate = 0;
         uint32 nextInterval = 0;
 
-        for (auto releasePoint : releaseSchedule) {
-            if (boughtTime + releasePoint.getFieldU32(sfExpiration) > getLedger()->getCloseTimeNC())
+        if (releaseSchedule.empty ())
+            bIsReleaseFinished = true;
+        else
+        {
+            auto iteReleasePoint = releaseSchedule.begin ();
+            for (;iteReleasePoint != releaseSchedule.end (); ++iteReleasePoint)
             {
-                nextInterval = releasePoint.getFieldU32(sfExpiration);
-                break;
+                if (boughtTime + iteReleasePoint->getFieldU32 (sfExpiration) > getLedger ()->getParentCloseTimeNC ())
+                {
+                    nextInterval = iteReleasePoint->getFieldU32 (sfExpiration);
+                    break;
+                }
             }
-            else if (releasePoint == releaseSchedule.back())
+            if (iteReleasePoint == releaseSchedule.end ())
+            {
                 bIsReleaseFinished = true;
-
-            releaseRate = releasePoint.getFieldU32(sfReleaseRate);
+                releaseRate = releaseSchedule.back ().getFieldU32 (sfReleaseRate);
+            }
+            else
+            {
+                releaseRate = iteReleasePoint->getFieldU32 (sfReleaseRate);
+                nextInterval = iteReleasePoint->getFieldU32 (sfExpiration);
+                if (nextInterval > 0)
+                    sleAssetState->setFieldU32 (sfNextReleaseTime,
+                                                (uint32)boughtTime + nextInterval);
+            }
         }
-        if (nextInterval > 0)
-            sleAssetState->setFieldU32(sfNextReleaseTime, 
-                                        (uint32)boughtTime + nextInterval);
         if (releaseRate > 0) {
             released = mulRound(amount, amountFromRate(releaseRate), amount.issue(), true);
             released.floor();
@@ -1197,7 +1210,7 @@ LedgerEntrySet::assetRelease (
         bool bIsReleaseFinished = false;
         // Make sure next release time is up.
         uint32 nextReleaseTime = sleAssetState->getFieldU32(sfNextReleaseTime);
-        if (nextReleaseTime > getLedger ()->getCloseTimeNC ())
+        if (nextReleaseTime > getLedger ()->getParentCloseTimeNC ())
             released = delivered;
         else
             std::tie (released, bIsReleaseFinished) = assetReleased (amount, assetStateIndex, sleAssetState);
