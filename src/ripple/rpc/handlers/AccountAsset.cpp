@@ -95,7 +95,7 @@ Json::Value doAccountAsset (RPC::Context& context)
         uint256 assetStateEnd = getQualityNext(assetStateIndex);
 
         for (;;) {
-            auto const& sle = ledger->getSLEi(assetStateIndex);
+            auto const& sle = les.entryCache(ltASSET_STATE, assetStateIndex);
             if (sle) {
                 STAmount amount = sle->getFieldAmount(sfAmount);
                 STAmount released = sle->getFieldAmount(sfDeliveredAmount);
@@ -114,7 +114,7 @@ Json::Value doAccountAsset (RPC::Context& context)
             }
 
             auto const nextAssetState(
-                ledger->getNextLedgerIndex(assetStateIndex, assetStateEnd));
+                les.getNextLedgerIndex(assetStateIndex, assetStateEnd));
 
             if (nextAssetState.isZero())
                 break;
