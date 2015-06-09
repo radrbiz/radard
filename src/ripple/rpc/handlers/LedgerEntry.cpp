@@ -261,8 +261,10 @@ Json::Value doLedgerEntry (RPC::Context& context)
                        uCurrency, jvAssetState["currency"].asString())) {
             jvResult["error"] = "malformedCurrency";
         } else {
-            uNodeIndex = getAssetStateIndex(
-                naA.getAccountID(), naB.getAccountID(), uCurrency);
+            std::uint32_t uDate = jvAssetState.isMember (jss::date) ? jvAssetState[jss::date].asUInt () : 0;
+            uNodeIndex = getQualityIndex (
+                getAssetStateIndex (naA.getAccountID (), naB.getAccountID (), uCurrency),
+                uDate);
         }
     }
     else
