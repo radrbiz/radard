@@ -1220,7 +1220,10 @@ LedgerEntrySet::assetRelease (
         // update reserve
         if (!saReserve)
             saReserve.setIssue(amount.issue());
-        saReserve += bIssuerHigh ? amount - released : released - amount;
+        auto reserve = amount - released;
+        if (!bIssuerHigh)
+            reserve.negate ();
+        saReserve += reserve;
 
         // no newly release.
         if (released <= delivered)
