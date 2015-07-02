@@ -202,6 +202,61 @@ class Ledger_test : public beast::unit_test::suite
     }
 
     void
+    makeActive (TestAccount& from, TestAccount const& to, TestAccount const& referee,
+                TestAccount const& issuer, std::string const& currency,
+                TestAccount const& issuer2, std::string const& currency2,
+                std::uint64_t amountVBC,
+                std::uint64_t amountVRP,
+                std::uint64_t feeDrops,
+                Ledger::pointer const& ledger)
+    {
+        Json::Value tx_json;
+        tx_json["Account"] = from.first.humanAccountID();
+        Json::Value & amount = tx_json["Amount"];
+        amount["value"] = std::to_string(amountVBC);
+        amount["currency"] = "VBC";
+        
+        {
+            Json::Value& amounts = tx_json["Amounts"];
+            Json::Value entry;
+            Json::Value& amount = entry["Entry"];
+            Json::Value& objAmount = amount["Amount"];
+            objAmount["value"] = std::to_string (amountVBC);
+            objAmount["currency"] = "VBC";
+            amounts.append (entry);
+            amount["Amount"] = std::to_string (amountVRP);
+            amounts.append (entry);
+        }
+
+        tx_json["Destination"] = to.first.humanAccountID ();
+
+        {
+            Json::Value& limits = tx_json["Limits"];
+            Json::Value entry;
+            Json::Value& limit = entry["Entry"];
+
+            Json::Value& limitAmount = limit["LimitAmount"];
+            limitAmount["currency"] = currency;
+            limitAmount["issuer"] = issuer.first.humanAccountID ();
+            limitAmount["value"] = 100000;
+            limit["Flags"] = tfSetNoRipple;
+            limits.append (entry);
+            limitAmount["currency"] = currency2;
+            limitAmount["issuer"] = issuer2.first.humanAccountID ();
+            limitAmount["value"] = 100000;
+            limit["Flags"] = tfClearNoRipple;
+            limits.append (entry);
+        }
+
+        tx_json["TransactionType"] = "ActiveAccount";
+        tx_json["Fee"] = std::to_string(feeDrops);
+        tx_json["Sequence"] = ++from.second;
+        tx_json["Flags"] = tfUniversal;
+        STTx tx = parseTransaction(from, tx_json);
+        applyTransaction(ledger, tx);
+    }
+
+    void
     makeIssue(TestAccount& from, TestAccount const& to,
               std::string const& amount,
               Ledger::pointer const& ledger)
@@ -321,20 +376,29 @@ class Ledger_test : public beast::unit_test::suite
         auto gw3 = createAccount();
         auto alice = createAccount();
         auto mark = createAccount();
+        auto test1 = createAccount();
+        auto test2 = createAccount();
 
         // Fund gw1, gw2, gw3, alice, mark from master
         makePayment(master, gw1, 5000*xrp, (0.01+50)*xrp, ledger);
         makePayment(master, gw2, 4000*xrp, (0.01+40)*xrp, ledger);
         makePayment(master, gw3, 3000*xrp, (0.01+30)*xrp, ledger);
-        makePayment(master, alice, 2000*xrp, (0.01+20)*xrp, ledger);
         
         makePaymentVBC(master, gw1, 5000*xrp, (50)*xrp, ledger);
         makePaymentVBC(master, gw2, 4000*xrp, (40)*xrp, ledger);
         makePaymentVBC(master, gw3, 3000*xrp, (30)*xrp, ledger);
+        
+        makePayment(master, alice, 2000*xrp, (0.01+20)*xrp, ledger);
         makePaymentVBC(master, alice, 2000*xrp, (20)*xrp, ledger);
         
         makePaymentVBC(master, mark, 1000*xrp, (0.01+10)*xrp, ledger);
         makePayment(master, mark, 1000*xrp, (10)*xrp, ledger);
+        
+        makeActive(master, test1, master, gw1, "FOO", gw2, "FOO", 2000*xrp, 2000*xrp, (0.01+20)*xrp, ledger);
+        makeActive(master, test2, test1, gw2, "FOO", gw3, "FOO", 2000*xrp, 2000*xrp, (0.01+20)*xrp, ledger);
+        makePayment(gw1, test1, "FOO", ".1", ledger);
+        makePayment(gw2, test1, "FOO", "1", ledger);
+        makePayment(gw3, test2, "FOO", "10", ledger);
 
         LCL = close_and_advance(ledger, LCL);
         ledger = std::make_shared<Ledger>(false, *LCL);

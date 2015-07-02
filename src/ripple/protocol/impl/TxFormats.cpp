@@ -108,6 +108,8 @@ TxFormats::TxFormats ()
         << SOElement(sfReferee,              SOE_REQUIRED)
         << SOElement(sfReference,            SOE_REQUIRED)
         << SOElement(sfAmount,               SOE_OPTIONAL)
+        << SOElement(sfAmounts,              SOE_OPTIONAL)
+        << SOElement(sfLimits,               SOE_OPTIONAL)
         ;
 
     add("Issue", ttISSUE)
