@@ -1967,7 +1967,7 @@ TER LedgerEntrySet::rippleCredit (
             uIndex,
             entryCache (ltACCOUNT_ROOT, getAccountRootIndex (uReceiverID)),
             false,
-            false,
+            true,
             false,
             saBalance,
             saReceiverLimit);
