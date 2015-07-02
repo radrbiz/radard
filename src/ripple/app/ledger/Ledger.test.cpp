@@ -228,7 +228,8 @@ class Ledger_test : public beast::unit_test::suite
             amounts.append (entry);
         }
 
-        tx_json["Destination"] = to.first.humanAccountID ();
+        tx_json["Referee"] = referee.first.humanAccountID ();
+        tx_json["Reference"] = to.first.humanAccountID ();
 
         {
             Json::Value& limits = tx_json["Limits"];
