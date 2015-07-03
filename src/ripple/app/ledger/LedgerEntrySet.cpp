@@ -1670,44 +1670,42 @@ TER LedgerEntrySet::shareFeeWithReferee(Account const& uSenderID, Account const&
         // extract ledgerSeq and total VSpd
         std::uint32_t divLedgerSeq = sleDivObj->getFieldU32(sfDividendLedger);
         // try find parent referee start from the sender itself
-        SLE::pointer sleSender = mLedger->getAccountRoot(uSenderID);
-        SLE::pointer sleCurrent = sleSender;
+        SLE::pointer sleCurrent = mLedger->getAccountRoot(uSenderID);
         int sendCnt = 0;
         Account lastAccount;
         while (tesSUCCESS == terResult && sleCurrent && sendCnt < 5)
         {
             //no referee anymore
             if (!sleCurrent->isFieldPresent(sfReferee))
-            {
                 break;
-            }
-            RippleAddress refereeAccountID = sleCurrent->getFieldAccount(sfReferee);
 
-            SLE::pointer sleReferee = mLedger->getAccountRoot(refereeAccountID);
-            if (sleReferee)
-            {
-                // there is a referee and it has field sfDividendLedger, which is exact the same as divObjLedgerSeq
-                if (sleReferee->isFieldPresent(sfDividendLedger) && sleReferee->getFieldU32(sfDividendLedger) == divLedgerSeq)
-                {
-                    if (sleReferee->isFieldPresent(sfDividendVSprd))
-                    {
-                        std::uint64_t divVSpd = sleReferee->getFieldU64(sfDividendVSprd);
-                        // only VSpd greater than 10000(000000) get the fee share
-                        if (divVSpd > MIN_VSPD_TO_GET_FEE_SHARE)
-                        {
-                            terResult = rippleCredit (uIssuerID, refereeAccountID.getAccountID(), saTransFeeShareEach);
-                            if (tesSUCCESS == terResult)
-                            {
-                                sendCnt += 1;
-                                lastAccount = refereeAccountID.getAccountID();
-                                takersMap.insert(std::pair<Account, STAmount>(lastAccount, saTransFeeShareEach));
-                                WriteLog (lsINFO, LedgerEntrySet) << "FeeShare: " << refereeAccountID.getAccountID() << " get " << saTransFeeShareEach;
-                            }
-                        }
-                    }
-                }
-            }
-            sleCurrent = sleReferee;
+            auto const refereeAccountID = sleCurrent->getFieldAccount160(sfReferee);
+
+            sleCurrent = mLedger->getAccountRoot(refereeAccountID);
+            if (!sleCurrent)
+                break;
+
+            // there is a referee and it has field sfDividendLedger, which is exact the same as divObjLedgerSeq
+            if (!sleCurrent->isFieldPresent (sfDividendLedger) ||
+                sleCurrent->getFieldU32 (sfDividendLedger) != divLedgerSeq)
+                continue;
+
+            if (!sleCurrent->isFieldPresent (sfDividendVSprd))
+                continue;
+
+            std::uint64_t divVSpd = sleCurrent->getFieldU64 (sfDividendVSprd);
+            // only VSpd greater than 10000(000000) get the fee share
+            if (divVSpd <= MIN_VSPD_TO_GET_FEE_SHARE)
+                continue;
+
+            terResult = rippleCredit (uIssuerID, refereeAccountID, saTransFeeShareEach);
+            if (tesSUCCESS != terResult)
+                break;
+
+            sendCnt += 1;
+            lastAccount = refereeAccountID;
+            takersMap.insert (std::pair<Account, STAmount> (lastAccount, saTransFeeShareEach));
+            WriteLog (lsDEBUG, LedgerEntrySet) << "FeeShare: " << refereeAccountID << " get " << saTransFeeShareEach;
         }
         // can't find 5 ancestors, give all share to last ancestor
         if (terResult == tesSUCCESS)
