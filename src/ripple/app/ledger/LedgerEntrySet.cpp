@@ -1652,7 +1652,7 @@ TER LedgerEntrySet::trustDelete (
     
 TER LedgerEntrySet::shareFeeWithReferee(Account const& uSenderID, Account const& uIssuerID, const STAmount& saAmount)
 {
-    WriteLog (lsINFO, LedgerEntrySet)
+    WriteLog (lsDEBUG, LedgerEntrySet)
         << "FeeShare:\n"
         << "\tsender:" << uSenderID << "\n"
         << "\tissuer:" << uIssuerID << "\n"
@@ -1679,9 +1679,10 @@ TER LedgerEntrySet::shareFeeWithReferee(Account const& uSenderID, Account const&
             if (!sleCurrent->isFieldPresent(sfReferee))
                 break;
 
-            auto const refereeAccountID = sleCurrent->getFieldAccount160(sfReferee);
+            auto const currentAccountID = sleCurrent->getFieldAccount160(sfReferee);
+            WriteLog (lsDEBUG, LedgerEntrySet) << "FeeShare: check " << currentAccountID;
 
-            sleCurrent = mLedger->getAccountRoot(refereeAccountID);
+            sleCurrent = mLedger->getAccountRoot(currentAccountID);
             if (!sleCurrent)
                 break;
 
@@ -1698,24 +1699,56 @@ TER LedgerEntrySet::shareFeeWithReferee(Account const& uSenderID, Account const&
             if (divVSpd <= MIN_VSPD_TO_GET_FEE_SHARE)
                 continue;
 
-            terResult = rippleCredit (uIssuerID, refereeAccountID, saTransFeeShareEach);
+            if (sleCurrent->isFieldPresent (sfReferee))
+            {
+                auto const parent = sleCurrent->getFieldAccount160 (sfReferee);
+                auto const sleReferences = entryCache (ltREFER, getAccountReferIndex (parent));
+                if (sleReferences)
+                {
+                    bool isMaxChild = true;;
+                    for (auto const& child : sleReferences->getFieldArray(sfReferences))
+                    {
+                        auto const childId = child.getFieldAccount160(sfReference);
+                        if (childId == currentAccountID)
+                            continue;
+                        auto const sleChild = entryCache(ltACCOUNT_ROOT, getAccountRootIndex(childId));
+                        if (sleChild &&
+                            sleChild->isFieldPresent (sfDividendLedger) &&
+                            sleChild->getFieldU32 (sfDividendLedger) == divLedgerSeq &&
+                            sleChild->isFieldPresent (sfDividendVSprd) &&
+                            sleChild->getFieldU64 (sfDividendVSprd) > divVSpd)
+                        {
+                            isMaxChild = false;
+                            break;
+                        }
+                    }
+                    if (isMaxChild)
+                    {
+                        WriteLog (lsDEBUG, LedgerEntrySet) << "\tskip as max child";
+                        continue;
+                    }
+                }
+            }
+
+            terResult = rippleCredit (uIssuerID, currentAccountID, saTransFeeShareEach);
             if (tesSUCCESS != terResult)
                 break;
 
             sendCnt += 1;
-            lastAccount = refereeAccountID;
+            lastAccount = currentAccountID;
             takersMap.insert (std::pair<Account, STAmount> (lastAccount, saTransFeeShareEach));
-            WriteLog (lsDEBUG, LedgerEntrySet) << "FeeShare: " << refereeAccountID << " get " << saTransFeeShareEach;
+            WriteLog (lsDEBUG, LedgerEntrySet) << "\tget " << saTransFeeShareEach;
         }
-        // can't find 5 ancestors, give all share to last ancestor
+        
         if (terResult == tesSUCCESS)
         {
             if (sendCnt == 0)
             {
-                WriteLog (lsINFO, LedgerEntrySet) << "FeeShare: no ancestor find gateway keep all fee share.";
+                WriteLog (lsDEBUG, LedgerEntrySet) << "FeeShare: no ancestor find gateway keep all fee share.";
             }
             else if (sendCnt < 5)
             {
+                // can't find 5 ancestors, give all share to last ancestor
                 STAmount saLeft = multiply(saTransFeeShareEach, STAmount(saTransFeeShareEach.issue(), 5 - sendCnt));
                 terResult = rippleCredit (uIssuerID, lastAccount, saLeft);
                 if (terResult == tesSUCCESS)
@@ -1725,9 +1758,10 @@ TER LedgerEntrySet::shareFeeWithReferee(Account const& uSenderID, Account const&
                     {
                         WriteLog (lsWARNING, LedgerEntrySet) << "Last share account not found, this should not happpen.";
                     }
-                    itTaker->second += saLeft;
+                    else
+                        itTaker->second += saLeft;
                 }
-                WriteLog (lsINFO, LedgerEntrySet) << "FeeShare: left " << saLeft << " goes to "<< lastAccount;
+                WriteLog (lsDEBUG, LedgerEntrySet) << "FeeShare: left " << saLeft << " goes to "<< lastAccount;
             }
             
             if (terResult == tesSUCCESS && takersMap.size())
