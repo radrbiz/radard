@@ -293,7 +293,7 @@ public:
                 bool const bClearFreeze = (uTxFlags & tfClearFreeze);
 
                 STAmount saLimitAllow = saLimitAmount;
-                saLimitAllow.setIssuer (mTxnAccountID);
+                saLimitAllow.setIssuer (dstAccountID);
 
                 std::uint32_t uQualityIn (bQualityIn ? saEntry.getFieldU32 (sfQualityIn) : 0);
                 std::uint32_t uQualityOut (bQualityOut ? saEntry.getFieldU32 (sfQualityOut) : 0);
