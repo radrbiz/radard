@@ -273,6 +273,7 @@ SField const sfMemo                = make::one(&sfMemo,                STI_OBJEC
 SField const sfReferenceHolder     = make::one(&sfReferenceHolder,     STI_OBJECT, 181, "ReferenceHolder");
 SField const sfFeeShareTaker       = make::one(&sfFeeShareTaker,       STI_OBJECT, 182, "FeeShareTaker");
 SField const sfReleasePoint        = make::one(&sfReleasePoint,        STI_OBJECT, 183, "ReleasePoint");
+SField const sfEntry               = make::one(&sfEntry,               STI_OBJECT, 184, "Entry");
 
 // array of objects
 // ARRAY/1 is reserved for end of array
@@ -288,6 +289,8 @@ SField const sfMemos           = make::one(&sfMemos,           STI_ARRAY, 9, "Me
 SField const sfReferences      = make::one(&sfReferences,      STI_ARRAY, 181, "References");
 SField const sfFeeShareTakers  = make::one(&sfFeeShareTakers,  STI_ARRAY, 182, "FeeShareTakers");
 SField const sfReleaseSchedule = make::one(&sfReleaseSchedule, STI_ARRAY, 183, "ReleaseSchedule");
+SField const sfAmounts         = make::one(&sfAmounts,         STI_ARRAY, 184, "Amounts");
+SField const sfLimits          = make::one(&sfLimits,          STI_ARRAY, 185, "Limits");
 
 SField::SField (SerializedTypeID tid, int fv, const char* fn,
                 int meta, bool signing)

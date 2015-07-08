@@ -164,12 +164,11 @@ TER TransactionEngine::applyTransaction (
             {
                 STAmount fee        = txn.getTransactionFee ();
                 STAmount balance    = txnAcct->getFieldAmount (sfBalance);
-                STAmount balanceVBC = txnAcct->getFieldAmount(sfBalanceVBC);
 
                 // We retry/reject the transaction if the account
                 // balance is zero or we're applying against an open
                 // ledger and the balance is less than the fee
-                if ((balance == zero) || (balanceVBC.getNValue() == 0) ||
+                if ((balance == zero) ||
                     ((params & tapOPEN_LEDGER) && (balance < fee)))
                 {
                     // Account has no funds or ledger is open
@@ -180,7 +179,6 @@ TER TransactionEngine::applyTransaction (
                     if (fee > balance)
                         fee = balance;
                     txnAcct->setFieldAmount (sfBalance, balance - fee);
-                    txnAcct->setFieldAmount(sfBalanceVBC, balanceVBC);
                     txnAcct->setFieldU32 (sfSequence, t_seq + 1);
                     entryModify (txnAcct);
                     didApply = true;

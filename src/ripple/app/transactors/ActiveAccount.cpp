@@ -130,7 +130,7 @@ public:
 
                 // Another transaction could create the account and then this
                 // transaction would succeed.
-                return tecNO_DST;
+                return temBAD_CURRENCY;
             }
             else if (saDstAmount.getNValue() < mEngine->getLedger()->getReserve(0))
             {
@@ -213,6 +213,119 @@ public:
             terResult = tesSUCCESS;
         }
 
+        if (terResult == tesSUCCESS && mTxn.isFieldPresent (sfAmounts))
+        {
+            auto const saAmounts (mTxn.getFieldArray (sfAmounts));
+            for (auto const& saEntry : saAmounts)
+            {
+                auto const& saAmount (saEntry.getFieldAmount (sfAmount));
+                if (!saAmount.isNative())
+                {
+                    terResult = temBAD_CURRENCY;
+                    break;
+                }
+
+                bool isVBCTransaction = isVBC (saAmount);
+                if (mPriorBalance < (isVBCTransaction ? 0 : saAmount) + mmm ||
+                    (isVBCTransaction && mTxnAccount->getFieldAmount (sfBalanceVBC) < saAmount))
+                {
+                    // Vote no.
+                    // However, transaction might succeed, if applied in a different order.
+                    m_journal.trace << "Delay transaction: Insufficient funds: "
+                                    << " " << mPriorBalance.getText () << " / " << (saAmount + uReserve).getText () << " (" << uReserve << ")";
+
+                    terResult = tecUNFUNDED_PAYMENT;
+                    break;
+                }
+                else
+                {
+                    // The source account does have enough money, so do the arithmetic
+                    // for the transfer and make the ledger change.
+                    m_journal.info << "radar: Deduct coin "
+                                   << isVBCTransaction << mSourceBalance << saAmount;
+
+                    if (isVBCTransaction)
+                    {
+                        mTxnAccount->setFieldAmount (sfBalanceVBC, mTxnAccount->getFieldAmount (sfBalanceVBC) - saAmount);
+                        sleDst->setFieldAmount (sfBalanceVBC, sleDst->getFieldAmount (sfBalanceVBC) + saAmount);
+                    }
+                    else
+                    {
+                        mTxnAccount->setFieldAmount (sfBalance, mSourceBalance - saAmount);
+                        sleDst->setFieldAmount (sfBalance, sleDst->getFieldAmount (sfBalance) + saAmount);
+                    }
+                }
+            }
+        }
+
+        if (terResult == tesSUCCESS && mTxn.isFieldPresent (sfLimits))
+        {
+            auto const saLimits (mTxn.getFieldArray (sfLimits));
+            for (auto const& saEntry : saLimits)
+            {
+                auto const& saLimitAmount (saEntry.getFieldAmount (sfLimitAmount));
+                bool const bQualityIn (saEntry.isFieldPresent (sfQualityIn));
+                bool const bQualityOut (saEntry.isFieldPresent (sfQualityOut));
+
+                Currency const currency (saLimitAmount.getCurrency ());
+                Account uDstAccountID (saLimitAmount.getIssuer ());
+
+                // true, iff current is high account.
+                bool const bHigh = dstAccountID > uDstAccountID;
+
+                uint256 index (getRippleStateIndex (
+                    dstAccountID, uDstAccountID, currency));
+
+                SLE::pointer sleRippleState (mEngine->entryCache (ltRIPPLE_STATE, index));
+                if (sleRippleState)
+                {
+                    m_journal.error << "Exception trust line to " << uDstAccountID;
+                    terResult = tefEXCEPTION;
+                    break;
+                }
+
+                std::uint32_t const uTxFlags = saEntry.getFlags ();
+
+                bool const bSetAuth = (uTxFlags & tfSetfAuth);
+                bool const bClearNoRipple = (uTxFlags & tfClearNoRipple);
+                bool const bSetNoRipple = (uTxFlags & tfSetNoRipple);
+                bool const bSetFreeze = (uTxFlags & tfSetFreeze);
+                bool const bClearFreeze = (uTxFlags & tfClearFreeze);
+
+                STAmount saLimitAllow = saLimitAmount;
+                saLimitAllow.setIssuer (dstAccountID);
+
+                std::uint32_t uQualityIn (bQualityIn ? saEntry.getFieldU32 (sfQualityIn) : 0);
+                std::uint32_t uQualityOut (bQualityOut ? saEntry.getFieldU32 (sfQualityOut) : 0);
+
+                // Zero balance in currency.
+                STAmount saBalance ({currency, noAccount ()});
+            
+                m_journal.trace << "doTrustSet: Creating ripple line: " << to_string (index);
+
+                // Create a new ripple line.
+                terResult = mEngine->view ().trustCreate (
+                    bHigh,
+                    dstAccountID,
+                    uDstAccountID,
+                    index,
+                    sleDst,
+                    bSetAuth,
+                    bSetNoRipple && !bClearNoRipple,
+                    bSetFreeze && !bClearFreeze,
+                    saBalance,
+                    saLimitAllow, // Limit for who is being charged.
+                    uQualityIn,
+                    uQualityOut);
+                
+                if (terResult != tesSUCCESS)
+                    break;
+            }
+        }
+
+        if (terResult == tesSUCCESS)
+            terResult = mEngine->view ().addRefer(srcAccountID, dstAccountID);
+
         std::string strToken;
         std::string strHuman;
 
@@ -225,8 +338,8 @@ public:
         {
             assert (false);
         }
-
-        return mEngine->view ().addRefer(srcAccountID, dstAccountID);
+        
+        return terResult;
     }
 };
 
