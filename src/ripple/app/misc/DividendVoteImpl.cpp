@@ -21,7 +21,7 @@ public:
     {
         return ((ledger->getLedgerSeq() > 2) &&
                 (ledger->getTotalCoins() < VRP_INCREASE_MAX || ledger->getTotalCoinsVBC() < VBC_INCREASE_MAX) &&
-                (ledger->getCloseTime().time_of_day().hours() == 1) &&
+                (ledger->getCloseTime().time_of_day().hours() == 23) &&
                 ((ledger->getCloseTimeNC() - ledger->getDividendTimeNC()) > 3600)
                 );
     }

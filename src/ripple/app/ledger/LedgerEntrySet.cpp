@@ -1767,11 +1767,7 @@ TER LedgerEntrySet::shareFeeWithReferee(Account const& uSenderID, Account const&
             if (terResult == tesSUCCESS && takersMap.size())
             {
                 // if there are FeeShareTakers, record it
-                STArray feeShareTakers = STArray(sfFeeShareTakers);
-                if (mSet.hasFeeShareTakers())
-                {
-                    feeShareTakers = mSet.getFeeShareTakers();
-                }
+                STArray feeShareTakers (mSet.hasFeeShareTakers () ? mSet.getFeeShareTakers () : STArray (sfFeeShareTakers, 5));
                 // update takers' record in former rounds
                 for (auto itTakerObj = feeShareTakers.begin(); itTakerObj != feeShareTakers.end(); ++itTakerObj)
                 {
