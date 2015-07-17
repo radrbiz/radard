@@ -30,7 +30,7 @@ namespace ripple {
 // VFALCO TODO rename class to TransactionMeta
 
 TransactionMetaSet::TransactionMetaSet (uint256 const& txid, std::uint32_t ledger, Blob const& vec) :
-    mTransactionID (txid), mLedger (ledger), mNodes (sfAffectedNodes, 32)
+    mTransactionID (txid), mLedger (ledger), mNodes (sfAffectedNodes, 32), mFeeShareTakers (sfFeeShareTakers, 5)
 {
     Serializer s (vec);
     SerializerIterator sit (s);
@@ -49,7 +49,7 @@ TransactionMetaSet::TransactionMetaSet (uint256 const& txid, std::uint32_t ledge
         setDeliveredAmount (obj->getFieldAmount (sfDeliveredAmount));
     
     if (obj->isFieldPresent (sfFeeShareTakers))
-        setFeeShareTakers(obj->getFieldArray(sfFeeShareTakers));
+        mFeeShareTakers = obj->getFieldArray(sfFeeShareTakers);
 }
 
 bool TransactionMetaSet::isNodeAffected (uint256 const& node) const
@@ -195,13 +195,14 @@ void TransactionMetaSet::init (uint256 const& id, std::uint32_t ledger)
     mLedger = ledger;
     mNodes = STArray (sfAffectedNodes, 32);
     mDelivered = boost::optional <STAmount> ();
-    mFeeShareTakers = boost::optional<STArray>();
+    mFeeShareTakers = STArray (sfFeeShareTakers, 5);
 }
 
 void TransactionMetaSet::swap (TransactionMetaSet& s)
 {
     assert ((mTransactionID == s.mTransactionID) && (mLedger == s.mLedger));
     mNodes.swap (s.mNodes);
+    mFeeShareTakers.swap (s.mFeeShareTakers);
 }
 
 bool TransactionMetaSet::thread (STObject& node, uint256 const& prevTxID, std::uint32_t prevLgrID)
@@ -234,7 +235,7 @@ STObject TransactionMetaSet::getAsObject () const
     if (hasDeliveredAmount ())
         metaData.setFieldAmount (sfDeliveredAmount, getDeliveredAmount ());
     if (hasFeeShareTakers ())
-        metaData.setFieldArray (sfFeeShareTakers, getFeeShareTakers ());
+        metaData.addObject (mFeeShareTakers);
     
     return metaData;
 }

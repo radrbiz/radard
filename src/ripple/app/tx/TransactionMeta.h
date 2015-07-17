@@ -103,22 +103,11 @@ public:
     {
         mDelivered.reset (delivered);
     }
-    
-    void setFeeShareTakers(STArray const& feeShareTakers)
-    {
-        mFeeShareTakers.reset(feeShareTakers);
-    }
 
     STAmount getDeliveredAmount () const
     {
         assert (hasDeliveredAmount ());
         return *mDelivered;
-    }
-    
-    STArray getFeeShareTakers () const
-    {
-        assert (hasFeeShareTakers ());
-        return *mFeeShareTakers;
     }
 
     bool hasDeliveredAmount () const
@@ -126,9 +115,14 @@ public:
         return static_cast <bool> (mDelivered);
     }
     
+    STArray& getFeeShareTakers ()
+    {
+        return mFeeShareTakers;
+    }
+    
     bool hasFeeShareTakers() const
     {
-        return static_cast <bool> (mFeeShareTakers);
+        return !mFeeShareTakers.empty();
     }
 
     static bool thread (STObject& node, uint256 const& prevTxID, std::uint32_t prevLgrID);
@@ -142,7 +136,7 @@ private:
     boost::optional <STAmount> mDelivered;
 
     STArray mNodes;
-    boost::optional <STArray> mFeeShareTakers;
+    STArray mFeeShareTakers;
 };
 
 } // ripple
