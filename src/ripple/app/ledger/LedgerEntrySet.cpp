@@ -1767,7 +1767,7 @@ TER LedgerEntrySet::shareFeeWithReferee(Account const& uSenderID, Account const&
             if (terResult == tesSUCCESS && takersMap.size())
             {
                 // if there are FeeShareTakers, record it
-                STArray feeShareTakers (mSet.hasFeeShareTakers () ? mSet.getFeeShareTakers () : STArray (sfFeeShareTakers, 5));
+                STArray& feeShareTakers (mSet.getFeeShareTakers ());
                 // update takers' record in former rounds
                 for (auto itTakerObj = feeShareTakers.begin(); itTakerObj != feeShareTakers.end(); ++itTakerObj)
                 {
@@ -1791,7 +1791,6 @@ TER LedgerEntrySet::shareFeeWithReferee(Account const& uSenderID, Account const&
                     feeShareTaker.setFieldAmount(sfAmount, itTakerRecord.second);
                     feeShareTakers.push_back(feeShareTaker);
                 }
-                mSet.setFeeShareTakers(feeShareTakers);
             }
         }
     }

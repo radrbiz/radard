@@ -432,7 +432,7 @@ bool DividendMaster::calcDividendFunc(Ledger::ref baseLedger, uint64_t dividendC
             if (lastParent != accountParent) {
                 // no more for lastParent, store it
                 if (totalChildrenVSpd != 0) {
-                    childrenHoldings.emplace(lastParent, std::make_pair(totalChildrenHolding, totalChildrenVSpd - adjust(maxHolding) + (static_cast<uint64_t>(pow(maxHolding/SYSTEM_CURRENCY_PARTS_VBC, 1.0 / 3))*SYSTEM_CURRENCY_PARTS_VBC)));
+                    childrenHoldings.emplace(lastParent, std::make_pair(totalChildrenHolding, totalChildrenVSpd - adjust(maxHolding) + static_cast<uint64_t>(pow(maxHolding/SYSTEM_CURRENCY_PARTS_VBC, 1.0 / 3)*SYSTEM_CURRENCY_PARTS_VBC)));
                 }
                 totalChildrenVSpd = totalChildrenHolding = maxHolding = 0;
                 lastParent = accountParent;
