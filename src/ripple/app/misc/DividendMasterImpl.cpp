@@ -503,7 +503,7 @@ bool DividendMaster::calcDividendFunc(Ledger::ref baseLedger, uint64_t dividendC
         }
         
         if (ShouldLog(lsINFO, DividendMaster)) {
-            WriteLog(lsINFO, DividendMaster) << "{\"account\":\"" << RippleAddress::createAccountID(std::get<0>(it.first)).humanAccountID() << "\",\"data\":{\"divVBCByRank\":\"" << divVBCbyRank << "\",\"divVBCByPower\":\"" << divVBCbyPower << "\",\"divVBC\":\"" << divVBC << "\",\"balance\":\"" << std::get<0>(it.second) << "\",\"vrank\":\"" << std::get<1>(it.second) << "\",\"vsprd\":\"" << std::get<2>(it.second) << "\",\"tsprd\":\"" << std::get<3>(it.second) << "\",\"height\":\""<<std::get<2>(it.first)<<"\"}}";
+            WriteLog(lsINFO, DividendMaster) << "{\"account\":\"" << RippleAddress::createAccountID(std::get<0>(it.first)).humanAccountID() << "\",\"data\":{\"divVBCByRank\":\"" << divVBCbyRank << "\",\"divVBCByPower\":\"" << divVBCbyPower << "\",\"divVBC\":\"" << divVBC << "\",\"divVRP\":\"" << div << "\",\"balance\":\"" << std::get<0>(it.second) << "\",\"vrank\":\"" << std::get<1>(it.second) << "\",\"vsprd\":\"" << std::get<2>(it.second) << "\",\"tsprd\":\"" << std::get<3>(it.second) << "\",\"height\":\""<<std::get<2>(it.first)<<"\"}}";
         }
         
         if (div !=0 || divVBC !=0 || std::get<2>(it.second) > MIN_VSPD_TO_GET_FEE_SHARE)
