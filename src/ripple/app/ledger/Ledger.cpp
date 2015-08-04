@@ -747,6 +747,9 @@ bool Ledger::saveValidatedLedger (bool current)
 
         for (auto const& vt : aLedger->getMap ())
         {
+            if (vt.second->getTxnType () == ttDIVIDEND)
+                continue;
+
             uint256 transactionID = vt.second->getTransactionID ();
 
             getApp().getMasterTransaction ().inLedger (
