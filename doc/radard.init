@@ -20,7 +20,7 @@ DAEMON=/usr/local/sbin/radard
 DAEMON_OPTS="--conf /etc/radar/radard.cfg"
 NET_OPTS="--net $DAEMON_OPTS"
 LOGDIR="/var/log/radard"
-DBDIR="/var/db/radard/db/rocksdb"
+DBDIR="/var/db/radard/db"
 
 export PATH="${PATH:+$PATH:}/usr/sbin:/sbin"
 
