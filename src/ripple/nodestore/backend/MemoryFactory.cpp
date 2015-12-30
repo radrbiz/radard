@@ -18,11 +18,12 @@
 //==============================================================================
 
 #include <BeastConfig.h>
+#include <ripple/basics/contract.h>
 #include <ripple/nodestore/Factory.h>
 #include <ripple/nodestore/Manager.h>
 #include <beast/utility/ci_char_traits.h>
-#include <beast/cxx14/memory.h> // <memory>
 #include <map>
+#include <memory>
 #include <mutex>
 
 namespace ripple {
@@ -32,7 +33,7 @@ struct MemoryDB
 {
     std::mutex mutex;
     bool open = false;
-    std::map <uint256 const, NodeObject::Ptr> table;
+    std::map <uint256 const, std::shared_ptr<NodeObject>> table;
 };
 
 class MemoryFactory : public Factory
@@ -51,7 +52,7 @@ public:
     std::unique_ptr <Backend>
     createInstance (
         size_t keyBytes,
-        Parameters const& keyValues,
+        Section const& keyValues,
         Scheduler& scheduler,
         beast::Journal journal);
 
@@ -63,7 +64,7 @@ public:
             std::make_tuple(path), std::make_tuple());
         MemoryDB& db = result.first->second;
         if (db.open)
-            throw std::runtime_error("already open");
+            Throw<std::runtime_error> ("already open");
         return db;
     }
 };
@@ -75,20 +76,20 @@ static MemoryFactory memoryFactory;
 class MemoryBackend : public Backend
 {
 private:
-    using Map = std::map <uint256 const, NodeObject::Ptr>;
+    using Map = std::map <uint256 const, std::shared_ptr<NodeObject>>;
 
     std::string name_;
     beast::Journal journal_;
     MemoryDB* db_;
 
 public:
-    MemoryBackend (size_t keyBytes, Parameters const& keyValues,
+    MemoryBackend (size_t keyBytes, Section const& keyValues,
         Scheduler& scheduler, beast::Journal journal)
-        : name_ (keyValues ["path"].toStdString ())
+        : name_ (get<std::string>(keyValues, "path"))
         , journal_ (journal)
     {
         if (name_.empty())
-            throw std::runtime_error ("Missing path in Memory backend");
+            Throw<std::runtime_error> ("Missing path in Memory backend");
         db_ = &memoryFactory.open(name_);
     }
 
@@ -98,7 +99,7 @@ public:
     }
 
     std::string
-    getName ()
+    getName () override
     {
         return name_;
     }
@@ -112,7 +113,7 @@ public:
     //--------------------------------------------------------------------------
 
     Status
-    fetch (void const* key, NodeObject::Ptr* pObject)
+    fetch (void const* key, std::shared_ptr<NodeObject>* pObject) override
     {
         uint256 const hash (uint256::fromVoid (key));
 
@@ -128,29 +129,42 @@ public:
         return ok;
     }
 
+    bool
+    canFetchBatch() override
+    {
+        return false;
+    }
+
+    std::vector<std::shared_ptr<NodeObject>>
+    fetchBatch (std::size_t n, void const* const* keys) override
+    {
+        Throw<std::runtime_error> ("pure virtual called");
+        return {};
+    }
+
     void
-    store (NodeObject::ref object)
+    store (std::shared_ptr<NodeObject> const& object) override
     {
         std::lock_guard<std::mutex> _(db_->mutex);
         db_->table.emplace (object->getHash(), object);
     }
 
     void
-    storeBatch (Batch const& batch)
+    storeBatch (Batch const& batch) override
     {
         for (auto const& e : batch)
             store (e);
     }
 
     void
-    for_each (std::function <void(NodeObject::Ptr)> f)
+    for_each (std::function <void(std::shared_ptr<NodeObject>)> f) override
     {
         for (auto const& e : db_->table)
             f (e.second);
     }
 
     int
-    getWriteLoad()
+    getWriteLoad() override
     {
         return 0;
     }
@@ -187,7 +201,7 @@ MemoryFactory::getName() const
 std::unique_ptr <Backend>
 MemoryFactory::createInstance (
     size_t keyBytes,
-    Parameters const& keyValues,
+    Section const& keyValues,
     Scheduler& scheduler,
     beast::Journal journal)
 {

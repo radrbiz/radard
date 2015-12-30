@@ -22,7 +22,6 @@
 
 #include <beast/unit_test/runner.h>
 
-#include <beast/utility/noexcept.h>
 #include <string>
 #include <sstream>
 
@@ -62,6 +61,7 @@ private:
         }
     };
 
+public:
     // Memberspace
     class log_t
     {
@@ -80,6 +80,7 @@ private:
         abstract_ostream&
         stream();
     };
+private:
 
     class scoped_testcase;
 
@@ -141,7 +142,7 @@ public:
             Multiline output sent to the stream will be atomically
             written to the underlying abstract_Ostream
     */
-    typedef abstract_ostream::scoped_stream_type scoped_stream;
+    using scoped_stream = abstract_ostream::scoped_stream_type;
 
     /** Memberspace for logging. */
     log_t log;
@@ -175,6 +176,48 @@ public:
     {
         return expect (shouldBeTrue, "");
     }
+
+    /** Expect an exception from f() */
+    /** @{ */
+    template <class F, class String>
+    bool
+    except (F&& f, String const& reason);
+
+    template <class F>
+    bool
+    except (F&& f)
+    {
+        return except(f, "");
+    }
+    /** @} */
+
+    /** Expect an exception of the given type from f() */
+    /** @{ */
+    template <class E, class F, class String>
+    bool
+    except (F&& f, String const& reason);
+
+    template <class E, class F>
+    bool
+    except (F&& f)
+    {
+        return except<E>(f, "");
+    }
+    /** @} */
+
+    /** Fail if f() throws */
+    /** @{ */
+    template <class F, class String>
+    bool
+    unexcept (F&& f, String const& reason);
+
+    template <class F>
+    bool
+    unexcept (F&& f)
+    {
+        return unexcept(f, "");
+    }
+    /** @} */
 
     /** Return the argument associated with the runner. */
     std::string const&
@@ -346,11 +389,64 @@ bool
 suite::expect (Condition shouldBeTrue,
     String const& reason)
 {
-    if (shouldBeTrue)
+    bool const b =
+        static_cast<bool>(shouldBeTrue);
+    if (b)
         pass();
     else
         fail (reason);
-    return shouldBeTrue;
+    return b;
+}
+
+template <class F, class String>
+bool
+suite::except (F&& f, String const& reason)
+{
+    try
+    {
+        f();
+        fail(reason);
+        return false;
+    }
+    catch(...)
+    {
+        pass();
+    }
+    return true;
+}
+
+template <class E, class F, class String>
+bool
+suite::except (F&& f, String const& reason)
+{
+    try
+    {
+        f();
+        fail(reason);
+        return false;
+    }
+    catch(E const&)
+    {
+        pass();
+    }
+    return true;
+}
+
+template <class F, class String>
+bool
+suite::unexcept (F&& f, String const& reason)
+{
+    try
+    {
+        f();
+        pass();
+        return true;
+    }
+    catch(...)
+    {
+        fail(reason);
+    }
+    return false;
 }
 
 template <class Condition, class String>
@@ -359,11 +455,13 @@ bool
 suite::unexpected (Condition shouldBeFalse,
     String const& reason)
 {
-    if (! shouldBeFalse)
+    bool const b =
+        static_cast<bool>(shouldBeFalse);
+    if (! b)
         pass();
     else
         fail (reason);
-    return ! shouldBeFalse;
+    return ! b;
 }
 
 template <class>

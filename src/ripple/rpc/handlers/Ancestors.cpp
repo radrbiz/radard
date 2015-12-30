@@ -1,47 +1,54 @@
 namespace ripple {
-
+// {
+//   account: <indent>,
+//   strict: <bool>
+//           if true, only allow public keys and addresses. false, default.
+//   ledger_hash : <ledger>
+//   ledger_index : <ledger_index>
+// }
 // ancestors [account]
 Json::Value doAncestors (RPC::Context& context)
 {
-    if (!context.params.isMember ("account"))
+    auto& params = context.params;
+
+    std::shared_ptr<ReadView const> ledger;
+    auto result = RPC::lookupLedger (ledger, context);
+
+    if (!ledger)
+        return result;
+
+    if (!params.isMember (jss::account) && !params.isMember (jss::ident))
+        return RPC::missing_field_error (jss::account);
+    
+    auto account = context.params[jss::account].asString ();
+    std::string strIdent = params.isMember (jss::account) ? params[jss::account].asString () : params[jss::ident].asString ();
+    bool bStrict = params.isMember (jss::strict) && params[jss::strict].asBool ();
+    AccountID accountID;
+
+    auto jvAccepted = RPC::accountFromString (accountID, strIdent, bStrict);
+
+    if (jvAccepted)
+        return jvAccepted;
+    
+    AccountID curAccountID = accountID;
+    for (int counter = 0; counter < 2000; ++counter)
     {
-        return RPC::missing_field_error ("account");
-    }
-    Json::Value result;
-    auto account = context.params["account"].asString();
-    RippleAddress accountID;
-    if (!accountID.setAccountID (account))
-    {
-        return ripple::RPC::make_error(rpcINVALID_PARAMS, "invalidAccoutParam");
-    }
-    Ledger::pointer ledger = getApp().getOPs().getValidatedLedger();
-    RippleAddress curAccountID = accountID;
-    int counter = 2000;
-    while (counter-- > 0)
-    {
-        SLE::pointer sle = ledger->getSLEi (getAccountRootIndex (curAccountID));
+        if (!curAccountID)
+            break;
+        auto sle = ledger->read (keylet::account (curAccountID));
         if (!sle)
             break;
-        Json::Value record;
-        record["account"] = curAccountID.humanAccountID();
-        std::uint32_t height = sle->isFieldPresent(sfReferenceHeight) ? sle->getFieldU32(sfReferenceHeight) : 0;
-        record["height"] = to_string(height);
-        if (height > 0)
-        {
-            RippleAddress refereeAccountID = sle->getFieldAccount(sfReferee);
-            record["referee"] = refereeAccountID.humanAccountID();
-            curAccountID = refereeAccountID;
-        }
-        result.append(record);
-        if (height == 0)
-        {
-            break;
-        }
+        Json::Value& record (result.append (Json::objectValue));
+        record[jss::account] = context.app.accountIDCache().toBase58 (curAccountID);
+        AccountID refereeAccountID = sle->getAccountID(sfReferee);
+        if (refereeAccountID.isNonZero ())
+            record[jss::referee] = context.app.accountIDCache().toBase58 (refereeAccountID);
+        curAccountID = refereeAccountID;
     }
     if (result == Json::nullValue)
     {
-        result["account"] = accountID.humanAccountID ();
-        result            = rpcError (rpcACT_NOT_FOUND, result);
+        result[jss::account] = context.app.accountIDCache ().toBase58 (accountID);
+        result = rpcError (rpcACT_NOT_FOUND, result);
     }
     return result;
 }

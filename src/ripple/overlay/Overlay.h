@@ -22,19 +22,24 @@
 
 #include <ripple/json/json_value.h>
 #include <ripple/overlay/Peer.h>
+#include <ripple/overlay/PeerSet.h>
 #include <ripple/server/Handoff.h>
 #include <beast/asio/ssl_bundle.h>
 #include <beast/http/message.h>
 #include <beast/threads/Stoppable.h>
 #include <beast/utility/PropertyStream.h>
 #include <memory>
-#include <beast/cxx14/type_traits.h> // <type_traits>
+#include <type_traits>
 #include <boost/asio/buffer.hpp>
 #include <boost/asio/ip/tcp.hpp>
+#include <functional>
 
 namespace boost { namespace asio { namespace ssl { class context; } } }
 
 namespace ripple {
+
+class DatabaseCon;
+class BasicConfig;
 
 /** Manages the set of connected peers. */
 class Overlay
@@ -62,22 +67,15 @@ public:
 
     struct Setup
     {
-        bool auto_connect = true;
-        bool http_handshake = false;
-        Promote promote = Promote::automatic;
         std::shared_ptr<boost::asio::ssl::context> context;
+        bool expire = false;
+        beast::IP::Address public_ip;
+        int ipLimit = 0;
     };
 
-    typedef std::vector <Peer::ptr> PeerSequence;
+    using PeerSequence = std::vector <Peer::ptr>;
 
     virtual ~Overlay() = default;
-
-    /** Accept a legacy protocol handshake connection. */
-    virtual
-    void
-    onLegacyPeerHello (std::unique_ptr<beast::asio::ssl_bundle>&& ssl_bundle,
-        boost::asio::const_buffer buffer,
-            boost::asio::ip::tcp::endpoint remote_address) = 0;
 
     /** Conditionally accept an incoming HTTP request. */
     virtual
@@ -121,17 +119,61 @@ public:
     PeerSequence
     getActivePeers () = 0;
 
+    /** Calls the checkSanity function on each peer
+        @param index the value to pass to the peer's checkSanity function
+    */
+    virtual
+    void
+    checkSanity (std::uint32_t index) = 0;
+
+    /** Calls the check function on each peer
+    */
+    virtual
+    void
+    check () = 0;
+
     /** Returns the peer with the matching short id, or null. */
     virtual
     Peer::ptr
     findPeerByShortID (Peer::id_t const& id) = 0;
 
+    /** Broadcast a proposal. */
+    virtual
+    void
+    send (protocol::TMProposeSet& m) = 0;
+
+    /** Broadcast a validation. */
+    virtual
+    void
+    send (protocol::TMValidation& m) = 0;
+
+    /** Relay a proposal. */
+    virtual
+    void
+    relay (protocol::TMProposeSet& m,
+        uint256 const& uid) = 0;
+
+    /** Relay a validation. */
+    virtual
+    void
+    relay (protocol::TMValidation& m,
+        uint256 const& uid) = 0;
+
+    virtual
+    void
+    setupValidatorKeyManifests (BasicConfig const& config,
+                                DatabaseCon& db) = 0;
+
+    virtual
+    void
+    saveValidatorKeyManifests (DatabaseCon& db) const = 0;
+
     /** Visit every active peer and return a value
         The functor must:
         - Be callable as:
             void operator()(Peer::ptr const& peer);
-         - Must have the following typedef:
-            typedef void return_type;
+         - Must have the following type alias:
+            using return_type = void;
          - Be callable as:
             Function::return_type operator()() const;
 
@@ -140,12 +182,11 @@ public:
 
         @note The functor is passed by value!
     */
-    template<typename Function>
-    std::enable_if_t <
-        ! std::is_void <typename Function::return_type>::value,
-        typename Function::return_type
-    >
-    foreach(Function f)
+    template <typename UnaryFunc>
+    std::enable_if_t<! std::is_void<
+            typename UnaryFunc::return_type>::value,
+                typename UnaryFunc::return_type>
+    foreach (UnaryFunc f)
     {
         PeerSequence peers (getActivePeers());
         for(PeerSequence::const_iterator i = peers.begin(); i != peers.end(); ++i)
@@ -157,8 +198,8 @@ public:
         The visitor functor must:
          - Be callable as:
             void operator()(Peer::ptr const& peer);
-         - Must have the following typedef:
-            typedef void return_type;
+         - Must have the following type alias:
+            using return_type = void;
 
         @param f the functor to call with every peer
     */
@@ -174,6 +215,48 @@ public:
         for(PeerSequence::const_iterator i = peers.begin(); i != peers.end(); ++i)
             f (*i);
     }
+
+    /** Select from active peers
+
+        Scores all active peers.
+        Tries to accept the highest scoring peers, up to the requested count,
+        Returns the number of selected peers accepted.
+
+        The score function must:
+        - Be callable as:
+           bool (PeerImp::ptr)
+        - Return a true if the peer is prefered
+
+        The accept function must:
+        - Be callable as:
+           bool (PeerImp::ptr)
+        - Return a true if the peer is accepted
+
+    */
+    virtual
+    std::size_t
+    selectPeers (PeerSet& set, std::size_t limit, std::function<
+        bool(std::shared_ptr<Peer> const&)> score) = 0;
+};
+
+struct ScoreHasLedger
+{
+    uint256 const& hash_;
+    std::uint32_t seq_;
+    bool operator()(std::shared_ptr<Peer> const&) const;
+
+    ScoreHasLedger (uint256 const& hash, std::uint32_t seq)
+        : hash_ (hash), seq_ (seq)
+    {}
+};
+
+struct ScoreHasTxSet
+{
+    uint256 const& hash_;
+    bool operator()(std::shared_ptr<Peer> const&) const;
+
+    ScoreHasTxSet (uint256 const& hash) : hash_ (hash)
+    {}
 };
 
 }

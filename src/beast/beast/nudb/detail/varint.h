@@ -23,7 +23,7 @@
 #include <beast/config/CompilerConfig.h> // for BEAST_CONSTEXPR
 #include <beast/nudb/detail/stream.h>
 #include <cstdint>
-#include <beast/cxx14/type_traits.h> // <type_traits>
+#include <type_traits>
 
 namespace beast {
 namespace nudb {
@@ -40,7 +40,7 @@ struct varint;
 // possible size of T represented as varint.
 // T must be unsigned
 template <class T,
-    bool = std::is_unsigned<T>::value> 
+    bool = std::is_unsigned<T>::value>
 struct varint_traits;
 
 template <class T>

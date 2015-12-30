@@ -18,6 +18,7 @@
 //==============================================================================
 
 #include <BeastConfig.h>
+#include <ripple/basics/contract.h>
 #include <ripple/protocol/ErrorCodes.h>
 #include <unordered_map>
 #include <utility>
@@ -42,7 +43,7 @@ namespace detail {
 class ErrorCategory
 {
 public:
-    using Map = std::unordered_map <error_code_i, ErrorInfo> ;
+    using Map = std::unordered_map <error_code_i, ErrorInfo>;
 
     ErrorCategory ()
         : m_unknown (rpcUNKNOWN, "unknown", "An unknown error code.")
@@ -64,7 +65,6 @@ public:
         add (rpcDST_ACT_MISSING,       "dstActMissing",     "Destination account does not exist.");
         add (rpcDST_AMT_MALFORMED,     "dstAmtMalformed",   "Destination amount/currency/issuer is malformed.");
         add (rpcDST_ISR_MALFORMED,     "dstIsrMalformed",   "Destination issuer is malformed.");
-        add (rpcFAIL_GEN_DECRYPT,      "failGenDecrypt",    "Failed to decrypt generator.");
         add (rpcFORBIDDEN,             "forbidden",         "Bad credentials.");
         add (rpcGENERAL,               "general",           "Generic error reason.");
         add (rpcGETS_ACT_MALFORMED,    "getsActMalformed",  "Gets account malformed.");
@@ -78,6 +78,7 @@ public:
         add (rpcLGR_IDXS_INVALID,      "lgrIdxsInvalid",    "Ledger indexes invalid.");
         add (rpcLGR_IDX_MALFORMED,     "lgrIdxMalformed",   "Ledger index malformed.");
         add (rpcLGR_NOT_FOUND,         "lgrNotFound",       "Ledger not found.");
+        add (rpcLGR_NOT_VALIDATED,     "lgrNotValidated",   "Ledger not validated.");
         add (rpcLOAD_FAILED,           "loadFailed",        "Load failed");
         add (rpcMASTER_DISABLED,       "masterDisabled",    "Master key is disabled.");
         add (rpcNOT_ENABLED,           "notEnabled",        "Not enabled in configuration.");
@@ -89,7 +90,6 @@ public:
         add (rpcNO_CLOSED,             "noClosed",          "Closed ledger is unavailable.");
         add (rpcNO_CURRENT,            "noCurrent",         "Current ledger is unavailable.");
         add (rpcNO_EVENTS,             "noEvents",          "Current transport does not support events.");
-        add (rpcNO_GEN_DECRYPT,        "noGenDecrypt",      "Password failed to decrypt master public generator.");
         add (rpcNO_NETWORK,            "noNetwork",         "Not synced to Radar network.");
         add (rpcNO_PATH,               "noPath",            "Unable to find a radar path.");
         add (rpcNO_PERMISSION,         "noPermission",      "You don't have permission for this command.");
@@ -100,6 +100,7 @@ public:
         add (rpcPORT_MALFORMED,        "portMalformed",     "Port is malformed.");
         add (rpcPUBLIC_MALFORMED,      "publicMalformed",   "Public key is malformed.");
         add (rpcQUALITY_MALFORMED,     "qualityMalformed",  "Quality malformed.");
+        add (rpcSIGN_FOR_MALFORMED,    "signForMalformed",  "Signing for account is malformed.");
         add (rpcSLOW_DOWN,             "slowDown",          "You are placing too much load on the server.");
         add (rpcSRC_ACT_MALFORMED,     "srcActMalformed",   "Source account is malformed.");
         add (rpcSRC_ACT_MISSING,       "srcActMissing",     "Source account not provided.");
@@ -134,7 +135,7 @@ private:
                 std::forward_as_tuple (code), std::forward_as_tuple (
                     code, token, message)));
         if (! result.second)
-            throw std::invalid_argument ("duplicate error code");
+            Throw<std::invalid_argument> ("duplicate error code");
     }
 
 private:
@@ -168,10 +169,19 @@ Json::Value make_error (error_code_i code, std::string const& message)
 
 bool contains_error (Json::Value const& json)
 {
-    if (json.isObject() && json.isMember ("error"))
+    if (json.isObject() && json.isMember (jss::error))
         return true;
     return false;
 }
 
+} // RPC
+
+std::string rpcErrorString(Json::Value const& jv)
+{
+    assert(RPC::contains_error(jv));
+    return jv[jss::error].asString() +
+        jv[jss::error_message].asString();
 }
-}
+
+} // ripple
+

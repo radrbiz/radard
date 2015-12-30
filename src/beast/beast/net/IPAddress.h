@@ -24,7 +24,6 @@
 #include <beast/net/IPAddressV6.h>
 #include <beast/hash/hash_append.h>
 #include <beast/hash/uhash.h>
-#include <beast/utility/noexcept.h>
 #include <boost/functional/hash.hpp>
 #include <cassert>
 #include <cstdint>
@@ -139,6 +138,14 @@ public:
         return m_v6;
     }
 
+    /** Returns `true` if this address represents 0.0.0.0 */
+    bool
+    is_any () const
+    {
+        return is_v4 () ? m_v4 == IP::AddressV4::any ()
+            : false; // m_v6 == IP::AddressV6::any();
+    }
+
     template <class Hasher>
     friend
     void
@@ -190,21 +197,21 @@ public:
     {
         return ! (lhs == rhs);
     }
-    
+
     friend
     bool
     operator>  (Address const& lhs, Address const& rhs)
     {
         return rhs < lhs;
     }
-    
+
     friend
     bool
     operator<= (Address const& lhs, Address const& rhs)
     {
         return ! (lhs > rhs);
     }
-    
+
     friend
     bool
     operator>= (Address const& lhs, Address const& rhs)

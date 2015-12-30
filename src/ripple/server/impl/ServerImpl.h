@@ -20,11 +20,10 @@
 #ifndef RIPPLE_SERVER_SERVERIMPL_H_INCLUDED
 #define RIPPLE_SERVER_SERVERIMPL_H_INCLUDED
 
-#include <ripple/basics/seconds_clock.h>
+#include <ripple/basics/chrono.h>
 #include <ripple/server/Handler.h>
 #include <ripple/server/Server.h>
 #include <beast/intrusive/List.h>
-#include <beast/threads/SharedData.h>
 #include <beast/threads/Thread.h>
 #include <boost/asio.hpp>
 #include <boost/intrusive/list.hpp>
@@ -68,14 +67,14 @@ private:
     using list_type = boost::intrusive::make_list <Child,
         boost::intrusive::constant_time_size <false>>::type;
 
-    typedef std::chrono::system_clock clock_type;
+    using clock_type = std::chrono::system_clock;
 
     enum
     {
         historySize = 100
     };
 
-    typedef std::vector <std::shared_ptr<Door>> Doors;
+    using Doors = std::vector <std::shared_ptr<Door>>;
 
     Handler& handler_;
     beast::Journal journal_;

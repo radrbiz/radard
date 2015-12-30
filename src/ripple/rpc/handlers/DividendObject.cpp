@@ -3,7 +3,7 @@ namespace ripple {
 // ledger_dividend [until]
 Json::Value doDividendObject (RPC::Context& context)
 {
-    SLE::pointer dividendSLE = nullptr;
+    std::shared_ptr<SLE const> dividendSLE = nullptr;
     
     //time param specified, query from ledger before this time
     if (context.params.isMember ("until"))
@@ -20,22 +20,23 @@ Json::Value doDividendObject (RPC::Context& context)
                                    "SELECT * FROM Ledgers WHERE ClosingTime <= %u ORDER BY LedgerSeq desc LIMIT 1")
                     % time);
         {
-            auto db = getApp().getLedgerDB().getDB();
-            auto sl (getApp().getLedgerDB ().lock ());
-            if (db->executeSQL(sql) && db->startIterRows())
+            auto db = context.app.getLedgerDB ().checkoutDb ();
+            boost::optional<std::uint64_t> ledgerSeq64;
+            *db << sql, soci::into (ledgerSeq64);
+            if (db->got_data ())
             {
-                std::uint32_t ledgerSeq = db->getInt("LedgerSeq");
-                db->endIterRows();
+                uint32_t ledgerSeq =
+                    rangeCheckedCast<std::uint32_t> (ledgerSeq64.value_or (0));
                 //CARL should we find a seq more pricisely?
-                Ledger::pointer ledger = getApp().getOPs().getLedgerBySeq(ledgerSeq);
-                dividendSLE = ledger->getDividendObject();
+                Ledger::pointer ledger = context.ledgerMaster.getLedgerBySeq (ledgerSeq);
+                dividendSLE = ledger->read (keylet::dividend ());
             }
         }
     }
     else //no time param specified, query from the lastet closed ledger
     {
-        Ledger::pointer ledger = getApp().getOPs().getClosedLedger();
-        dividendSLE = ledger->getDividendObject();
+        Ledger::pointer ledger = context.ledgerMaster.getValidatedLedger ();
+        dividendSLE = ledger->read (keylet::dividend ());
     }
 
     if (dividendSLE)

@@ -18,237 +18,95 @@
 //==============================================================================
 
 #include <BeastConfig.h>
-#include <ripple/app/misc/IHashRouter.h>
-#include <ripple/basics/CountedObject.h>
-#include <ripple/basics/UnorderedContainers.h>
-#include <ripple/basics/UptimeTimer.h>
-#include <boost/foreach.hpp>
-#include <map>
-#include <mutex>
+#include <ripple/app/misc/HashRouter.h>
 
 namespace ripple {
 
-// VFALCO TODO Inline the function definitions
-class HashRouter : public IHashRouter
+auto
+HashRouter::emplace (uint256 const& key)
+    -> std::pair<Entry&, bool>
 {
-private:
-    /** An entry in the routing table.
-    */
-    class Entry : public CountedObject <Entry>
+    auto iter = mSuppressionMap.find (key);
+
+    if (iter != mSuppressionMap.end ())
     {
-    public:
-        static char const* getCountedObjectName () { return "HashRouterEntry"; }
-
-        Entry ()
-            : mFlags (0)
-        {
-        }
-
-        std::set <PeerShortID> const& peekPeers () const
-        {
-            return mPeers;
-        }
-
-        void addPeer (PeerShortID peer)
-        {
-            if (peer != 0)
-                mPeers.insert (peer);
-        }
-
-        bool hasPeer (PeerShortID peer) const
-        {
-            return mPeers.count (peer) > 0;
-        }
-
-        int getFlags (void) const
-        {
-            return mFlags;
-        }
-
-        bool hasFlag (int mask) const
-        {
-            return (mFlags & mask) != 0;
-        }
-
-        void setFlag (int flagsToSet)
-        {
-            mFlags |= flagsToSet;
-        }
-
-        void clearFlag (int flagsToClear)
-        {
-            mFlags &= ~flagsToClear;
-        }
-
-        void swapSet (std::set <PeerShortID>& other)
-        {
-            mPeers.swap (other);
-        }
-
-    private:
-        int mFlags;
-        std::set <PeerShortID> mPeers;
-    };
-
-public:
-    explicit HashRouter (int holdTime)
-        : mHoldTime (holdTime)
-    {
+        mSuppressionMap.touch(iter);
+        return std::make_pair(
+            std::ref(iter->second), false);
     }
-
-    bool addSuppression (uint256 const& index);
-
-    bool addSuppressionPeer (uint256 const& index, PeerShortID peer);
-    bool addSuppressionPeer (uint256 const& index, PeerShortID peer, int& flags);
-    bool addSuppressionFlags (uint256 const& index, int flag);
-    bool setFlag (uint256 const& index, int flag);
-    int getFlags (uint256 const& index);
-
-    bool swapSet (uint256 const& index, std::set<PeerShortID>& peers, int flag);
-
-private:
-    Entry getEntry (uint256 const& );
-
-    Entry& findCreateEntry (uint256 const& , bool& created);
-
-    using LockType = std::mutex;
-    using ScopedLockType = std::lock_guard <LockType>;
-    LockType mLock;
-
-    // Stores all suppressed hashes and their expiration time
-    hash_map <uint256, Entry> mSuppressionMap;
-
-    // Stores all expiration times and the hashes indexed for them
-    std::map< int, std::list<uint256> > mSuppressionTimes;
-
-    int mHoldTime;
-};
-
-//------------------------------------------------------------------------------
-
-HashRouter::Entry& HashRouter::findCreateEntry (uint256 const& index, bool& created)
-{
-    hash_map<uint256, Entry>::iterator fit = mSuppressionMap.find (index);
-
-    if (fit != mSuppressionMap.end ())
-    {
-        created = false;
-        return fit->second;
-    }
-
-    created = true;
-
-    int now = UptimeTimer::getInstance ().getElapsedSeconds ();
-    int expireTime = now - mHoldTime;
 
     // See if any supressions need to be expired
-    std::map< int, std::list<uint256> >::iterator it = mSuppressionTimes.begin ();
+    expire(mSuppressionMap,
+        mHoldTime);
 
-    if ((it != mSuppressionTimes.end ()) && (it->first <= expireTime))
-    {
-        BOOST_FOREACH (uint256 const& lit, it->second)
-        mSuppressionMap.erase (lit);
-        mSuppressionTimes.erase (it);
-    }
-
-    mSuppressionTimes[now].push_back (index);
-    return mSuppressionMap.emplace (index, Entry ()).first->second;
+    return std::make_pair(std::ref(
+        mSuppressionMap.emplace (
+            key, Entry ()).first->second),
+                true);
 }
 
-bool HashRouter::addSuppression (uint256 const& index)
+void HashRouter::addSuppression (uint256 const& key)
 {
-    ScopedLockType sl (mLock);
+    std::lock_guard <std::mutex> lock (mMutex);
 
-    bool created;
-    findCreateEntry (index, created);
-    return created;
+    emplace (key);
 }
 
-HashRouter::Entry HashRouter::getEntry (uint256 const& index)
+bool HashRouter::addSuppressionPeer (uint256 const& key, PeerShortID peer)
 {
-    ScopedLockType sl (mLock);
+    std::lock_guard <std::mutex> lock (mMutex);
 
-    bool created;
-    return findCreateEntry (index, created);
+    auto result = emplace(key);
+    result.first.addPeer(peer);
+    return result.second;
 }
 
-bool HashRouter::addSuppressionPeer (uint256 const& index, PeerShortID peer)
+bool HashRouter::addSuppressionPeer (uint256 const& key, PeerShortID peer, int& flags)
 {
-    ScopedLockType sl (mLock);
+    std::lock_guard <std::mutex> lock (mMutex);
 
-    bool created;
-    findCreateEntry (index, created).addPeer (peer);
-    return created;
-}
-
-bool HashRouter::addSuppressionPeer (uint256 const& index, PeerShortID peer, int& flags)
-{
-    ScopedLockType sl (mLock);
-
-    bool created;
-    Entry& s = findCreateEntry (index, created);
+    auto result = emplace(key);
+    auto& s = result.first;
     s.addPeer (peer);
     flags = s.getFlags ();
-    return created;
+    return result.second;
 }
 
-int HashRouter::getFlags (uint256 const& index)
+int HashRouter::getFlags (uint256 const& key)
 {
-    ScopedLockType sl (mLock);
+    std::lock_guard <std::mutex> lock (mMutex);
 
-    bool created;
-    return findCreateEntry (index, created).getFlags ();
+    return emplace(key).first.getFlags ();
 }
 
-bool HashRouter::addSuppressionFlags (uint256 const& index, int flag)
+bool HashRouter::setFlags (uint256 const& key, int flags)
 {
-    ScopedLockType sl (mLock);
+    assert (flags != 0);
 
-    bool created;
-    findCreateEntry (index, created).setFlag (flag);
-    return created;
-}
+    std::lock_guard <std::mutex> lock (mMutex);
 
-bool HashRouter::setFlag (uint256 const& index, int flag)
-{
-    // VFALCO NOTE Comments like this belong in the HEADER file,
-    //             and more importantly in a Javadoc comment so
-    //             they appear in the generated documentation.
-    //
-    // return: true = changed, false = unchanged
-    assert (flag != 0);
+    auto& s = emplace(key).first;
 
-    ScopedLockType sl (mLock);
-
-    bool created;
-    Entry& s = findCreateEntry (index, created);
-
-    if ((s.getFlags () & flag) == flag)
+    if ((s.getFlags () & flags) == flags)
         return false;
 
-    s.setFlag (flag);
+    s.setFlags (flags);
     return true;
 }
 
-bool HashRouter::swapSet (uint256 const& index, std::set<PeerShortID>& peers, int flag)
+bool HashRouter::swapSet (uint256 const& key, std::set<PeerShortID>& peers, int flag)
 {
-    ScopedLockType sl (mLock);
+    std::lock_guard <std::mutex> lock (mMutex);
 
-    bool created;
-    Entry& s = findCreateEntry (index, created);
+    auto& s = emplace(key).first;
 
     if ((s.getFlags () & flag) == flag)
         return false;
 
     s.swapSet (peers);
-    s.setFlag (flag);
+    s.setFlags (flag);
 
     return true;
-}
-
-IHashRouter* IHashRouter::New (int holdTime)
-{
-    return new HashRouter (holdTime);
 }
 
 } // ripple

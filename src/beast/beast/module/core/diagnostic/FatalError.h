@@ -17,8 +17,8 @@
 */
 //==============================================================================
 
-#ifndef BEAST_CORE_FATALERROR_H_INCLUDED
-#define BEAST_CORE_FATALERROR_H_INCLUDED
+#ifndef BEAST_MODULE_CORE_DIAGNOSTIC_FATALERROR_H_INCLUDED
+#define BEAST_MODULE_CORE_DIAGNOSTIC_FATALERROR_H_INCLUDED
 
 #include <beast/strings/String.h>
 
@@ -35,8 +35,12 @@ namespace beast
     If multiple threads raise an error, only one will succeed while the others
     will be blocked before the process terminates.
 */
+[[noreturn]]
 void
-FatalError (char const* message, char const* file = nullptr, int line = 0);
+FatalError (
+    char const* message,
+    char const* file = nullptr,
+    int line = 0) noexcept;
 
 } // beast
 

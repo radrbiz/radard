@@ -18,7 +18,17 @@
 //==============================================================================
 
 #include <BeastConfig.h>
+#include <ripple/app/main/Application.h>
+#include <ripple/app/misc/Transaction.h>
+#include <ripple/core/DatabaseCon.h>
+#include <ripple/core/SociDB.h>
+#include <ripple/net/RPCErr.h>
+#include <ripple/protocol/JsonFields.h>
+#include <ripple/protocol/ErrorCodes.h>
+#include <ripple/resource/Fees.h>
+#include <ripple/rpc/Context.h>
 #include <ripple/server/Role.h>
+#include <boost/format.hpp>
 
 namespace ripple {
 
@@ -29,36 +39,67 @@ Json::Value doTxHistory (RPC::Context& context)
 {
     context.loadType = Resource::feeMediumBurdenRPC;
 
-    if (!context.params.isMember ("start"))
+    if (!context.params.isMember (jss::start))
         return rpcError (rpcINVALID_PARAMS);
 
-    unsigned int startIndex = context.params["start"].asUInt ();
+    unsigned int startIndex = context.params[jss::start].asUInt ();
 
-    if ((startIndex > 10000) &&  (context.role != Role::ADMIN))
+    if ((startIndex > 10000) &&  (! isUnlimited (context.role)))
         return rpcError (rpcNO_PERMISSION);
 
     Json::Value obj;
     Json::Value txs;
 
-    obj["index"] = startIndex;
+    obj[jss::index] = startIndex;
 
     std::string sql =
         boost::str (boost::format (
-            "SELECT * FROM Transactions ORDER BY LedgerSeq desc LIMIT %u,20")
+            "SELECT LedgerSeq, Status, RawTxn "
+            "FROM Transactions ORDER BY LedgerSeq desc LIMIT %u,20;")
                     % startIndex);
 
     {
-        auto db = getApp().getTxnDB ().getDB ();
-        auto sl (getApp().getTxnDB ().lock ());
+        bool isMySQL = context.app.getTxnDB ().getType () == DatabaseCon::Type::MySQL;
+        
+        auto db = context.app.getTxnDB ().checkoutDb ();
 
-        SQL_FOREACH (db, sql)
+        boost::optional<std::uint64_t> ledgerSeq;
+        boost::optional<std::string> status;
+        boost::optional<std::string> sociRawTxnStr;
+        std::unique_ptr<soci::blob> sociRawTxnBlob (isMySQL ? nullptr : new soci::blob (*db));
+        soci::indicator rti;
+        Blob rawTxn;
+
+        soci::statement st = isMySQL ?
+                                 (db->prepare << sql,
+                                  soci::into (ledgerSeq),
+                                  soci::into (status),
+                                  soci::into (sociRawTxnStr, rti)) :
+                                 (db->prepare << sql,
+                                  soci::into (ledgerSeq),
+                                  soci::into (status),
+                                  soci::into (*sociRawTxnBlob, rti));
+
+        st.execute ();
+        while (st.fetch ())
         {
-            if (auto trans = Transaction::transactionFromSQL (db, Validate::NO))
+            if (soci::i_ok == rti)
+            {
+                if (isMySQL)
+                    rawTxn.assign (sociRawTxnStr->begin (), sociRawTxnStr->end ());
+                else
+                    convert (*sociRawTxnBlob, rawTxn);
+            }
+            else
+                rawTxn.clear ();
+
+            if (auto trans = Transaction::transactionFromSQL (
+                    ledgerSeq, status, rawTxn, context.app))
                 txs.append (trans->getJson (0));
         }
     }
 
-    obj["txs"] = txs;
+    obj[jss::txs] = txs;
 
     return obj;
 }

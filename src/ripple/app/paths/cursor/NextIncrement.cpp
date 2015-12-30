@@ -19,6 +19,7 @@
 
 #include <BeastConfig.h>
 #include <ripple/app/paths/cursor/RippleLiquidity.h>
+#include <ripple/basics/contract.h>
 #include <ripple/basics/Log.h>
 
 namespace ripple {
@@ -34,15 +35,15 @@ namespace path {
 // This is the wrapper that restores a checkpointed version of the ledger so we
 // can write all over it without consequence.
 
-void PathCursor::nextIncrement (LedgerEntrySet const& lesCheckpoint) const
+void PathCursor::nextIncrement () const
 {
     // The next state is what is available in preference order.
     // This is calculated when referenced accounts changed.
     // VFALCO-FIXME this generates errors
-    // WriteLog (lsTRACE, RippleCalc)
+    // JLOG (j_.trace)
     //     << "nextIncrement: Path In: " << pathState_.getJson ();
 
-    auto status = liquidity(lesCheckpoint);
+    auto status = liquidity();
 
     if (status == tesSUCCESS)
     {
@@ -54,14 +55,14 @@ void PathCursor::nextIncrement (LedgerEntrySet const& lesCheckpoint) const
             << " inPass()=" << pathState_.inPass();
 
         if (isDry)
-            throw std::runtime_error ("Made no progress.");
+            Throw<std::runtime_error> ("Made no progress.");
 
         // Calculate relative quality.
         pathState_.setQuality(getRate (
             pathState_.outPass(), pathState_.inPass()));
 
         // VFALCO-FIXME this generates errors
-        // WriteLog (lsTRACE, RippleCalc)
+        // JLOG (j_.trace)
         //     << "nextIncrement: Path after forward: " << pathState_.getJson ();
     }
     else

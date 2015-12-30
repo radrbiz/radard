@@ -60,7 +60,7 @@ public:
         This will add to the batch and initiate a scheduled task to
         write the batch out.
     */
-    void store (NodeObject::Ptr const& object);
+    void store (std::shared_ptr<NodeObject> const& object);
 
     /** Get an estimate of the amount of writing I/O pending. */
     int getWriteLoad ();
@@ -71,8 +71,8 @@ private:
     void waitForWriting ();
 
 private:
-    typedef std::recursive_mutex LockType;
-    typedef std::condition_variable_any CondvarType;
+    using LockType = std::recursive_mutex;
+    using CondvarType = std::condition_variable_any;
 
     Callback& m_callback;
     Scheduler& m_scheduler;

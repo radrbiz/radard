@@ -20,11 +20,16 @@
 #ifndef RIPPLE_PROTOCOL_SERIALIZER_H_INCLUDED
 #define RIPPLE_PROTOCOL_SERIALIZER_H_INCLUDED
 
-#include <ripple/basics/byte_view.h>
 #include <ripple/protocol/SField.h>
 #include <ripple/basics/base_uint.h>
+#include <ripple/basics/contract.h>
+#include <ripple/basics/Buffer.h>
+#include <ripple/basics/Slice.h>
+#include <cassert>
+#include <cstdint>
 #include <iomanip>
 #include <sstream>
+#include <type_traits>
 
 namespace ripple {
 
@@ -32,34 +37,42 @@ class CKey; // forward declaration
 
 class Serializer
 {
-public:
-    typedef std::shared_ptr<Serializer> pointer;
-
-protected:
+private:
+    // DEPRECATED
     Blob mData;
 
 public:
-    Serializer (int n = 2048)
+    explicit
+    Serializer (int n = 256)
     {
         mData.reserve (n);
     }
-    Serializer (Blob const& data) : mData (data)
+
+    Serializer (void const* data,
+        std::size_t size)
     {
-        ;
+        mData.resize(size);
+        std::memcpy(mData.data(),
+            reinterpret_cast<
+                unsigned char const*>(
+                    data), size);
     }
-    Serializer (std::string const& data) : mData (data.data (), (data.data ()) + data.size ())
+
+    Slice slice() const noexcept
     {
-        ;
+        return Slice(mData.data(), mData.size());
     }
-    Serializer (Blob ::iterator begin, Blob ::iterator end) :
-        mData (begin, end)
+
+    std::size_t
+    size() const noexcept
     {
-        ;
+        return mData.size();
     }
-    Serializer (Blob ::const_iterator begin, Blob ::const_iterator end) :
-        mData (begin, end)
+
+    void const*
+    data() const noexcept
     {
-        ;
+        return mData.data();
     }
 
     // assemble functions
@@ -93,16 +106,10 @@ public:
     int addZeros (size_t uBytes);
 
     int addVL (Blob const& vector);
-    int addVL (std::string const& string);
     int addVL (const void* ptr, int len);
 
     // disassemble functions
     bool get8 (int&, int offset) const;
-    bool get8 (unsigned char&, int offset) const;
-    bool get16 (std::uint16_t&, int offset) const;
-    bool get32 (std::uint32_t&, int offset) const;
-    bool get64 (std::uint64_t&, int offset) const;
-    bool get128 (uint128&, int offset) const;
     bool get256 (uint256&, int offset) const;
 
     template <typename Integer>
@@ -130,8 +137,6 @@ public:
         return success;
     }
 
-    uint256 get256 (int offset) const;
-
     // TODO(tom): merge with get128 and get256.
     template <class Tag>
     bool get160 (base_uint<160, Tag>& o, int offset) const
@@ -152,28 +157,8 @@ public:
         return addFieldID (static_cast<int> (type), name);
     }
 
-    // normal hash functions
-    uint160 getRIPEMD160 (int size = -1) const;
-    uint256 getSHA256 (int size = -1) const;
-    uint256 getSHA512Half (int size = -1) const;
-    static uint256 getSHA512Half (const_byte_view v);
-
-    static uint256 getSHA512Half (const unsigned char* data, int len);
-
-    // prefix hash functions
-    static uint256 getPrefixHash (std::uint32_t prefix, const unsigned char* data, int len);
-    uint256 getPrefixHash (std::uint32_t prefix) const
-    {
-        return getPrefixHash (prefix, & (mData.front ()), mData.size ());
-    }
-    static uint256 getPrefixHash (std::uint32_t prefix, Blob const& data)
-    {
-        return getPrefixHash (prefix, & (data.front ()), data.size ());
-    }
-    static uint256 getPrefixHash (std::uint32_t prefix, std::string const& strData)
-    {
-        return getPrefixHash (prefix, reinterpret_cast<const unsigned char*> (strData.data ()), strData.size ());
-    }
+    // DEPRECATED
+    uint256 getSHA512Half() const;
 
     // totality functions
     Blob const& peekData () const
@@ -188,21 +173,18 @@ public:
     {
         return mData;
     }
-    int getCapacity () const
-    {
-        return mData.capacity ();
-    }
+
     int getDataLength () const
     {
         return mData.size ();
     }
     const void* getDataPtr () const
     {
-        return &mData.front ();
+        return mData.data();
     }
     void* getDataPtr ()
     {
-        return &mData.front ();
+        return mData.data();
     }
     int getLength () const
     {
@@ -221,7 +203,6 @@ public:
     {
         mData.clear ();
     }
-    int removeLastByte ();
     bool chop (int num);
 
     // vector-like functions
@@ -240,10 +221,6 @@ public:
     Blob ::const_iterator end () const
     {
         return mData.end ();
-    }
-    Blob ::size_type size () const
-    {
-        return mData.size ();
     }
     void reserve (size_t n)
     {
@@ -290,89 +267,134 @@ public:
         return h.str ();
     }
 
-    // low-level VL length encode/decode functions
-    static Blob encodeVL (int length);
+    static int decodeLengthLength (int b1);
+    static int decodeVLLength (int b1);
+    static int decodeVLLength (int b1, int b2);
+    static int decodeVLLength (int b1, int b2, int b3);
+private:
     static int lengthVL (int length)
     {
         return length + encodeLengthLength (length);
     }
     static int encodeLengthLength (int length); // length to encode length
-    static int decodeLengthLength (int b1);
-    static int decodeVLLength (int b1);
-    static int decodeVLLength (int b1, int b2);
-    static int decodeVLLength (int b1, int b2, int b3);
-
-    static void TestSerializer ();
+    int addEncoded (int length);
 };
 
-class SerializerIterator
+//------------------------------------------------------------------------------
+
+// DEPRECATED
+// Transitional adapter to new serialization interfaces
+class SerialIter
 {
-protected:
-    const Serializer& mSerializer;
-    int mPos;
+private:
+    std::uint8_t const* p_;
+    std::size_t remain_;
+    std::size_t used_ = 0;
 
 public:
+    SerialIter (void const* data,
+            std::size_t size) noexcept;
 
-    // Reference is not const because we don't want to bind to a temporary
-    SerializerIterator (Serializer& s) : mSerializer (s), mPos (0)
+    SerialIter (Slice const& slice)
+        : SerialIter(slice.data(), slice.size())
     {
-        ;
-    }
-
-    const Serializer& operator* (void)
-    {
-        return mSerializer;
-    }
-    void reset (void)
-    {
-        mPos = 0;
-    }
-    void setPos (int p)
-    {
-        mPos = p;
     }
 
-    int getPos (void)
+    std::size_t
+    empty() const noexcept
     {
-        return mPos;
+        return remain_ == 0;
     }
-    bool empty ()
+
+    void
+    reset() noexcept;
+
+    int
+    getBytesLeft() const noexcept
     {
-        return mPos == mSerializer.getLength ();
+        return static_cast<int>(remain_);
     }
-    int getBytesLeft ();
 
     // get functions throw on error
-    unsigned char get8 ();
-    std::uint16_t get16 ();
-    std::uint32_t get32 ();
-    std::uint64_t get64 ();
+    unsigned char
+    get8();
 
-    uint128 get128 () { return getBitString<128>(); }
-    uint160 get160 () { return getBitString<160>(); }
-    uint256 get256 () { return getBitString<256>(); }
+    std::uint16_t
+    get16();
 
-    template <std::size_t Bits, typename Tag = void>
-    void getBitString (base_uint<Bits, Tag>& bits) {
-        if (!mSerializer.getBitString<Bits> (bits, mPos))
-            throw std::runtime_error ("invalid serializer getBitString");
+    std::uint32_t
+    get32();
 
-        mPos += Bits / 8;
+    std::uint64_t
+    get64();
+
+    template <int Bits, class Tag = void>
+    base_uint<Bits, Tag>
+    getBitString();
+
+    uint128
+    get128()
+    {
+        return getBitString<128>();
     }
 
-    template <std::size_t Bits, typename Tag = void>
-    base_uint<Bits, Tag> getBitString () {
-        base_uint<Bits, Tag> bits;
-        getBitString(bits);
-        return bits;
+    uint160
+    get160()
+    {
+        return getBitString<160>();
     }
 
-    void getFieldID (int& type, int& field);
+    uint256
+    get256()
+    {
+        return getBitString<256>();
+    }
 
-    Blob getRaw (int iLength);
+    void
+    getFieldID (int& type, int& name);
 
-    Blob getVL ();
+    // Returns the size of the VL if the
+    // next object is a VL. Advances the iterator
+    // to the beginning of the VL.
+    int
+    getVLDataLength ();
+
+    Slice
+    getSlice (std::size_t bytes);
+
+    // VFALCO DEPRECATED Returns a copy
+    Blob
+    getRaw (int size);
+
+    // VFALCO DEPRECATED Returns a copy
+    Blob
+    getVL();
+
+    void
+    skip (int num);
+
+    Buffer
+    getVLBuffer();
+
+    template<class T>
+    T getRawHelper (int size);
 };
+
+template <int Bits, class Tag>
+base_uint<Bits, Tag>
+SerialIter::getBitString()
+{
+    base_uint<Bits, Tag> u;
+    auto const n = Bits/8;
+    if (remain_ < n)
+        Throw<std::runtime_error> (
+            "invalid SerialIter getBitString");
+    std::memcpy (u.begin(), p_, n);
+    p_ += n;
+    used_ += n;
+    remain_ -= n;
+    return u;
+}
 
 } // ripple
 

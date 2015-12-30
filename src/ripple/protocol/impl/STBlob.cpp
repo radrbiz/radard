@@ -23,26 +23,23 @@
 
 namespace ripple {
 
-STBlob::STBlob (SerializerIterator& st, SField::ref name)
+STBlob::STBlob (SerialIter& st, SField const& name)
     : STBase (name)
+    , value_ (st.getVLBuffer ())
 {
-    value = st.getVL ();
 }
 
-std::string STBlob::getText () const
+std::string
+STBlob::getText () const
 {
-    return strHex (value);
+    return strHex (value_.data (), value_.size ());
 }
 
-STBlob* STBlob::construct (SerializerIterator& u, SField::ref name)
-{
-    return new STBlob (name, u.getVL ());
-}
-
-bool STBlob::isEquivalent (const STBase& t) const
+bool
+STBlob::isEquivalent (const STBase& t) const
 {
     const STBlob* v = dynamic_cast<const STBlob*> (&t);
-    return v && (value == v->value);
+    return v && (value_ == v->value_);
 }
 
 } // ripple

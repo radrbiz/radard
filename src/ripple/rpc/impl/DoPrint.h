@@ -17,11 +17,12 @@
 */
 //==============================================================================
 
-#ifndef RIPPLE_RPC_PRINT_H_INCLUDED
-#define RIPPLE_RPC_PRINT_H_INCLUDED
+#ifndef RIPPLE_RPC_DOPRINT_H_INCLUDED
+#define RIPPLE_RPC_DOPRINT_H_INCLUDED
 
 #include <ripple/app/main/Application.h>
 #include <ripple/json/JsonPropertyStream.h>
+#include <ripple/protocol/JsonFields.h>
 
 namespace ripple {
 namespace RPC {
@@ -34,10 +35,10 @@ public:
         JsonPropertyStream stream;
 
         if (req.params.isObject() &&
-            req.params["params"].isArray() &&
-            req.params["params"][0u].isString ())
+            req.params[jss::params].isArray() &&
+            req.params[jss::params][0u].isString ())
         {
-            req.app.write (stream, req.params["params"][0u].asString());
+            req.app.write (stream, req.params[jss::params][0u].asString());
         }
         else
         {

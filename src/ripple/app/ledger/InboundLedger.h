@@ -17,17 +17,18 @@
 */
 //==============================================================================
 
-#ifndef RIPPLE_INBOUNDLEDGER_H
-#define RIPPLE_INBOUNDLEDGER_H
+#ifndef RIPPLE_APP_LEDGER_INBOUNDLEDGER_H_INCLUDED
+#define RIPPLE_APP_LEDGER_INBOUNDLEDGER_H_INCLUDED
 
+#include <ripple/app/main/Application.h>
 #include <ripple/app/ledger/Ledger.h>
-#include <ripple/app/peers/PeerSet.h>
+#include <ripple/overlay/PeerSet.h>
 #include <ripple/basics/CountedObject.h>
+#include <mutex>
 #include <set>
 
 namespace ripple {
 
-// VFALCO TODO Rename to InboundLedger
 // A ledger we are trying to acquire
 class InboundLedger
     : public PeerSet
@@ -37,8 +38,9 @@ class InboundLedger
 public:
     static char const* getCountedObjectName () { return "InboundLedger"; }
 
-    typedef std::shared_ptr <InboundLedger> pointer;
-    typedef std::pair < std::weak_ptr<Peer>, std::shared_ptr<protocol::TMLedgerData> > PeerDataPairType;
+    using pointer = std::shared_ptr <InboundLedger>;
+    using PeerDataPairType = std::pair<std::weak_ptr<Peer>,
+                                       std::shared_ptr<protocol::TMLedgerData>>;
 
     // These are the reasons we might acquire a ledger
     enum fcReason
@@ -51,9 +53,13 @@ public:
     };
 
 public:
-    InboundLedger (uint256 const& hash, std::uint32_t seq, fcReason reason, clock_type& clock);
+    InboundLedger(Application& app,
+        uint256 const& hash, std::uint32_t seq, fcReason reason, clock_type&);
 
     ~InboundLedger ();
+
+    // Called when another attempt is made to fetch this same ledger
+    void update (std::uint32_t seq);
 
     bool isHeader () const
     {
@@ -87,7 +93,9 @@ public:
     // VFALCO TODO Make this the Listener / Observer pattern
     bool addOnComplete (std::function<void (InboundLedger::pointer)>);
 
-    void trigger (Peer::ptr const&);
+    enum class TriggerReason { trAdded, trReply, trTimeout };
+    void trigger (Peer::ptr const&, TriggerReason);
+
     bool tryLocal ();
     void addPeers ();
     bool checkLocal ();
@@ -95,13 +103,15 @@ public:
 
     bool gotData (std::weak_ptr<Peer>, std::shared_ptr<protocol::TMLedgerData>);
 
-    typedef std::pair <protocol::TMGetObjectByHash::ObjectType, uint256> neededHash_t;
+    using neededHash_t =
+        std::pair <protocol::TMGetObjectByHash::ObjectType, uint256>;
 
     std::vector<neededHash_t> getNeededHashes ();
 
     // VFALCO TODO Replace uint256 with something semanticallyh meaningful
-    void filterNodes (std::vector<SHAMapNodeID>& nodeIDs, std::vector<uint256>& nodeHashes,
-                             std::set<SHAMapNodeID>& recentNodes, int max, bool aggressive);
+    void filterNodes (
+        std::vector<SHAMapNodeID>& nodeIDs, std::vector<uint256>& nodeHashes,
+        TriggerReason reason);
 
     /** Return a Json::objectValue. */
     Json::Value getJson (int);
@@ -114,7 +124,10 @@ private:
 
     void newPeer (Peer::ptr const& peer)
     {
-        trigger (peer);
+        // For historical nodes, do not trigger too soon
+        // since a fetch pack is probably coming
+        if (mReason != fcHISTORY)
+            trigger (peer, TriggerReason::trAdded);
     }
 
     std::weak_ptr <PeerSet> pmDowncast ();
@@ -122,7 +135,8 @@ private:
     int processData (std::shared_ptr<Peer> peer, protocol::TMLedgerData& data);
 
     bool takeHeader (std::string const& data);
-    bool takeTxNode (const std::list<SHAMapNodeID>& IDs, const std::list<Blob >& data,
+    bool takeTxNode (const std::vector<SHAMapNodeID>& IDs,
+                     const std::vector<Blob>& data,
                      SHAMapAddNode&);
     bool takeTxRootNode (Blob const& data, SHAMapAddNode&);
 
@@ -130,7 +144,8 @@ private:
     //             Don't use acronyms, but if we are going to use them at least
     //             capitalize them correctly.
     //
-    bool takeAsNode (const std::list<SHAMapNodeID>& IDs, const std::list<Blob >& data,
+    bool takeAsNode (const std::vector<SHAMapNodeID>& IDs,
+                     const std::vector<Blob>& data,
                      SHAMapAddNode&);
     bool takeAsRootNode (Blob const& data, SHAMapAddNode&);
 
@@ -145,12 +160,12 @@ private:
     std::uint32_t      mSeq;
     fcReason           mReason;
 
-    std::set <SHAMapNodeID> mRecentTXNodes;
-    std::set <SHAMapNodeID> mRecentASNodes;
+    std::set <uint256> mRecentNodes;
 
+    SHAMapAddNode      mStats;
 
     // Data we have received from peers
-    PeerSet::LockType mReceivedDataLock;
+    std::recursive_mutex mReceivedDataLock;
     std::vector <PeerDataPairType> mReceivedData;
     bool mReceiveDispatched;
 

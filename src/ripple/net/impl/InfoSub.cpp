@@ -57,8 +57,18 @@ InfoSub::~InfoSub ()
     m_source.unsubRTTransactions (mSeq);
     m_source.unsubLedger (mSeq);
     m_source.unsubServer (mSeq);
-    m_source.unsubAccount (mSeq, mSubAccountInfo, true);
-    m_source.unsubAccount (mSeq, mSubAccountInfo, false);
+    m_source.unsubValidations (mSeq);
+    m_source.unsubPeerStatus (mSeq);
+
+    // Use the internal unsubscribe so that it won't call
+    // back to us and modify its own parameter
+    if (! realTimeSubscriptions_.empty ())
+        m_source.unsubAccountInternal
+            (mSeq, realTimeSubscriptions_, true);
+
+    if (! normalSubscriptions_.empty ())
+        m_source.unsubAccountInternal
+            (mSeq, normalSubscriptions_, false);
 }
 
 Resource::Consumer& InfoSub::getConsumer()
@@ -81,12 +91,24 @@ void InfoSub::onSendEmpty ()
 {
 }
 
-void InfoSub::insertSubAccountInfo (
-    RippleAddress addr, std::uint32_t uLedgerIndex)
+void InfoSub::insertSubAccountInfo (AccountID const& account, bool rt)
 {
     ScopedLockType sl (mLock);
 
-    mSubAccountInfo.insert (addr);
+    if (rt)
+        realTimeSubscriptions_.insert (account);
+    else
+        normalSubscriptions_.insert (account);
+}
+
+void InfoSub::deleteSubAccountInfo (AccountID const& account, bool rt)
+{
+    ScopedLockType sl (mLock);
+
+    if (rt)
+        realTimeSubscriptions_.erase (account);
+    else
+        normalSubscriptions_.erase (account);
 }
 
 void InfoSub::clearPathRequest ()

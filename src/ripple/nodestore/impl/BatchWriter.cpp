@@ -19,7 +19,7 @@
 
 #include <BeastConfig.h>
 #include <ripple/nodestore/impl/BatchWriter.h>
-    
+
 namespace ripple {
 namespace NodeStore {
 
@@ -38,7 +38,7 @@ BatchWriter::~BatchWriter ()
 }
 
 void
-BatchWriter::store (NodeObject::ref object)
+BatchWriter::store (std::shared_ptr<NodeObject> const& object)
 {
     std::lock_guard<decltype(mWriteMutex)> sl (mWriteMutex);
 

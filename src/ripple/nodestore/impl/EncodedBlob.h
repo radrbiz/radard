@@ -22,7 +22,6 @@
 
 #include <ripple/nodestore/NodeObject.h>
 #include <beast/module/core/memory/MemoryBlock.h>
-#include <beast/utility/noexcept.h>
 #include <cstddef>
 
 namespace ripple {
@@ -35,7 +34,7 @@ namespace NodeStore {
 struct EncodedBlob
 {
 public:
-    void prepare (NodeObject::Ptr const& object);
+    void prepare (std::shared_ptr<NodeObject> const& object);
     void const* getKey () const noexcept { return m_key; }
     std::size_t getSize () const noexcept { return m_size; }
     void const* getData () const noexcept { return m_data.getData (); }

@@ -310,7 +310,7 @@ verify (
         Iterates the key and data files, throws store_corrupt_error
             on broken invariants.
     This uses a different algorithm that depends on allocating
-    a lareg buffer.
+    a large buffer.
 */
 template <class Hasher, class Progress>
 verify_info

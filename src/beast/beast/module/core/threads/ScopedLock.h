@@ -21,8 +21,8 @@
 */
 //==============================================================================
 
-#ifndef BEAST_SCOPEDLOCK_H_INCLUDED
-#define BEAST_SCOPEDLOCK_H_INCLUDED
+#ifndef BEAST_MODULE_CORE_THREADS_SCOPEDLOCK_H_INCLUDED
+#define BEAST_MODULE_CORE_THREADS_SCOPEDLOCK_H_INCLUDED
 
 namespace beast
 {
@@ -145,7 +145,7 @@ public:
     */
     inline explicit GenericScopedUnlock (LockType& lock) noexcept
         : lock_ (lock)
-    { 
+    {
         lock.unlock();
     }
 

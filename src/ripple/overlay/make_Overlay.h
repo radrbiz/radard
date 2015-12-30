@@ -22,7 +22,7 @@
 
 #include <ripple/server/ServerHandler.h>
 #include <ripple/overlay/Overlay.h>
-#include <ripple/resource/Manager.h>
+#include <ripple/resource/ResourceManager.h>
 #include <ripple/basics/Resolver.h>
 #include <beast/threads/Stoppable.h>
 #include <beast/module/core/files/File.h>
@@ -37,13 +37,14 @@ setup_Overlay (BasicConfig const& config);
 /** Creates the implementation of Overlay. */
 std::unique_ptr <Overlay>
 make_Overlay (
+    Application& app,
     Overlay::Setup const& setup,
     beast::Stoppable& parent,
     ServerHandler& serverHandler,
     Resource::Manager& resourceManager,
-    beast::File const& pathToDbFileOrDirectory,
     Resolver& resolver,
-    boost::asio::io_service& io_service);
+    boost::asio::io_service& io_service,
+    BasicConfig const& config);
 
 } // ripple
 

@@ -22,18 +22,19 @@
 // Distributed under the MIT/X11 software license, see the accompanying
 // file license.txt or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef RIPPLE_CKEYDETERMINISTIC_H
-#define RIPPLE_CKEYDETERMINISTIC_H
+#ifndef RIPPLE_CRYPTO_GENERATEDETERMINISTICKEY_H_INCLUDED
+#define RIPPLE_CRYPTO_GENERATEDETERMINISTICKEY_H_INCLUDED
 
-#include <ripple/crypto/ec_key.h>
 #include <ripple/basics/base_uint.h>
-#include <openssl/bn.h>
 
 namespace ripple {
 
-openssl::ec_key GenerateRootDeterministicKey (const uint128& passPhrase);
-openssl::ec_key GeneratePublicDeterministicKey (Blob const& generator, int n);
-openssl::ec_key GeneratePrivateDeterministicKey (Blob const& family, const BIGNUM* rootPriv, int n);
+Blob generateRootDeterministicPublicKey (const uint128& passPhrase);
+uint256 generateRootDeterministicPrivateKey (const uint128& passPhrase);
+
+Blob generatePublicDeterministicKey (Blob const& generator, int n);
+uint256 generatePrivateDeterministicKey (
+    Blob const& family, uint128 const& seed, int n);
 
 } // ripple
 

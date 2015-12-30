@@ -19,18 +19,21 @@
 
 #include <BeastConfig.h>
 #include <ripple/app/ledger/TransactionStateSF.h>
+#include <ripple/app/ledger/LedgerMaster.h>
+#include <ripple/app/ledger/TransactionMaster.h>
 #include <ripple/app/main/Application.h>
 #include <ripple/app/misc/NetworkOPs.h>
-#include <ripple/app/tx/TransactionMaster.h>
 #include <ripple/nodestore/Database.h>
 #include <ripple/protocol/HashPrefix.h>
 
 namespace ripple {
 
-TransactionStateSF::TransactionStateSF()
+TransactionStateSF::TransactionStateSF(Application& app)
+    : app_ (app)
 {
 }
 
+// VFALCO This might be better as Blob&&
 void TransactionStateSF::gotNode (bool fromFilter,
                                   SHAMapNodeID const& id,
                                   uint256 const& nodeHash,
@@ -40,17 +43,18 @@ void TransactionStateSF::gotNode (bool fromFilter,
     // VFALCO SHAMapSync filters should be passed the SHAMap, the
     //        SHAMap should provide an accessor to get the injected Database,
     //        and this should use that Database instad of getNodeStore
-    getApp().getNodeStore ().store (
-        (type == SHAMapTreeNode::tnTRANSACTION_NM) ? hotTRANSACTION : hotTRANSACTION_NODE,
-        std::move (nodeData),
-        nodeHash);
+    assert(type !=
+        SHAMapTreeNode::tnTRANSACTION_NM);
+    app_.getNodeStore().store(
+        hotTRANSACTION_NODE,
+            std::move (nodeData), nodeHash);
 }
 
 bool TransactionStateSF::haveNode (SHAMapNodeID const& id,
                                    uint256 const& nodeHash,
                                    Blob& nodeData)
 {
-    return getApp().getOPs ().getFetchPack (nodeHash, nodeData);
+    return app_.getLedgerMaster ().getFetchPack (nodeHash, nodeData);
 }
 
 } // ripple

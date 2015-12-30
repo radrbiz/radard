@@ -17,8 +17,8 @@
 */
 //==============================================================================
 
-#ifndef BEAST_CONTAINER_AGED_CONTAINER_ITERATOR_H_INCLUDED
-#define BEAST_CONTAINER_AGED_CONTAINER_ITERATOR_H_INCLUDED
+#ifndef BEAST_CONTAINER_DETAIL_AGED_CONTAINER_ITERATOR_H_INCLUDED
+#define BEAST_CONTAINER_DETAIL_AGED_CONTAINER_ITERATOR_H_INCLUDED
 
 #include <iterator>
 #include <type_traits>
@@ -49,7 +49,7 @@ class aged_container_iterator
     : public Base
 {
 public:
-    typedef typename Iterator::value_type::stashed::time_point time_point;
+    using time_point = typename Iterator::value_type::stashed::time_point;
 
     // Could be '= default', but Visual Studio 2013 chokes on it [Aug 2014]
     aged_container_iterator ()

@@ -17,12 +17,13 @@
 */
 //==============================================================================
 
-#ifndef RIPPLE_PATHSTATE_H
-#define RIPPLE_PATHSTATE_H
+#ifndef RIPPLE_APP_PATHS_PATHSTATE_H_INCLUDED
+#define RIPPLE_APP_PATHS_PATHSTATE_H_INCLUDED
 
-#include <ripple/app/ledger/LedgerEntrySet.h>
 #include <ripple/app/paths/Node.h>
 #include <ripple/app/paths/Types.h>
+#include <ripple/ledger/PaymentSandbox.h>
+#include <boost/optional.hpp>
 
 namespace ripple {
 
@@ -30,27 +31,29 @@ namespace ripple {
 class PathState : public CountedObject <PathState>
 {
   public:
-    typedef std::vector<uint256> OfferIndexList;
-    typedef std::shared_ptr<PathState> Ptr;
-    typedef std::vector<Ptr> List;
+    using OfferIndexList = std::vector<uint256>;
+    using Ptr = std::shared_ptr<PathState>;
+    using List = std::vector<Ptr>;
 
-    PathState (STAmount const& saSend, STAmount const& saSendMax)
+    PathState (PaymentSandbox const& parent,
+            STAmount const& saSend,
+               STAmount const& saSendMax,
+                   beast::Journal j)
         : mIndex (0)
         , uQuality (0)
         , saInReq (saSendMax)
         , saOutReq (saSend)
+        , j_ (j)
     {
+        view_.emplace(&parent);
     }
-
-    explicit PathState (const PathState& psSrc) = default;
 
     void reset(STAmount const& in, STAmount const& out);
 
     TER expandPath (
-        LedgerEntrySet const&   lesSource,
-        STPath const&           spSourcePath,
-        Account const&          uReceiverID,
-        Account const&          uSenderID
+        STPath const&    spSourcePath,
+        AccountID const& uReceiverID,
+        AccountID const& uSenderID
     );
 
     path::Node::List& nodes() { return nodes_; }
@@ -81,8 +84,6 @@ class PathState : public CountedObject <PathState>
         umReverse.insert({ai, i});
     }
 
-    Json::Value getJson () const;
-
     static char const* getCountedObjectName () { return "PathState"; }
     OfferIndexList& unfundedOffers() { return unfundedOffers_; }
 
@@ -92,33 +93,67 @@ class PathState : public CountedObject <PathState>
     std::uint64_t quality() const { return uQuality; }
     void setQuality (std::uint64_t q) { uQuality = q; }
 
-    bool allLiquidityConsumed() const { return allLiquidityConsumed_; }
-    void consumeAllLiquidity () { allLiquidityConsumed_ = true; }
-
     void setIndex (int i) { mIndex  = i; }
     int index() const { return mIndex; }
 
-    TER checkNoRipple (Account const& destinationAccountID,
-                       Account const& sourceAccountID);
+    TER checkNoRipple (AccountID const& destinationAccountID,
+                       AccountID const& sourceAccountID);
     void checkFreeze ();
 
     static bool lessPriority (PathState const& lhs, PathState const& rhs);
 
-    LedgerEntrySet& ledgerEntries() { return lesEntries; }
+    PaymentSandbox&
+    view()
+    {
+        return *view_;
+    }
+
+    void resetView (PaymentSandbox const& view)
+    {
+        view_.emplace(&view);
+    }
 
     bool isDry() const
     {
         return !(saInPass && saOutPass);
     }
 
-  private:
+private:
     TER checkNoRipple (
-        Account const&, Account const&, Account const&, Currency const&);
+        AccountID const&, AccountID const&, AccountID const&, Currency const&);
 
     /** Clear path structures, and clear each node. */
     void clear();
 
+    TER pushNode (
+        int const iType,
+        AccountID const& account,
+        Currency const& currency,
+        AccountID const& issuer);
+
+    TER pushImpliedNodes (
+        AccountID const& account,
+        Currency const& currency,
+        AccountID const& issuer);
+
+    Json::Value getJson () const;
+
+private:
+    boost::optional<PaymentSandbox> view_;
+
+    int                         mIndex;    // Index/rank amoung siblings.
+    std::uint64_t               uQuality;  // 0 = no quality/liquity left.
+
+    STAmount const&             saInReq;   // --> Max amount to spend by sender.
+    STAmount                    saInAct;   // --> Amount spent by sender so far.
+    STAmount                    saInPass;  // <-- Amount spent by sender.
+
+    STAmount const&             saOutReq;  // --> Amount to send.
+    STAmount                    saOutAct;  // --> Amount actually sent so far.
+    STAmount                    saOutPass; // <-- Amount actually sent.
+
     TER terStatus;
+
     path::Node::List nodes_;
 
     // When processing, don't want to complicate directory walking with
@@ -134,32 +169,7 @@ class PathState : public CountedObject <PathState>
     // Source may only be used there if not mentioned by an account.
     AccountIssueToNodeIndex umReverse;
 
-    LedgerEntrySet lesEntries;
-
-    int                         mIndex;    // Index/rank amoung siblings.
-    std::uint64_t               uQuality;  // 0 = no quality/liquity left.
-
-    STAmount const&             saInReq;   // --> Max amount to spend by sender.
-    STAmount                    saInAct;   // --> Amount spent by sender so far.
-    STAmount                    saInPass;  // <-- Amount spent by sender.
-
-    STAmount const&             saOutReq;  // --> Amount to send.
-    STAmount                    saOutAct;  // --> Amount actually sent so far.
-    STAmount                    saOutPass; // <-- Amount actually sent.
-
-    // If true, all liquidity on this path has been consumed.
-    bool allLiquidityConsumed_ = false;
-
-    TER pushNode (
-        int const iType,
-        Account const& account,
-        Currency const& currency,
-        Account const& issuer);
-
-    TER pushImpliedNodes (
-        Account const& account,
-        Currency const& currency,
-        Account const& issuer);
+    beast::Journal j_;
 };
 
 } // ripple

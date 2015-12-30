@@ -23,6 +23,7 @@
 
 #if RIPPLE_ROCKSDB_AVAILABLE
 
+#include <ripple/basics/contract.h>
 #include <ripple/core/Config.h> // VFALCO Bad dependency
 #include <ripple/nodestore/Factory.h>
 #include <ripple/nodestore/Manager.h>
@@ -31,7 +32,7 @@
 #include <ripple/nodestore/impl/EncodedBlob.h>
 #include <beast/threads/Thread.h>
 #include <atomic>
-#include <beast/cxx14/memory.h> // <memory>
+#include <memory>
 
 namespace ripple {
 namespace NodeStore {
@@ -99,68 +100,48 @@ public:
     std::string m_name;
     std::unique_ptr <rocksdb::DB> m_db;
 
-    RocksDBBackend (int keyBytes, Parameters const& keyValues,
+    RocksDBBackend (int keyBytes, Section const& keyValues,
         Scheduler& scheduler, beast::Journal journal, RocksDBEnv* env)
         : m_deletePath (false)
         , m_journal (journal)
         , m_keyBytes (keyBytes)
         , m_scheduler (scheduler)
         , m_batch (*this, scheduler)
-        , m_name (keyValues ["path"].toStdString ())
     {
-        if (m_name.empty())
-            throw std::runtime_error ("Missing path in RocksDBFactory backend");
+        if (! get_if_exists(keyValues, "path", m_name))
+            Throw<std::runtime_error> ("Missing path in RocksDBFactory backend");
 
         rocksdb::Options options;
         rocksdb::BlockBasedTableOptions table_options;
         options.create_if_missing = true;
         options.env = env;
 
-        if (keyValues["cache_mb"].isEmpty())
-        {
-            table_options.block_cache = rocksdb::NewLRUCache (getConfig ().getSize (siHashNodeDBCache) * 1024 * 1024);
-        }
-        else
-        {
-            table_options.block_cache = rocksdb::NewLRUCache (keyValues["cache_mb"].getIntValue() * 1024L * 1024L);
-        }
+        if (keyValues.exists ("cache_mb"))
+            table_options.block_cache = rocksdb::NewLRUCache (get<int>(keyValues, "cache_mb") * 1024L * 1024L);
 
-        if (keyValues["filter_bits"].isEmpty())
-        {
-            if (getConfig ().NODE_SIZE >= 2)
-                table_options.filter_policy.reset (rocksdb::NewBloomFilterPolicy (10));
-        }
-        else if (keyValues["filter_bits"].getIntValue() != 0)
-        {
-            table_options.filter_policy.reset (rocksdb::NewBloomFilterPolicy (keyValues["filter_bits"].getIntValue()));
-        }
+        if (auto const v = get<int>(keyValues, "filter_bits"))
+            table_options.filter_policy.reset (rocksdb::NewBloomFilterPolicy (v));
 
-        if (! keyValues["open_files"].isEmpty())
-        {
-            options.max_open_files = keyValues["open_files"].getIntValue();
-        }
+        get_if_exists (keyValues, "open_files", options.max_open_files);
 
-        if (! keyValues["file_size_mb"].isEmpty())
+        if (keyValues.exists ("file_size_mb"))
         {
-            options.target_file_size_base = 1024 * 1024 * keyValues["file_size_mb"].getIntValue();
+            options.target_file_size_base = 1024 * 1024 * get<int>(keyValues,"file_size_mb");
             options.max_bytes_for_level_base = 5 * options.target_file_size_base;
             options.write_buffer_size = 2 * options.target_file_size_base;
         }
 
-        if (! keyValues["file_size_mult"].isEmpty())
-        {
-            options.target_file_size_multiplier = keyValues["file_size_mult"].getIntValue();
-        }
+        get_if_exists (keyValues, "file_size_mult", options.target_file_size_multiplier);
 
-        if (! keyValues["bg_threads"].isEmpty())
+        if (keyValues.exists ("bg_threads"))
         {
             options.env->SetBackgroundThreads
-                (keyValues["bg_threads"].getIntValue(), rocksdb::Env::LOW);
+                (get<int>(keyValues, "bg_threads"), rocksdb::Env::LOW);
         }
 
-        if (! keyValues["high_threads"].isEmpty())
+        if (keyValues.exists ("high_threads"))
         {
-            auto const highThreads = keyValues["high_threads"].getIntValue();
+            auto const highThreads = get<int>(keyValues, "high_threads");
             options.env->SetBackgroundThreads (highThreads, rocksdb::Env::HIGH);
 
             // If we have high-priority threads, presumably we want to
@@ -169,36 +150,30 @@ public:
                 options.max_background_flushes = highThreads;
         }
 
-        if (! keyValues["compression"].isEmpty ())
+        if (keyValues.exists ("compression") &&
+            (get<int>(keyValues, "compression") == 0))
         {
-            if (keyValues["compression"].getIntValue () == 0)
-            {
-                options.compression = rocksdb::kNoCompression;
-            }
+            options.compression = rocksdb::kNoCompression;
         }
 
-        if (! keyValues["block_size"].isEmpty ())
-        {
-            table_options.block_size = keyValues["block_size"].getIntValue ();
-        }
+        get_if_exists (keyValues, "block_size", table_options.block_size);
 
-        if (! keyValues["universal_compaction"].isEmpty ())
+        if (keyValues.exists ("universal_compaction") &&
+            (get<int>(keyValues, "universal_compaction") != 0))
         {
-            if (keyValues["universal_compaction"].getIntValue () != 0)
-            {
-                options.compaction_style = rocksdb:: kCompactionStyleUniversal;
-                options.min_write_buffer_number_to_merge = 2;
-                options.max_write_buffer_number = 6;
-                options.write_buffer_size = 6 * options.target_file_size_base;
-            }
+            options.compaction_style = rocksdb::kCompactionStyleUniversal;
+            options.min_write_buffer_number_to_merge = 2;
+            options.max_write_buffer_number = 6;
+            options.write_buffer_size = 6 * options.target_file_size_base;
         }
 
         options.table_factory.reset(NewBlockBasedTableFactory(table_options));
 
         rocksdb::DB* db = nullptr;
         rocksdb::Status status = rocksdb::DB::Open (options, m_name, &db);
-        if (!status.ok () || !db)
-            throw std::runtime_error (std::string("Unable to open/create RocksDB: ") + status.ToString());
+        if (! status.ok () || ! db)
+            Throw<std::runtime_error> (
+                std::string("Unable to open/create RocksDB: ") + status.ToString());
 
         m_db.reset (db);
     }
@@ -223,7 +198,7 @@ public:
     }
 
     std::string
-    getName()
+    getName() override
     {
         return m_name;
     }
@@ -231,7 +206,7 @@ public:
     //--------------------------------------------------------------------------
 
     Status
-    fetch (void const* key, NodeObject::Ptr* pObject)
+    fetch (void const* key, std::shared_ptr<NodeObject>* pObject) override
     {
         pObject->reset ();
 
@@ -280,14 +255,27 @@ public:
         return status;
     }
 
+    bool
+    canFetchBatch() override
+    {
+        return false;
+    }
+
+    std::vector<std::shared_ptr<NodeObject>>
+    fetchBatch (std::size_t n, void const* const* keys) override
+    {
+        Throw<std::runtime_error> ("pure virtual called");
+        return {};
+    }
+
     void
-    store (NodeObject::ref object)
+    store (std::shared_ptr<NodeObject> const& object) override
     {
         m_batch.store (object);
     }
 
     void
-    storeBatch (Batch const& batch)
+    storeBatch (Batch const& batch) override
     {
         rocksdb::WriteBatch wb;
 
@@ -308,12 +296,12 @@ public:
 
         auto ret = m_db->Write (options, &wb);
 
-        if (!ret.ok ())
-            throw std::runtime_error ("storeBatch failed: " + ret.ToString());
+        if (! ret.ok ())
+            Throw<std::runtime_error> ("storeBatch failed: " + ret.ToString());
     }
 
     void
-    for_each (std::function <void(NodeObject::Ptr)> f)
+    for_each (std::function <void(std::shared_ptr<NodeObject>)> f) override
     {
         rocksdb::ReadOptions const options;
 
@@ -335,7 +323,8 @@ public:
                 {
                     // Uh oh, corrupted data!
                     if (m_journal.fatal) m_journal.fatal <<
-                        "Corrupt NodeObject #" << uint256 (it->key ().data ());
+                        "Corrupt NodeObject #" <<
+                        from_hex_text<uint256>(it->key ().data ());
                 }
             }
             else
@@ -349,7 +338,7 @@ public:
     }
 
     int
-    getWriteLoad ()
+    getWriteLoad () override
     {
         return m_batch.getWriteLoad ();
     }
@@ -363,7 +352,7 @@ public:
     //--------------------------------------------------------------------------
 
     void
-    writeBatch (Batch const& batch)
+    writeBatch (Batch const& batch) override
     {
         storeBatch (batch);
     }
@@ -400,7 +389,7 @@ public:
     std::unique_ptr <Backend>
     createInstance (
         size_t keyBytes,
-        Parameters const& keyValues,
+        Section const& keyValues,
         Scheduler& scheduler,
         beast::Journal journal)
     {

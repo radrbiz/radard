@@ -45,7 +45,7 @@
 #include <cstring>
 #include <exception>
 #include <limits>
-#include <beast/cxx14/memory.h> // <memory>
+#include <memory>
 #include <mutex>
 #include <stdexcept>
 #include <string>
@@ -62,7 +62,7 @@ namespace nudb {
 /*
 
     TODO
-    
+
     - fingerprint / checksum on log records
 
     - size field at end of data records
@@ -124,7 +124,7 @@ private:
         detail::key_file_header const kh;
 
         // pool commit high water mark
-        std::size_t pool_thresh = 0;
+        std::size_t pool_thresh = 1;
 
         state (state const&) = delete;
         state& operator= (state const&) = delete;
@@ -372,7 +372,7 @@ store<Hasher, Codec, File>::open (
     key_file_header kh;
     read (df, dh);
     read (kf, kh);
-    verify<Codec> (dh);
+    verify (dh);
     verify<Hasher> (kh);
     verify<Hasher> (dh, kh);
     auto s = std::make_unique<state>(
@@ -550,7 +550,7 @@ store<Hasher, Codec, File>::fetch (
             if (item.hash != h)
                 break;
             // Data Record
-            auto const len = 
+            auto const len =
                 s_->kh.key_size +       // Key
                 item.size;              // Value
             buf0.reserve(len);
@@ -841,6 +841,7 @@ store<Hasher, Codec, File>::commit()
         s_->p0.clear();
         buckets_ = buckets;
         modulus_ = modulus;
+        g_.start();
     }
     // Write clean buckets to log file
     // VFALCO Should the bulk_writer buffer size be tunable?
@@ -861,14 +862,11 @@ store<Hasher, Codec, File>::commit()
         w.flush();
         s_->lf.sync();
     }
-    // VFALCO Audit for concurrency
-    {
-        std::lock_guard<gentex> g (g_);
-        // Write new buckets to key file
-        for (auto const e : s_->c1)
-            e.second.write (s_->kf,
-                (e.first + 1) * s_->kh.block_size);
-    }
+    g_.finish();
+    // Write new buckets to key file
+    for (auto const e : s_->c1)
+        e.second.write (s_->kf,
+            (e.first + 1) * s_->kh.block_size);
     // Finalize the commit
     s_->df.sync();
     s_->kf.sync();
@@ -918,7 +916,9 @@ store<Hasher, Codec, File>::run()
                 if (timeout)
                 {
                     m.lock();
-                    s_->pool_thresh /= 2;
+                    s_->pool_thresh =
+                        std::max<std::size_t>(
+                            1, s_->pool_thresh / 2);
                     s_->p1.shrink_to_fit();
                     s_->p0.shrink_to_fit();
                     s_->c1.shrink_to_fit();

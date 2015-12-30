@@ -18,15 +18,17 @@
 //==============================================================================
 
 #include <BeastConfig.h>
+#include <ripple/protocol/digest.h>
+#include <ripple/basics/TestSuite.h>
 #include <ripple/protocol/RippleAddress.h>
 #include <ripple/protocol/RipplePublicKey.h>
 #include <ripple/protocol/Serializer.h>
+#include <ripple/protocol/types.h>
 #include <ripple/basics/StringUtilities.h>
-#include <beast/unit_test/suite.h>
 
 namespace ripple {
 
-class RippleAddress_test : public beast::unit_test::suite
+class RippleAddress_test : public ripple::TestSuite
 {
 public:
     void run()
@@ -46,7 +48,7 @@ public:
 
         // Check node signing.
         Blob vucTextSrc = strCopy ("Hello, nurse!");
-        uint256 uHash   = Serializer::getSHA512Half (vucTextSrc);
+        uint256 uHash   = sha512Half(makeSlice(vucTextSrc));
         Blob vucTextSig;
 
         naNodePrivate.signNodePrivate (uHash, vucTextSig);
@@ -57,30 +59,44 @@ public:
 
         expect (generator.humanGenerator () == "fhuJKrhSDzV2SkjLn9qbwm5AaRmrxDPfFsHDCP6yfDZWcxDFz4mt", generator.humanGenerator ());
 
+        // Create ed25519 account public/private key pair.
+        KeyPair keys = generateKeysFromSeed (KeyType::ed25519, naSeed);
+        expectEquals (keys.publicKey.humanAccountPublic(), "aKGheSBjmCsKJVuLNKRAKpZXT6wpk2FCuEZAXJupXgdAxX5THCqR");
+
+        // Check ed25519 account signing.
+        vucTextSig = keys.secretKey.accountPrivateSign (vucTextSrc);
+
+        expect (!vucTextSig.empty(), "ed25519 signing failed.");
+        expect (keys.publicKey.accountPublicVerify (vucTextSrc, vucTextSig, ECDSA()), "ed25519 verify failed.");
+
         // Create account #0 public/private key pair.
         RippleAddress   naAccountPublic0    = RippleAddress::createAccountPublic (generator, 0);
         RippleAddress   naAccountPrivate0   = RippleAddress::createAccountPrivate (generator, naSeed, 0);
 
-        expect (naAccountPublic0.humanAccountID () == "rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh", naAccountPublic0.humanAccountID ());
+        expect (toBase58(calcAccountID(naAccountPublic0)) == "rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh");
         expect (naAccountPublic0.humanAccountPublic () == "aBQG8RQAzjs1eTKFEAQXr2gS4utcDiEC9wmi7pfUPTi27VCahwgw", naAccountPublic0.humanAccountPublic ());
 
         // Create account #1 public/private key pair.
         RippleAddress   naAccountPublic1    = RippleAddress::createAccountPublic (generator, 1);
         RippleAddress   naAccountPrivate1   = RippleAddress::createAccountPrivate (generator, naSeed, 1);
 
-        expect (naAccountPublic1.humanAccountID () == "r4bYF7SLUMD7QgSLLpgJx38WJSY12ViRjP", naAccountPublic1.humanAccountID ());
+        expect (toBase58(calcAccountID(naAccountPublic1)) == "r4bYF7SLUMD7QgSLLpgJx38WJSY12ViRjP");
         expect (naAccountPublic1.humanAccountPublic () == "aBPXpTfuLy1Bhk3HnGTTAqnovpKWQ23NpFMNkAF6F1Atg5vDyPrw", naAccountPublic1.humanAccountPublic ());
 
         // Check account signing.
-        expect (naAccountPrivate0.accountPrivateSign (uHash, vucTextSig), "Signing failed.");
-        expect (naAccountPublic0.accountPublicVerify (uHash, vucTextSig, ECDSA::strict), "Verify failed.");
-        expect (!naAccountPublic1.accountPublicVerify (uHash, vucTextSig, ECDSA::not_strict), "Anti-verify failed.");
-        expect (!naAccountPublic1.accountPublicVerify (uHash, vucTextSig, ECDSA::strict), "Anti-verify failed.");
+        vucTextSig = naAccountPrivate0.accountPrivateSign (vucTextSrc);
 
-        expect (naAccountPrivate1.accountPrivateSign (uHash, vucTextSig), "Signing failed.");
-        expect (naAccountPublic1.accountPublicVerify (uHash, vucTextSig, ECDSA::strict), "Verify failed.");
-        expect (!naAccountPublic0.accountPublicVerify (uHash, vucTextSig, ECDSA::not_strict), "Anti-verify failed.");
-        expect (!naAccountPublic0.accountPublicVerify (uHash, vucTextSig, ECDSA::strict), "Anti-verify failed.");
+        expect (!vucTextSig.empty(), "Signing failed.");
+        expect (naAccountPublic0.accountPublicVerify (vucTextSrc, vucTextSig, ECDSA::strict), "Verify failed.");
+        expect (!naAccountPublic1.accountPublicVerify (vucTextSrc, vucTextSig, ECDSA::not_strict), "Anti-verify failed.");
+        expect (!naAccountPublic1.accountPublicVerify (vucTextSrc, vucTextSig, ECDSA::strict), "Anti-verify failed.");
+
+        vucTextSig = naAccountPrivate1.accountPrivateSign (vucTextSrc);
+
+        expect (!vucTextSig.empty(), "Signing failed.");
+        expect (naAccountPublic1.accountPublicVerify (vucTextSrc, vucTextSig, ECDSA::strict), "Verify failed.");
+        expect (!naAccountPublic0.accountPublicVerify (vucTextSrc, vucTextSig, ECDSA::not_strict), "Anti-verify failed.");
+        expect (!naAccountPublic0.accountPublicVerify (vucTextSrc, vucTextSig, ECDSA::strict), "Anti-verify failed.");
 
         // Check account encryption.
         Blob vucTextCipher

@@ -19,17 +19,29 @@
 
 #include <BeastConfig.h>
 
+#include <ripple/protocol/impl/AccountID.cpp>
+#include <ripple/protocol/impl/Book.cpp>
 #include <ripple/protocol/impl/BuildInfo.cpp>
 #include <ripple/protocol/impl/ByteOrder.cpp>
+#include <ripple/protocol/impl/digest.cpp>
 #include <ripple/protocol/impl/ErrorCodes.cpp>
+#include <ripple/protocol/impl/Feature.cpp>
 #include <ripple/protocol/impl/HashPrefix.cpp>
 #include <ripple/protocol/impl/Indexes.cpp>
+#include <ripple/protocol/impl/Issue.cpp>
+#include <ripple/protocol/impl/Keylet.cpp>
 #include <ripple/protocol/impl/LedgerFormats.cpp>
+#include <ripple/protocol/impl/PublicKey.cpp>
+#include <ripple/protocol/impl/Quality.cpp>
+#include <ripple/protocol/impl/Rate2.cpp>
 #include <ripple/protocol/impl/RippleAddress.cpp>
+#include <ripple/protocol/impl/SecretKey.cpp>
 #include <ripple/protocol/impl/Serializer.cpp>
 #include <ripple/protocol/impl/SField.cpp>
+#include <ripple/protocol/impl/Sign.cpp>
 #include <ripple/protocol/impl/SOTemplate.cpp>
 #include <ripple/protocol/impl/TER.cpp>
+#include <ripple/protocol/impl/tokens.cpp>
 #include <ripple/protocol/impl/TxFormats.cpp>
 #include <ripple/protocol/impl/UintTypes.cpp>
 
@@ -42,18 +54,29 @@
 #include <ripple/protocol/impl/STLedgerEntry.cpp>
 #include <ripple/protocol/impl/STObject.cpp>
 #include <ripple/protocol/impl/STParsedJSON.cpp>
+#include <ripple/protocol/impl/InnerObjectFormats.cpp>
 #include <ripple/protocol/impl/STPathSet.cpp>
 #include <ripple/protocol/impl/STTx.cpp>
 #include <ripple/protocol/impl/STValidation.cpp>
+#include <ripple/protocol/impl/STVar.cpp>
 #include <ripple/protocol/impl/STVector256.cpp>
+#include <ripple/protocol/impl/IOUAmount.cpp>
+
 
 #include <ripple/protocol/tests/BuildInfo.test.cpp>
+#include <ripple/protocol/tests/digest_test.cpp>
+#include <ripple/protocol/tests/InnerObjectFormats.test.cpp>
+#include <ripple/protocol/tests/IOUAmount.test.cpp>
 #include <ripple/protocol/tests/Issue.test.cpp>
+#include <ripple/protocol/tests/PublicKey_test.cpp>
+#include <ripple/protocol/tests/Quality.test.cpp>
 #include <ripple/protocol/tests/RippleAddress.test.cpp>
-#include <ripple/protocol/tests/Serializer.test.cpp>
+#include <ripple/protocol/tests/STAccount.test.cpp>
 #include <ripple/protocol/tests/STAmount.test.cpp>
 #include <ripple/protocol/tests/STObject.test.cpp>
 #include <ripple/protocol/tests/STTx.test.cpp>
+#include <ripple/protocol/tests/types_test.cpp>
+#include <ripple/protocol/tests/XRPAmount.test.cpp>
 
 #if DOXYGEN
 #include <ripple/protocol/README.md>

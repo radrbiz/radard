@@ -18,6 +18,19 @@
 //==============================================================================
 
 #include <BeastConfig.h>
+#include <ripple/app/main/Application.h>
+#include <ripple/app/misc/NetworkOPs.h>
+#include <ripple/basics/Log.h>
+#include <ripple/ledger/ReadView.h>
+#include <ripple/ledger/Sandbox.h>
+#include <ripple/net/RPCErr.h>
+#include <ripple/protocol/ErrorCodes.h>
+#include <ripple/protocol/JsonFields.h>
+#include <ripple/protocol/types.h>
+#include <ripple/resource/Fees.h>
+#include <ripple/rpc/Context.h>
+#include <ripple/rpc/impl/LookupLedger.h>
+#include <ripple/rpc/impl/Utilities.h>
 
 namespace ripple {
 
@@ -26,71 +39,70 @@ Json::Value doBookOffers (RPC::Context& context)
     // VFALCO TODO Here is a terrible place for this kind of business
     //             logic. It needs to be moved elsewhere and documented,
     //             and encapsulated into a function.
-    if (getApp().getJobQueue ().getJobCountGE (jtCLIENT) > 200)
+    if (context.app.getJobQueue ().getJobCountGE (jtCLIENT) > 200)
         return rpcError (rpcTOO_BUSY);
 
-    Ledger::pointer lpLedger;
-    Json::Value jvResult (
-        RPC::lookupLedger (context.params, lpLedger, context.netOps));
+    std::shared_ptr<ReadView const> lpLedger;
+    auto jvResult = RPC::lookupLedger (lpLedger, context);
 
     if (!lpLedger)
         return jvResult;
 
-    if (!context.params.isMember ("taker_pays"))
-        return RPC::missing_field_error ("taker_pays");
+    if (!context.params.isMember (jss::taker_pays))
+        return RPC::missing_field_error (jss::taker_pays);
 
-    if (!context.params.isMember ("taker_gets"))
-        return RPC::missing_field_error ("taker_gets");
+    if (!context.params.isMember (jss::taker_gets))
+        return RPC::missing_field_error (jss::taker_gets);
 
-    if (!context.params["taker_pays"].isObject ())
-        return RPC::object_field_error ("taker_pays");
+    if (!context.params[jss::taker_pays].isObject ())
+        return RPC::object_field_error (jss::taker_pays);
 
-    if (!context.params["taker_gets"].isObject ())
-        return RPC::object_field_error ("taker_gets");
+    if (!context.params[jss::taker_gets].isObject ())
+        return RPC::object_field_error (jss::taker_gets);
 
-    Json::Value const& taker_pays (context.params["taker_pays"]);
+    Json::Value const& taker_pays (context.params[jss::taker_pays]);
 
-    if (!taker_pays.isMember ("currency"))
+    if (!taker_pays.isMember (jss::currency))
         return RPC::missing_field_error ("taker_pays.currency");
 
-    if (! taker_pays ["currency"].isString ())
+    if (! taker_pays [jss::currency].isString ())
         return RPC::expected_field_error ("taker_pays.currency", "string");
 
-    Json::Value const& taker_gets = context.params["taker_gets"];
+    Json::Value const& taker_gets = context.params[jss::taker_gets];
 
-    if (! taker_gets.isMember ("currency"))
+    if (! taker_gets.isMember (jss::currency))
         return RPC::missing_field_error ("taker_gets.currency");
 
-    if (! taker_gets ["currency"].isString ())
+    if (! taker_gets [jss::currency].isString ())
         return RPC::expected_field_error ("taker_gets.currency", "string");
 
     Currency pay_currency;
 
-    if (!to_currency (pay_currency, taker_pays ["currency"].asString ()))
+    if (!to_currency (pay_currency, taker_pays [jss::currency].asString ()))
     {
-        WriteLog (lsINFO, RPCHandler) << "Bad taker_pays currency.";
+        JLOG (context.j.info) << "Bad taker_pays currency.";
         return RPC::make_error (rpcSRC_CUR_MALFORMED,
             "Invalid field 'taker_pays.currency', bad currency.");
     }
 
     Currency get_currency;
 
-    if (!to_currency (get_currency, taker_gets ["currency"].asString ()))
+    if (!to_currency (get_currency, taker_gets [jss::currency].asString ()))
     {
-        WriteLog (lsINFO, RPCHandler) << "Bad taker_gets currency.";
+        JLOG (context.j.info) << "Bad taker_gets currency.";
         return RPC::make_error (rpcDST_AMT_MALFORMED,
             "Invalid field 'taker_gets.currency', bad currency.");
     }
 
-    Account pay_issuer;
+    AccountID pay_issuer;
 
-    if (taker_pays.isMember ("issuer"))
+    if (taker_pays.isMember (jss::issuer))
     {
-        if (! taker_pays ["issuer"].isString())
+        if (! taker_pays [jss::issuer].isString())
             return RPC::expected_field_error ("taker_pays.issuer", "string");
 
         if (!to_issuer(
-            pay_issuer, taker_pays ["issuer"].asString ()))
+            pay_issuer, taker_pays [jss::issuer].asString ()))
             return RPC::make_error (rpcSRC_ISR_MALFORMED,
                 "Invalid field 'taker_pays.issuer', bad issuer.");
 
@@ -100,39 +112,36 @@ Json::Value doBookOffers (RPC::Context& context)
     }
     else
     {
-		if (isXRP(pay_currency))
-			pay_issuer = xrpAccount();
-		else
-			pay_issuer = vbcAccount();
+        pay_issuer = isXRP (pay_currency) ? xrpAccount () : vbcAccount ();
     }
 
     if (isXRP (pay_currency) && ! isXRP (pay_issuer))
         return RPC::make_error (
             rpcSRC_ISR_MALFORMED, "Unneeded field 'taker_pays.issuer' for "
-            "XRP currency specification.");
+            "VRP currency specification.");
 
     if (!isXRP (pay_currency) && isXRP (pay_issuer))
         return RPC::make_error (rpcSRC_ISR_MALFORMED,
-            "Invalid field 'taker_pays.issuer', expected non-XRP issuer.");
+            "Invalid field 'taker_pays.issuer', expected non-VRP issuer.");
 
-	if (isVBC (pay_currency) && !isVBC(pay_issuer))
-		return RPC::make_error(
-		rpcSRC_ISR_MALFORMED, "Unneeded field 'taker_pays.issuer' for "
-		"VBC currency specification.");
+    if (isVBC (pay_currency) && !isVBC(pay_issuer))
+        return RPC::make_error(
+            rpcSRC_ISR_MALFORMED, "Unneeded field 'taker_pays.issuer' for "
+            "VBC currency specification.");
 
-	if (!isVBC (pay_currency) && isVBC(pay_issuer))
-		return RPC::make_error(rpcSRC_ISR_MALFORMED,
-		"Invalid field 'taker_pays.issuer', expected non-VBC issuer.");
+    if (!isVBC (pay_currency) && isVBC(pay_issuer))
+        return RPC::make_error(rpcSRC_ISR_MALFORMED,
+            "Invalid field 'taker_pays.issuer', expected non-VBC issuer.");
 
-    Account get_issuer;
+    AccountID get_issuer;
 
-    if (taker_gets.isMember ("issuer"))
+    if (taker_gets.isMember (jss::issuer))
     {
-        if (! taker_gets ["issuer"].isString())
+        if (! taker_gets [jss::issuer].isString())
             return RPC::expected_field_error ("taker_gets.issuer", "string");
 
         if (! to_issuer (
-            get_issuer, taker_gets ["issuer"].asString ()))
+            get_issuer, taker_gets [jss::issuer].asString ()))
             return RPC::make_error (rpcDST_ISR_MALFORMED,
                 "Invalid field 'taker_gets.issuer', bad issuer.");
 
@@ -142,80 +151,61 @@ Json::Value doBookOffers (RPC::Context& context)
     }
     else
     {
-		if (isXRP(get_currency))
-			get_issuer = xrpAccount();
-		else
-			get_issuer = vbcAccount();
+        get_issuer = isXRP (get_currency) ? xrpAccount () : vbcAccount ();
     }
 
 
     if (isXRP (get_currency) && ! isXRP (get_issuer))
         return RPC::make_error (rpcDST_ISR_MALFORMED,
             "Unneeded field 'taker_gets.issuer' for "
-                               "XRP currency specification.");
+                               "VRP currency specification.");
 
     if (!isXRP (get_currency) && isXRP (get_issuer))
         return RPC::make_error (rpcDST_ISR_MALFORMED,
-            "Invalid field 'taker_gets.issuer', expected non-XRP issuer.");
+            "Invalid field 'taker_gets.issuer', expected non-VRP issuer.");
 
-	if (isVBC (get_currency) && !isVBC(get_issuer))
-		return RPC::make_error(rpcDST_ISR_MALFORMED,
-		"Unneeded field 'taker_gets.issuer' for "
-		"VBC currency specification.");
+    if (isVBC (get_currency) && ! isVBC (get_issuer))
+        return RPC::make_error (rpcDST_ISR_MALFORMED,
+            "Unneeded field 'taker_gets.issuer' for "
+                               "VBC currency specification.");
 
-	if (!isVBC(get_currency) && isVBC(get_issuer))
-		return RPC::make_error(rpcDST_ISR_MALFORMED,
-		"Invalid field 'taker_gets.issuer', expected non-VBC issuer.");
+    if (!isVBC (get_currency) && isVBC (get_issuer))
+        return RPC::make_error (rpcDST_ISR_MALFORMED,
+            "Invalid field 'taker_gets.issuer', expected non-VBC issuer.");
 
-    RippleAddress raTakerID;
-
-    if (context.params.isMember ("taker"))
+    boost::optional<AccountID> takerID;
+    if (context.params.isMember (jss::taker))
     {
-        if (! context.params ["taker"].isString ())
-            return RPC::expected_field_error ("taker", "string");
+        if (! context.params [jss::taker].isString ())
+            return RPC::expected_field_error (jss::taker, "string");
 
-        if (! raTakerID.setAccountID (context.params ["taker"].asString ()))
-            return RPC::invalid_field_error ("taker");
-    }
-    else
-    {
-        raTakerID.setAccountID (noAccount());
+        takerID = parseBase58<AccountID>(
+            context.params [jss::taker].asString());
+        if (! takerID)
+            return RPC::invalid_field_error (jss::taker);
     }
 
     if (pay_currency == get_currency && pay_issuer == get_issuer)
     {
-        WriteLog (lsINFO, RPCHandler) << "taker_gets same as taker_pays.";
+        JLOG (context.j.info) << "taker_gets same as taker_pays.";
         return RPC::make_error (rpcBAD_MARKET);
     }
 
-    unsigned int iLimit;
-    if (context.params.isMember (jss::limit))
-    {
-        auto const& jvLimit (context.params[jss::limit]);
+    unsigned int limit;
+    if (auto err = readLimitField(limit, RPC::Tuning::bookOffers, context))
+        return *err;
 
-        if (! jvLimit.isIntegral ())
-            return RPC::expected_field_error ("limit", "unsigned integer");
+    bool const bProof (context.params.isMember (jss::proof));
 
-        iLimit = jvLimit.isUInt () ? jvLimit.asUInt () :
-            std::max (0, jvLimit.asInt ());
-    }
-    else
-    {
-        iLimit = 0;
-    }
-
-    bool const bProof (context.params.isMember ("proof"));
-
-    Json::Value const jvMarker (context.params.isMember ("marker")
-        ? context.params["marker"]
+    Json::Value const jvMarker (context.params.isMember (jss::marker)
+        ? context.params[jss::marker]
         : Json::Value (Json::nullValue));
 
-    lpLedger = std::make_shared<Ledger> (std::ref (*lpLedger), false);
     context.netOps.getBookPage (
-        context.role == Role::ADMIN,
+        isUnlimited (context.role),
         lpLedger,
         {{pay_currency, pay_issuer}, {get_currency, get_issuer}},
-        raTakerID.getAccountID (), bProof, iLimit, jvMarker, jvResult);
+        takerID ? *takerID : zero, bProof, limit, jvMarker, jvResult);
 
     context.loadType = Resource::feeMediumBurdenRPC;
 

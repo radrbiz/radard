@@ -42,15 +42,6 @@ static_assert (sizeof (std::uint64_t) == 8, "std::uint64_t must be exactly 8 byt
 
 namespace beast
 {
-
-std::string
-SystemStats::getBeastVersion()
-{
-    return "Beast v" + std::to_string (BEAST_MAJOR_VERSION) +
-                 "." + std::to_string (BEAST_MINOR_VERSION) +
-                 "." + std::to_string (BEAST_BUILDNUMBER);
-}
-
 //==============================================================================
 #if BEAST_LINUX
 namespace LinuxStatsHelpers
@@ -106,18 +97,18 @@ static const CPUInformation& getCPUInformation() noexcept
     return info;
 }
 
-bool SystemStats::hasMMX() noexcept { return getCPUInformation().hasMMX; }
-bool SystemStats::hasSSE() noexcept { return getCPUInformation().hasSSE; }
-bool SystemStats::hasSSE2() noexcept { return getCPUInformation().hasSSE2; }
-bool SystemStats::hasSSE3() noexcept { return getCPUInformation().hasSSE3; }
-bool SystemStats::has3DNow() noexcept { return getCPUInformation().has3DNow; }
-bool SystemStats::hasSSE4() noexcept { return getCPUInformation().hasSSE4; }
-bool SystemStats::hasAVX() noexcept { return getCPUInformation().hasAVX; }
-bool SystemStats::hasAVX2() noexcept { return getCPUInformation().hasAVX2; }
+bool hasMMX() noexcept { return getCPUInformation().hasMMX; }
+bool hasSSE() noexcept { return getCPUInformation().hasSSE; }
+bool hasSSE2() noexcept { return getCPUInformation().hasSSE2; }
+bool hasSSE3() noexcept { return getCPUInformation().hasSSE3; }
+bool has3DNow() noexcept { return getCPUInformation().has3DNow; }
+bool hasSSE4() noexcept { return getCPUInformation().hasSSE4; }
+bool hasAVX() noexcept { return getCPUInformation().hasAVX; }
+bool hasAVX2() noexcept { return getCPUInformation().hasAVX2; }
 
 //==============================================================================
 std::vector <std::string>
-SystemStats::getStackBacktrace()
+getStackBacktrace()
 {
     std::vector <std::string> result;
 
@@ -183,43 +174,6 @@ SystemStats::getStackBacktrace()
 #endif
 
     return result;
-}
-
-//==============================================================================
-static SystemStats::CrashHandlerFunction globalCrashHandler = nullptr;
-
-#if BEAST_WINDOWS
-static LONG WINAPI handleCrash (LPEXCEPTION_POINTERS)
-{
-    globalCrashHandler();
-    return EXCEPTION_EXECUTE_HANDLER;
-}
-#else
-static void handleCrash (int)
-{
-    globalCrashHandler();
-    kill (getpid(), SIGKILL);
-}
-
-int beast_siginterrupt (int sig, int flag);
-#endif
-
-void SystemStats::setApplicationCrashHandler (CrashHandlerFunction handler)
-{
-    bassert (handler != nullptr); // This must be a valid function.
-    globalCrashHandler = handler;
-
-   #if BEAST_WINDOWS
-    SetUnhandledExceptionFilter (handleCrash);
-   #else
-    const int signals[] = { SIGFPE, SIGILL, SIGSEGV, SIGBUS, SIGABRT, SIGSYS };
-
-    for (int i = 0; i < numElementsInArray (signals); ++i)
-    {
-        ::signal (signals[i], handleCrash);
-        beast_siginterrupt (signals[i], 1);
-    }
-   #endif
 }
 
 } // beast

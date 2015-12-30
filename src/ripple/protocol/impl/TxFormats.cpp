@@ -63,13 +63,35 @@ TxFormats::TxFormats ()
         << SOElement (sfPaths,               SOE_DEFAULT)
         << SOElement (sfInvoiceID,           SOE_OPTIONAL)
         << SOElement (sfDestinationTag,      SOE_OPTIONAL)
+        << SOElement (sfDeliverMin,          SOE_OPTIONAL)
         ;
 
+    add ("SuspendedPaymentCreate", ttSUSPAY_CREATE) <<
+        SOElement (sfDestination,       SOE_REQUIRED) <<
+        SOElement (sfAmount,            SOE_REQUIRED) <<
+        SOElement (sfDigest,            SOE_OPTIONAL) <<
+        SOElement (sfCancelAfter,       SOE_OPTIONAL) <<
+        SOElement (sfFinishAfter,       SOE_OPTIONAL) <<
+        SOElement (sfDestinationTag,    SOE_OPTIONAL);
+
+    add ("SuspendedPaymentFinish", ttSUSPAY_FINISH) <<
+        SOElement (sfOwner,               SOE_REQUIRED) <<
+        SOElement (sfOfferSequence,       SOE_REQUIRED) <<
+        SOElement (sfMethod,              SOE_OPTIONAL) <<
+        SOElement (sfDigest,              SOE_OPTIONAL) <<
+        SOElement (sfProof,               SOE_OPTIONAL);
+
+    add ("SuspendedPaymentCancel", ttSUSPAY_CANCEL) <<
+        SOElement (sfOwner,               SOE_REQUIRED) <<
+        SOElement (sfOfferSequence,       SOE_REQUIRED);
+
     add ("EnableAmendment", ttAMENDMENT)
+        << SOElement (sfLedgerSequence,      SOE_OPTIONAL)
         << SOElement (sfAmendment,           SOE_REQUIRED)
         ;
 
     add ("SetFee", ttFEE)
+        << SOElement (sfLedgerSequence,      SOE_OPTIONAL)
         << SOElement (sfBaseFee,             SOE_REQUIRED)
         << SOElement (sfReferenceFeeUnits,   SOE_REQUIRED)
         << SOElement (sfReserveBase,         SOE_REQUIRED)
@@ -96,7 +118,7 @@ TxFormats::TxFormats ()
         << SOElement (sfDividendVRank,       SOE_OPTIONAL)
         << SOElement (sfDividendVSprd,       SOE_OPTIONAL)
         << SOElement (sfDividendTSprd,       SOE_OPTIONAL)
-        << SOElement (sfDividendResultHash,  SOE_OPTIONAL)
+        << SOElement (sfDividendHash,        SOE_OPTIONAL)
         ;
 
     add("AddReferee", ttADDREFEREE)
@@ -107,7 +129,7 @@ TxFormats::TxFormats ()
     add("ActiveAccount", ttACTIVEACCOUNT)
         << SOElement(sfReferee,              SOE_REQUIRED)
         << SOElement(sfReference,            SOE_REQUIRED)
-        << SOElement(sfAmount,               SOE_OPTIONAL)
+        << SOElement(sfAmount,               SOE_REQUIRED)
         << SOElement(sfAmounts,              SOE_OPTIONAL)
         << SOElement(sfLimits,               SOE_OPTIONAL)
         ;
@@ -116,6 +138,13 @@ TxFormats::TxFormats ()
         << SOElement (sfDestination,         SOE_REQUIRED)
         << SOElement (sfAmount,              SOE_REQUIRED)
         << SOElement (sfReleaseSchedule,     SOE_REQUIRED)
+        ;
+
+    // The SignerEntries are optional because a SignerList is deleted by
+    // setting the SignerQuorum to zero and omitting SignerEntries.
+    add ("SignerListSet", ttSIGNER_LIST_SET)
+        << SOElement (sfSignerQuorum,        SOE_REQUIRED)
+        << SOElement (sfSignerEntries,       SOE_OPTIONAL)
         ;
 }
 
@@ -127,7 +156,7 @@ void TxFormats::addCommonFields (Item& item)
         << SOElement(sfSourceTag,           SOE_OPTIONAL)
         << SOElement(sfAccount,             SOE_REQUIRED)
         << SOElement(sfSequence,            SOE_REQUIRED)
-        << SOElement(sfPreviousTxnID,       SOE_OPTIONAL) // Deprecated: Do not use
+        << SOElement(sfPreviousTxnID,       SOE_OPTIONAL) // emulate027
         << SOElement(sfLastLedgerSequence,  SOE_OPTIONAL)
         << SOElement(sfAccountTxnID,        SOE_OPTIONAL)
         << SOElement(sfFee,                 SOE_REQUIRED)
@@ -135,13 +164,14 @@ void TxFormats::addCommonFields (Item& item)
         << SOElement(sfMemos,               SOE_OPTIONAL)
         << SOElement(sfSigningPubKey,       SOE_REQUIRED)
         << SOElement(sfTxnSignature,        SOE_OPTIONAL)
+        << SOElement(sfSigners,             SOE_OPTIONAL) // submit_multisigned
         ;
 }
 
 TxFormats const&
 TxFormats::getInstance ()
 {
-    static TxFormats instance;
+    static TxFormats const instance;
     return instance;
 }
 

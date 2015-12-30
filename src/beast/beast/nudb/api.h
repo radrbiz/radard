@@ -21,6 +21,7 @@
 #define BEAST_NUDB_API_H_INCLUDED
 
 #include <beast/nudb/create.h>
+#include <beast/nudb/identity.h>
 #include <beast/nudb/store.h>
 #include <beast/nudb/recover.h>
 #include <beast/nudb/verify.h>
@@ -34,7 +35,7 @@ namespace nudb {
 //
 template <
     class Hasher,
-    class Codec,
+    class Codec = identity,
     class File = native_file,
     std::size_t BufferSize = 16 * 1024 * 1024
 >
@@ -65,7 +66,7 @@ struct api
             dat_path, key_path, log_path,
                 appnum, salt, key_size, block_size,
                     load_factor, args...);
-    }               
+    }
 
     template <class... Args>
     static
@@ -90,7 +91,7 @@ struct api
         return nudb::verify<Hasher>(
             dat_path, key_path, BufferSize);
     }
-    
+
     template <class Function>
     static
     bool

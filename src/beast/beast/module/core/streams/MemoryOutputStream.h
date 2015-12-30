@@ -21,8 +21,8 @@
 */
 //==============================================================================
 
-#ifndef BEAST_MEMORYOUTPUTSTREAM_H_INCLUDED
-#define BEAST_MEMORYOUTPUTSTREAM_H_INCLUDED
+#ifndef BEAST_MODULE_CORE_STREAMS_MEMORYOUTPUTSTREAM_H_INCLUDED
+#define BEAST_MODULE_CORE_STREAMS_MEMORYOUTPUTSTREAM_H_INCLUDED
 
 namespace beast
 {
@@ -43,7 +43,6 @@ namespace beast
 */
 class  MemoryOutputStream
     : public OutputStream
-    , LeakChecked <MemoryOutputStream>
 {
 public:
     //==============================================================================
@@ -118,7 +117,7 @@ public:
         capacity off the block, so that its length matches the amount of actual data that
         has been written so far.
     */
-    void flush();
+    void flush() override;
 
     bool write (const void*, size_t) override;
     std::int64_t getPosition() override                                 { return position; }

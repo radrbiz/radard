@@ -63,7 +63,32 @@ public:
         @param pObject [out] The created object if successful.
         @return The result of the operation.
     */
-    virtual Status fetch (void const* key, NodeObject::Ptr* pObject) = 0;
+    virtual Status fetch (void const* key, std::shared_ptr<NodeObject>* pObject) = 0;
+
+    /** Return `true` if batch fetches are optimized. */
+    virtual
+    bool
+    canFetchBatch() = 0;
+
+    /** Fetch a batch synchronously. */
+    virtual
+    std::vector<std::shared_ptr<NodeObject>>
+    fetchBatch (std::size_t n, void const* const* keys) = 0;
+
+    /** Fetch a batch synchronously. */
+    virtual
+    std::pair<std::vector<std::shared_ptr<NodeObject>>, std::set<uint256>>
+    fetchBatch (const std::set<uint256>& hashes)
+    {
+        return std::make_pair (std::vector<std::shared_ptr<NodeObject>> (), hashes);
+    }
+
+    virtual
+    uint32_t
+    fetchBatchLimit ()
+    {
+        return 4096;
+    }
 
     /** Store a single object.
         Depending on the implementation this may happen immediately
@@ -71,7 +96,7 @@ public:
         @note This will be called concurrently.
         @param object The object to store.
     */
-    virtual void store (NodeObject::Ptr const& object) = 0;
+    virtual void store (std::shared_ptr<NodeObject> const& object) = 0;
 
     /** Store a group of objects.
         @note This function will not be called concurrently with
@@ -85,7 +110,7 @@ public:
               or other methods.
         @see import
     */
-    virtual void for_each (std::function <void (NodeObject::Ptr)> f) = 0;
+    virtual void for_each (std::function <void (std::shared_ptr<NodeObject>)> f) = 0;
 
     /** Estimate the number of write operations pending. */
     virtual int getWriteLoad () = 0;

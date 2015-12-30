@@ -22,18 +22,12 @@
 #include <ripple/protocol/SystemParameters.h>
 #include <ripple/protocol/RippleAddress.h>
 #include <ripple/protocol/UintTypes.h>
+#include <ripple/protocol/types.h>
 
 namespace ripple {
 
-std::string to_string(Account const& account)
-{
-    return RippleAddress::createAccountID (account).humanAccountID ();
-}
-
 std::string to_string(Currency const& currency)
 {
-    static Currency const sIsoBits ("FFFFFFFFFFFFFFFFFFFFFFFF000000FFFFFFFFFF");
-
     // Characters we are willing to allow in the ASCII representation of a
     // three-letter currency code.
     static std::string const allowed_characters =
@@ -50,6 +44,9 @@ std::string to_string(Currency const& currency)
 
     if (currency == noCurrency())
         return "1";
+
+    static Currency const sIsoBits (
+        from_hex_text<Currency>("FFFFFFFFFFFFFFFFFFFFFFFF000000FFFFFFFFFF"));
 
     if ((currency & sIsoBits).isZero ())
     {
@@ -118,48 +115,16 @@ Currency to_currency(std::string const& code)
     return currency;
 }
 
-bool to_issuer(Account& issuer, std::string const& s)
-{
-    if (s.size () == (160 / 4))
-    {
-        issuer.SetHex (s);
-        return true;
-    }
-    RippleAddress address;
-    bool success = address.setAccountID (s);
-    if (success)
-        issuer = address.getAccountID ();
-    return success;
-}
-
-Account const& xrpAccount()
-{
-    static Account const account(0);
-    return account;
-}
-
 Currency const& xrpCurrency()
 {
     static Currency const currency(0);
     return currency;
 }
 
-Account const& vbcAccount()
-{
-	static Account const account(0xFF);
-	return account;
-}
-
 Currency const& vbcCurrency()
 {
 	static Currency const currency(0xFF);
 	return currency;
-}
-
-Account const& noAccount()
-{
-    static Account const account(1);
-    return account;
 }
 
 Currency const& noCurrency()
@@ -176,7 +141,7 @@ Currency const& badCurrency()
     
 Currency const& assetCurrency()
 {
-    static Currency const currency("0x4153534554000000000000000000000000000000");
+    static Currency const currency = from_hex_text<Currency> ("0x4153534554000000000000000000000000000000");
     return currency;
 }
 

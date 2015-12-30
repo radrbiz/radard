@@ -17,44 +17,80 @@
 */
 //==============================================================================
 
-#ifndef __LEDGERTIMING__
-#define __LEDGERTIMING__
+#ifndef RIPPLE_APP_LEDGER_LEDGERTIMING_H_INCLUDED
+#define RIPPLE_APP_LEDGER_LEDGERTIMING_H_INCLUDED
+
+#include <cstdint>
 
 namespace ripple {
+
+/** Calculates the close time resolution for the specified ledger.
+
+    The Ripple protocol uses binning to represent time intervals using only one
+    timestamp. This allows servers to derive a common time for the next ledger,
+    without the need for perfectly synchronized clocks.
+    The time resolution (i.e. the size of the intervals) is adjusted dynamically
+    based on what happened in the last ledger, to try to avoid disagreements.
+*/
+int getNextLedgerTimeResolution (
+    int previousResolution,
+    bool previousAgree,
+    std::uint32_t ledgerSeq);
+
+/** Calculates the close time for a ledger, given a close time resolution.
+
+    @param closeTime The time to be rouned.
+    @param closeResolution The resolution
+*/
+std::uint32_t roundCloseTime (
+    std::uint32_t closeTime,
+    std::uint32_t closeResolution);
+
+//------------------------------------------------------------------------------
+
+// These are protocol parameters used to control the behavior of the system and
+// they should not be changed arbitrarily.
+
+// The percentage threshold above which we can declare consensus.
+int const minimumConsensusPercentage = 80;
+
+// All possible close time resolutions. Values should not be duplicated.
+int const ledgerPossibleTimeResolutions[] = { 10, 20, 30, 60, 90, 120 };
+
+// Initial resolution of ledger close time.
+int const ledgerDefaultTimeResolution = ledgerPossibleTimeResolutions[2];
+
+// How often we increase the close time resolution
+int const increaseLedgerTimeResolutionEvery = 8;
+
+// How often we decrease the close time resolution
+int const decreaseLedgerTimeResolutionEvery = 1;
 
 // The number of seconds a ledger may remain idle before closing
 const int LEDGER_IDLE_INTERVAL = 15;
 
-// The number of seconds a validation remains current after its ledger's close time
-// This is a safety to protect against very old validations and the time it takes to adjust
-// the close time accuracy window
-const int LEDGER_VAL_INTERVAL = 300;
+// The number of seconds a validation remains current after its ledger's close
+// time. This is a safety to protect against very old validations and the time
+// it takes to adjust the close time accuracy window
+const int VALIDATION_VALID_WALL = 300;
 
-// The number of seconds before a close time that we consider a validation acceptable
-// This protects against extreme clock errors
-const int LEDGER_EARLY_INTERVAL = 180;
+// The number of seconds a validation remains current after the time we first
+// saw it. This provides faster recovery in very rare cases where the number
+// of validations produced by the network is lower than normal
+const int VALIDATION_VALID_LOCAL = 180;
+
+// The number of seconds before a close time that we consider a validation
+// acceptable. This protects against extreme clock errors
+const int VALIDATION_VALID_EARLY = 180;
 
 // The number of milliseconds we wait minimum to ensure participation
 const int LEDGER_MIN_CONSENSUS = 2000;
 
-// The number of milliseconds we wait minimum to ensure others have computed the LCL
+// Minimum number of milliseconds to wait to ensure others have computed the LCL
 const int LEDGER_MIN_CLOSE = 2000;
-
-// Initial resolution of ledger close time
-const int LEDGER_TIME_ACCURACY = 30;
-
-// How often to increase resolution
-const int LEDGER_RES_INCREASE = 8;
-
-// How often to decrease resolution
-const int LEDGER_RES_DECREASE = 1;
 
 // How often we check state or change positions (in milliseconds)
 const int LEDGER_GRANULARITY = 1000;
-
-// The percentage of active trusted validators that must be able to
-// keep up with the network or we consider the network overloaded
-const int LEDGER_NET_RATIO = 70;
 
 // How long we consider a proposal fresh
 const int PROPOSE_FRESHNESS = 20;
@@ -82,29 +118,6 @@ const int AV_STUCK_CONSENSUS_TIME = 200;
 const int AV_STUCK_CONSENSUS_PCT = 95;
 
 const int AV_CT_CONSENSUS_PCT = 75;
-
-class ContinuousLedgerTiming
-{
-public:
-
-    static int LedgerTimeResolution[];
-
-    // Returns the number of seconds the ledger was or should be open
-    // Call when a consensus is reached and when any transaction is relayed to be added
-    static bool shouldClose (
-        bool anyTransactions,
-        int previousProposers,      int proposersClosed,    int proposerersValidated,
-        int previousMSeconds,       int currentMSeconds,    int openMSeconds,
-        int idleInterval);
-
-    static bool haveConsensus (
-        int previousProposers,      int currentProposers,
-        int currentAgree,           int currentClosed,
-        int previousAgreeTime,      int currentAgreeTime,
-        bool forReal,               bool& failed);
-
-    static int getNextLedgerTimeResolution (int previousResolution, bool previousAgree, int ledgerSeq);
-};
 
 } // ripple
 

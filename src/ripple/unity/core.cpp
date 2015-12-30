@@ -20,10 +20,15 @@
 #include <BeastConfig.h>
 
 #include <ripple/core/impl/Config.cpp>
-#include <ripple/core/impl/LoadFeeTrackImp.cpp>
+#include <ripple/core/impl/DatabaseCon.cpp>
+#include <ripple/core/impl/LoadFeeTrack.cpp>
 #include <ripple/core/impl/LoadEvent.cpp>
 #include <ripple/core/impl/LoadMonitor.cpp>
 #include <ripple/core/impl/Job.cpp>
 #include <ripple/core/impl/JobQueue.cpp>
+#include <ripple/core/impl/SNTPClock.cpp>
+#include <ripple/core/impl/TimeKeeper.cpp>
 
+#include <ripple/core/tests/Config.test.cpp>
+#include <ripple/core/tests/Coroutine.test.cpp>
 #include <ripple/core/tests/LoadFeeTrack.test.cpp>

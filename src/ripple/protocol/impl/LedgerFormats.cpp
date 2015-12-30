@@ -19,7 +19,6 @@
 
 #include <BeastConfig.h>
 #include <ripple/protocol/LedgerFormats.h>
-#include <beast/module/core/memory/SharedSingleton.h>
 
 namespace ripple {
 
@@ -49,7 +48,7 @@ LedgerFormats::LedgerFormats ()
             << SOElement (sfDividendVSprd,       SOE_OPTIONAL)
             << SOElement (sfDividendTSprd,       SOE_OPTIONAL)
             ;
-    
+
     add ("Asset", ltASSET)
             << SOElement (sfAmount,              SOE_REQUIRED)  // Initial amount
             << SOElement (sfRegularKey,          SOE_REQUIRED)  // Hot wallet
@@ -68,7 +67,7 @@ LedgerFormats::LedgerFormats ()
             << SOElement (sfHighNode,            SOE_OPTIONAL)
             << SOElement (sfNextReleaseTime,     SOE_OPTIONAL)
             ;
-    
+
     add ("DirectoryNode", ltDIR_NODE)
             << SOElement (sfOwner,               SOE_OPTIONAL)  // for owner directories
             << SOElement (sfTakerPaysCurrency,   SOE_OPTIONAL)  // for order book directories
@@ -80,10 +79,6 @@ LedgerFormats::LedgerFormats ()
             << SOElement (sfRootIndex,           SOE_REQUIRED)
             << SOElement (sfIndexNext,           SOE_OPTIONAL)
             << SOElement (sfIndexPrevious,       SOE_OPTIONAL)
-            ;
-
-    add ("GeneratorMap", ltGENERATOR_MAP)
-            << SOElement (sfGenerator,           SOE_REQUIRED)
             ;
 
     add ("Offer", ltOFFER)
@@ -114,17 +109,33 @@ LedgerFormats::LedgerFormats ()
             << SOElement (sfHighQualityOut,      SOE_OPTIONAL)
             ;
 
+    add ("SuspendedPayment", ltSUSPAY) <<
+        SOElement (sfAccount,           SOE_REQUIRED) <<
+        SOElement (sfDestination,       SOE_REQUIRED) <<
+        SOElement (sfAmount,            SOE_REQUIRED) <<
+        SOElement (sfDigest,            SOE_OPTIONAL) <<
+        SOElement (sfCancelAfter,       SOE_OPTIONAL) <<
+        SOElement (sfFinishAfter,       SOE_OPTIONAL) <<
+        SOElement (sfSourceTag,         SOE_OPTIONAL) <<
+        SOElement (sfDestinationTag,    SOE_OPTIONAL) <<
+        SOElement (sfOwnerNode,         SOE_REQUIRED) <<
+        SOElement (sfPreviousTxnID,     SOE_REQUIRED) <<
+        SOElement (sfPreviousTxnLgrSeq, SOE_REQUIRED);
+
     add ("LedgerHashes", ltLEDGER_HASHES)
             << SOElement (sfFirstLedgerSequence, SOE_OPTIONAL) // Remove if we do a ledger restart
             << SOElement (sfLastLedgerSequence,  SOE_OPTIONAL)
             << SOElement (sfHashes,              SOE_REQUIRED)
             ;
 
-    add ("EnabledAmendments", ltAMENDMENTS)
-            << SOElement (sfAmendments, SOE_REQUIRED)
+    add ("Amendments", ltAMENDMENTS)
+            << SOElement (sfLedgerSequence,      SOE_OPTIONAL)
+            << SOElement (sfAmendments,          SOE_OPTIONAL) // Enabled
+            << SOElement (sfMajorities,          SOE_OPTIONAL)
             ;
 
     add ("FeeSettings", ltFEE_SETTINGS)
+            << SOElement (sfLedgerSequence,      SOE_OPTIONAL)
             << SOElement (sfBaseFee,             SOE_REQUIRED)
             << SOElement (sfReferenceFeeUnits,   SOE_REQUIRED)
             << SOElement (sfReserveBase,         SOE_REQUIRED)
@@ -144,14 +155,28 @@ LedgerFormats::LedgerFormats ()
             << SOElement (sfDividendLedger,      SOE_REQUIRED)
             << SOElement (sfDividendCoins,       SOE_REQUIRED)
             << SOElement (sfDividendCoinsVBC,    SOE_REQUIRED)
+            << SOElement (sfPreviousTxnID,       SOE_OPTIONAL)
+            << SOElement (sfPreviousTxnLgrSeq,   SOE_OPTIONAL)
             << SOElement (sfDividendVRank,       SOE_OPTIONAL)
             << SOElement (sfDividendVSprd,       SOE_OPTIONAL)
-            << SOElement (sfDividendResultHash,  SOE_OPTIONAL)
+            << SOElement (sfDividendHash,        SOE_OPTIONAL)
+            << SOElement (sfDividendMarker,      SOE_OPTIONAL)
             ;
 
     add("Refer", ltREFER)
             << SOElement (sfAccount,             SOE_OPTIONAL)
             << SOElement (sfReferences,          SOE_OPTIONAL)
+            ;
+
+    // All fields are SOE_REQUIRED because there is always a
+    // SignerEntries.  If there are no SignerEntries the node is deleted.
+    add ("SignerList", ltSIGNER_LIST)
+            << SOElement (sfOwnerNode,           SOE_REQUIRED)
+            << SOElement (sfSignerQuorum,        SOE_REQUIRED)
+            << SOElement (sfSignerEntries,       SOE_REQUIRED)
+            << SOElement (sfSignerListID,        SOE_REQUIRED)
+            << SOElement (sfPreviousTxnID,       SOE_REQUIRED)
+            << SOElement (sfPreviousTxnLgrSeq,   SOE_REQUIRED)
             ;
 }
 

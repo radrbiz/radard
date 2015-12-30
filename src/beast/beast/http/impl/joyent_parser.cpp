@@ -111,8 +111,8 @@ convert_http_errno (joyent::http_errno err)
         : public boost::system::error_category
     {
     private:
-        typedef boost::system::error_code error_code;
-        typedef boost::system::error_condition error_condition;
+        using error_code = boost::system::error_code;
+        using error_condition = boost::system::error_condition;
 
     public:
         char const*
@@ -140,7 +140,7 @@ convert_http_errno (joyent::http_errno err)
         {
             return default_error_condition (code) == condition;
         }
-        
+
         bool
         equivalent (error_code const& code, int condition
             ) const noexcept override
@@ -151,7 +151,7 @@ convert_http_errno (joyent::http_errno err)
     };
 
     static http_error_category_t http_error_category;
-    
+
     return boost::system::error_code (
         err, http_error_category);
 }

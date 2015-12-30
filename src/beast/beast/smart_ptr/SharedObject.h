@@ -21,8 +21,8 @@
 */
 //==============================================================================
 
-#ifndef BEAST_SHAREDOBJECT_H_INCLUDED
-#define BEAST_SHAREDOBJECT_H_INCLUDED
+#ifndef BEAST_SMART_PTR_SHAREDOBJECT_H_INCLUDED
+#define BEAST_SMART_PTR_SHAREDOBJECT_H_INCLUDED
 
 #include <atomic>
 
@@ -42,9 +42,9 @@ namespace beast {
     {
         void foo();
 
-        // This is a neat way of declaring a typedef for a pointer class,
+        // This is a neat way of declaring a using Ptr = for a pointer class,
         // rather than typing out the full templated name each time..
-        typedef SharedPtr<MyClass> Ptr;
+        using Ptr = SharedPtr<MyClass>;
     };
 
     MyClass::Ptr p = new MyClass();

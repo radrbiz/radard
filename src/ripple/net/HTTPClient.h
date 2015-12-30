@@ -17,9 +17,10 @@
 */
 //==============================================================================
 
-#ifndef RIPPLE_NET_BASICS_HTTPCLIENT_H_INCLUDED
-#define RIPPLE_NET_BASICS_HTTPCLIENT_H_INCLUDED
+#ifndef RIPPLE_NET_HTTPCLIENT_H_INCLUDED
+#define RIPPLE_NET_HTTPCLIENT_H_INCLUDED
 
+#include <ripple/core/Config.h>
 #include <boost/asio/io_service.hpp>
 #include <boost/asio/streambuf.hpp>
 #include <boost/date_time/posix_time/posix_time_types.hpp>
@@ -36,7 +37,7 @@ public:
         maxClientHeaderBytes = 32 * 1024
     };
 
-    static void initializeSSLContext ();
+    static void initializeSSLContext (Config const& config);
 
     static void get (
         bool bSSL,
@@ -46,7 +47,8 @@ public:
         std::string const& strPath,
         std::size_t responseMax,
         boost::posix_time::time_duration timeout,
-        std::function <bool (const boost::system::error_code& ecResult, int iStatus, std::string const& strData)> complete);
+        std::function <bool (const boost::system::error_code& ecResult, int iStatus, std::string const& strData)> complete,
+        Logs& l);
 
     static void get (
         bool bSSL,
@@ -56,7 +58,8 @@ public:
         std::string const& strPath,
         std::size_t responseMax,
         boost::posix_time::time_duration timeout,
-        std::function <bool (const boost::system::error_code& ecResult, int iStatus, std::string const& strData)> complete);
+        std::function <bool (const boost::system::error_code& ecResult, int iStatus, std::string const& strData)> complete,
+        Logs& l);
 
     static void request (
         bool bSSL,
@@ -66,14 +69,8 @@ public:
         std::function <void (boost::asio::streambuf& sb, std::string const& strHost)> build,
         std::size_t responseMax,
         boost::posix_time::time_duration timeout,
-        std::function <bool (const boost::system::error_code& ecResult, int iStatus, std::string const& strData)> complete);
-
-    enum
-    {
-        smsTimeoutSeconds = 30
-    };
-
-    static void sendSMS (boost::asio::io_service& io_service, std::string const& strText);
+        std::function <bool (const boost::system::error_code& ecResult, int iStatus, std::string const& strData)> complete,
+        Logs& l);
 };
 
 } // ripple

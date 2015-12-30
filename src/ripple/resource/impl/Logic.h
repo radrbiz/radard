@@ -23,12 +23,14 @@
 #include <ripple/resource/Fees.h>
 #include <ripple/resource/Gossip.h>
 #include <ripple/resource/impl/Import.h>
+#include <ripple/basics/chrono.h>
 #include <ripple/basics/UnorderedContainers.h>
 #include <ripple/json/json_value.h>
+#include <ripple/protocol/JsonFields.h>
 #include <beast/chrono/abstract_clock.h>
 #include <beast/Insight.h>
-#include <beast/threads/SharedData.h>
 #include <beast/utility/PropertyStream.h>
+#include <mutex>
 
 namespace ripple {
 namespace Resource {
@@ -36,37 +38,10 @@ namespace Resource {
 class Logic
 {
 private:
-    typedef beast::abstract_clock <std::chrono::steady_clock> clock_type;
-    typedef hash_map <std::string, Import> Imports;
-    typedef hash_map <Key, Entry, Key::hasher, Key::key_equal> Table;
-    typedef beast::List <Entry> EntryIntrusiveList;
-
-    struct State
-    {
-        // Table of all entries
-        Table table;
-
-        // Because the following are intrusive lists, a given Entry may be in
-        // at most list at a given instant.  The Entry must be removed from
-        // one list before placing it in another.
-
-        // List of all active inbound entries
-        EntryIntrusiveList inbound;
-
-        // List of all active outbound entries
-        EntryIntrusiveList outbound;
-
-        // List of all active admin entries
-        EntryIntrusiveList admin;
-
-        // List of all inactve entries
-        EntryIntrusiveList inactive;
-
-        // All imported gossip data
-        Imports import_table;
-    };
-
-    typedef beast::SharedData <State> SharedState;
+    using clock_type = Stopwatch;
+    using Imports = hash_map <std::string, Import>;
+    using Table = hash_map <Key, Entry, Key::hasher, Key::key_equal>;
+    using EntryIntrusiveList = beast::List <Entry>;
 
     struct Stats
     {
@@ -80,10 +55,33 @@ private:
         beast::insight::Meter drop;
     };
 
-    SharedState m_state;
     Stats m_stats;
-    beast::abstract_clock <std::chrono::steady_clock>& m_clock;
+    Stopwatch& m_clock;
     beast::Journal m_journal;
+
+    std::recursive_mutex lock_;
+
+    // Table of all entries
+    Table table_;
+
+    // Because the following are intrusive lists, a given Entry may be in
+    // at most list at a given instant.  The Entry must be removed from
+    // one list before placing it in another.
+
+    // List of all active inbound entries
+    EntryIntrusiveList inbound_;
+
+    // List of all active outbound entries
+    EntryIntrusiveList outbound_;
+
+    // List of all active admin entries
+    EntryIntrusiveList admin_;
+
+    // List of all inactve entries
+    EntryIntrusiveList inactive_;
+
+    // All imported gossip data
+    Imports importTable_;
 
     //--------------------------------------------------------------------------
 public:
@@ -103,24 +101,20 @@ public:
         // Order matters here as well, the import table has to be
         // destroyed before the consumer table.
         //
-        SharedState::UnlockedAccess state (m_state);
-        state->import_table.clear();
-        state->table.clear();
+        importTable_.clear();
+        table_.clear();
     }
 
     Consumer newInboundEndpoint (beast::IP::Endpoint const& address)
     {
-        if (isWhitelisted (address))
-            return newAdminEndpoint (to_string (address));
-
         Entry* entry (nullptr);
 
         {
-            SharedState::Access state (m_state);
-            std::pair <Table::iterator, bool> result (
-                state->table.emplace (std::piecewise_construct,
+            std::lock_guard<std::recursive_mutex> _(lock_);
+            auto result =
+                table_.emplace (std::piecewise_construct,
                     std::make_tuple (kindInbound, address.at_port (0)), // Key
-                    std::make_tuple (m_clock.now())));                  // Entry
+                    std::make_tuple (m_clock.now()));                   // Entry
 
             entry = &result.first->second;
             entry->key = &result.first->first;
@@ -129,10 +123,10 @@ public:
             {
                 if (! result.second)
                 {
-                    state->inactive.erase (
-                        state->inactive.iterator_to (*entry));
+                    inactive_.erase (
+                        inactive_.iterator_to (*entry));
                 }
-                state->inbound.push_back (*entry);
+                inbound_.push_back (*entry);
             }
         }
 
@@ -144,17 +138,14 @@ public:
 
     Consumer newOutboundEndpoint (beast::IP::Endpoint const& address)
     {
-        if (isWhitelisted (address))
-            return newAdminEndpoint (to_string (address));
-
         Entry* entry (nullptr);
 
         {
-            SharedState::Access state (m_state);
-            std::pair <Table::iterator, bool> result (
-                state->table.emplace (std::piecewise_construct,
+            std::lock_guard<std::recursive_mutex> _(lock_);
+            auto result =
+                table_.emplace (std::piecewise_construct,
                     std::make_tuple (kindOutbound, address),            // Key
-                    std::make_tuple (m_clock.now())));                  // Entry
+                    std::make_tuple (m_clock.now()));                   // Entry
 
             entry = &result.first->second;
             entry->key = &result.first->first;
@@ -162,9 +153,9 @@ public:
             if (entry->refcount == 1)
             {
                 if (! result.second)
-                    state->inactive.erase (
-                        state->inactive.iterator_to (*entry));
-                state->outbound.push_back (*entry);
+                    inactive_.erase (
+                        inactive_.iterator_to (*entry));
+                outbound_.push_back (*entry);
             }
         }
 
@@ -174,16 +165,21 @@ public:
         return Consumer (*this, *entry);
     }
 
-    Consumer newAdminEndpoint (std::string const& name)
+    /**
+     * Create endpoint that should not have resource limits applied. Other
+     * restrictions, such as permission to perform certain RPC calls, may be
+     * enabled.
+     */
+    Consumer newUnlimitedEndpoint (std::string const& name)
     {
         Entry* entry (nullptr);
 
         {
-            SharedState::Access state (m_state);
-            std::pair <Table::iterator, bool> result (
-                state->table.emplace (std::piecewise_construct,
-                    std::make_tuple (kindAdmin, name),                  // Key
-                    std::make_tuple (m_clock.now())));                  // Entry
+            std::lock_guard<std::recursive_mutex> _(lock_);
+            auto result =
+                table_.emplace (std::piecewise_construct,
+                    std::make_tuple (name),                             // Key
+                    std::make_tuple (m_clock.now()));                   // Entry
 
             entry = &result.first->second;
             entry->key = &result.first->first;
@@ -191,47 +187,16 @@ public:
             if (entry->refcount == 1)
             {
                 if (! result.second)
-                    state->inactive.erase (
-                        state->inactive.iterator_to (*entry));
-                state->admin.push_back (*entry);
+                    inactive_.erase (
+                        inactive_.iterator_to (*entry));
+                admin_.push_back (*entry);
             }
         }
 
         m_journal.debug <<
-            "New admin endpoint " << *entry;
+            "New unlimited endpoint " << *entry;
 
         return Consumer (*this, *entry);
-    }
-
-    Entry& elevateToAdminEndpoint (Entry& prior, std::string const& name)
-    {
-        m_journal.info <<
-            "Elevate " << prior << " to " << name;
-
-        Entry* entry (nullptr);
-
-        {
-            SharedState::Access state (m_state);
-            std::pair <Table::iterator, bool> result (
-                state->table.emplace (std::piecewise_construct,
-                    std::make_tuple (kindAdmin, name),                  // Key
-                    std::make_tuple (m_clock.now())));                  // Entry
-
-            entry = &result.first->second;
-            entry->key = &result.first->first;
-            ++entry->refcount;
-            if (entry->refcount == 1)
-            {
-                if (! result.second)
-                    state->inactive.erase (
-                        state->inactive.iterator_to (*entry));
-                state->admin.push_back (*entry);
-            }
-
-            release (prior, state);
-        }
-
-        return *entry;
     }
 
     Json::Value getJson ()
@@ -245,41 +210,41 @@ public:
         clock_type::time_point const now (m_clock.now());
 
         Json::Value ret (Json::objectValue);
-        SharedState::Access state (m_state);
+        std::lock_guard<std::recursive_mutex> _(lock_);
 
-        for (auto& inboundEntry : state->inbound)
+        for (auto& inboundEntry : inbound_)
         {
             int localBalance = inboundEntry.local_balance.value (now);
             if ((localBalance + inboundEntry.remote_balance) >= threshold)
             {
                 Json::Value& entry = (ret[inboundEntry.to_string()] = Json::objectValue);
-                entry["local"] = localBalance;
-                entry["remote"] = inboundEntry.remote_balance;
-                entry["type"] = "outbound";
+                entry[jss::local] = localBalance;
+                entry[jss::remote] = inboundEntry.remote_balance;
+                entry[jss::type] = "outbound";
             }
 
         }
-        for (auto& outboundEntry : state->outbound)
+        for (auto& outboundEntry : outbound_)
         {
             int localBalance = outboundEntry.local_balance.value (now);
             if ((localBalance + outboundEntry.remote_balance) >= threshold)
             {
                 Json::Value& entry = (ret[outboundEntry.to_string()] = Json::objectValue);
-                entry["local"] = localBalance;
-                entry["remote"] = outboundEntry.remote_balance;
-                entry["type"] = "outbound";
+                entry[jss::local] = localBalance;
+                entry[jss::remote] = outboundEntry.remote_balance;
+                entry[jss::type] = "outbound";
             }
 
         }
-        for (auto& adminEntry : state->admin)
+        for (auto& adminEntry : admin_)
         {
             int localBalance = adminEntry.local_balance.value (now);
             if ((localBalance + adminEntry.remote_balance) >= threshold)
             {
                 Json::Value& entry = (ret[adminEntry.to_string()] = Json::objectValue);
-                entry["local"] = localBalance;
-                entry["remote"] = adminEntry.remote_balance;
-                entry["type"] = "admin";
+                entry[jss::local] = localBalance;
+                entry[jss::remote] = adminEntry.remote_balance;
+                entry[jss::type] = "admin";
             }
 
         }
@@ -292,11 +257,11 @@ public:
         clock_type::time_point const now (m_clock.now());
 
         Gossip gossip;
-        SharedState::Access state (m_state);
+        std::lock_guard<std::recursive_mutex> _(lock_);
 
-        gossip.items.reserve (state->inbound.size());
+        gossip.items.reserve (inbound_.size());
 
-        for (auto& inboundEntry : state->inbound)
+        for (auto& inboundEntry : inbound_)
         {
             Gossip::Item item;
             item.balance = inboundEntry.local_balance.value (now);
@@ -314,13 +279,13 @@ public:
 
     void importConsumers (std::string const& origin, Gossip const& gossip)
     {
-        clock_type::rep const elapsed (m_clock.elapsed());
+        clock_type::rep const elapsed (m_clock.now().time_since_epoch().count());
         {
-            SharedState::Access state (m_state);
-            std::pair <Imports::iterator, bool> result (
-                state->import_table.emplace (std::piecewise_construct,
+            std::lock_guard<std::recursive_mutex> _(lock_);
+            auto result =
+                importTable_.emplace (std::piecewise_construct,
                     std::make_tuple(origin),                  // Key
-                    std::make_tuple(m_clock.elapsed())));     // Import
+                    std::make_tuple(m_clock.now().time_since_epoch().count()));     // Import
 
             if (result.second)
             {
@@ -368,31 +333,23 @@ public:
 
     //--------------------------------------------------------------------------
 
-    bool isWhitelisted (beast::IP::Endpoint const& address)
-    {
-        if (! is_public (address))
-            return true;
-
-        return false;
-    }
-
     // Called periodically to expire entries and groom the table.
     //
     void periodicActivity ()
     {
-        SharedState::Access state (m_state);
+        std::lock_guard<std::recursive_mutex> _(lock_);
 
-        clock_type::rep const elapsed (m_clock.elapsed());
+        clock_type::rep const elapsed (m_clock.now().time_since_epoch().count());
 
-        for (auto iter (state->inactive.begin()); iter != state->inactive.end();)
+        for (auto iter (inactive_.begin()); iter != inactive_.end();)
         {
             if (iter->whenExpires <= elapsed)
             {
                 m_journal.debug << "Expired " << *iter;
-                Table::iterator table_iter (
-                    state->table.find (*iter->key));
+                auto table_iter =
+                    table_.find (*iter->key);
                 ++iter;
-                erase (table_iter, state);
+                erase (table_iter);
             }
             else
             {
@@ -400,8 +357,8 @@ public:
             }
         }
 
-        Imports::iterator iter (state->import_table.begin());
-        while (iter != state->import_table.end())
+        auto iter = importTable_.begin();
+        while (iter != importTable_.end())
         {
             Import& import (iter->second);
             if (iter->second.whenExpires <= elapsed)
@@ -412,7 +369,7 @@ public:
                     item_iter->consumer.entry().remote_balance -= item_iter->balance;
                 }
 
-                iter = state->import_table.erase (iter);
+                iter = importTable_.erase (iter);
             }
             else
                 ++iter;
@@ -433,13 +390,25 @@ public:
         return Disposition::ok;
     }
 
-    void acquire (Entry& entry, SharedState::Access& state)
+    void erase (Table::iterator iter)
     {
+        std::lock_guard<std::recursive_mutex> _(lock_);
+        Entry& entry (iter->second);
+        assert (entry.refcount == 0);
+        inactive_.erase (
+            inactive_.iterator_to (entry));
+        table_.erase (iter);
+    }
+
+    void acquire (Entry& entry)
+    {
+        std::lock_guard<std::recursive_mutex> _(lock_);
         ++entry.refcount;
     }
 
-    void release (Entry& entry, SharedState::Access& state)
+    void release (Entry& entry)
     {
+        std::lock_guard<std::recursive_mutex> _(lock_);
         if (--entry.refcount == 0)
         {
             m_journal.debug <<
@@ -448,37 +417,29 @@ public:
             switch (entry.key->kind)
             {
             case kindInbound:
-                state->inbound.erase (
-                    state->inbound.iterator_to (entry));
+                inbound_.erase (
+                    inbound_.iterator_to (entry));
                 break;
             case kindOutbound:
-                state->outbound.erase (
-                    state->outbound.iterator_to (entry));
+                outbound_.erase (
+                    outbound_.iterator_to (entry));
                 break;
-            case kindAdmin:
-                state->admin.erase (
-                    state->admin.iterator_to (entry));
+            case kindUnlimited:
+                admin_.erase (
+                    admin_.iterator_to (entry));
                 break;
             default:
                 bassertfalse;
                 break;
             }
-            state->inactive.push_back (entry);
-            entry.whenExpires = m_clock.elapsed() + secondsUntilExpiration;
+            inactive_.push_back (entry);
+            entry.whenExpires = m_clock.now().time_since_epoch().count() + secondsUntilExpiration;
         }
     }
 
-    void erase (Table::iterator iter, SharedState::Access& state)
+    Disposition charge (Entry& entry, Charge const& fee)
     {
-        Entry& entry (iter->second);
-        bassert (entry.refcount == 0);
-        state->inactive.erase (
-            state->inactive.iterator_to (entry));
-        state->table.erase (iter);
-    }
-
-    Disposition charge (Entry& entry, Charge const& fee, SharedState::Access& state)
-    {
+        std::lock_guard<std::recursive_mutex> _(lock_);
         clock_type::time_point const now (m_clock.now());
         int const balance (entry.add (fee.cost(), now));
         m_journal.trace <<
@@ -486,30 +447,35 @@ public:
         return disposition (balance);
     }
 
-    bool warn (Entry& entry, SharedState::Access& state)
+    bool warn (Entry& entry)
     {
+        if (entry.isUnlimited())
+            return false;
+
+        std::lock_guard<std::recursive_mutex> _(lock_);
         bool notify (false);
-        clock_type::rep const elapsed (m_clock.elapsed());
+        clock_type::rep const elapsed (m_clock.now().time_since_epoch().count());
         if (entry.balance (m_clock.now()) >= warningThreshold &&
             elapsed != entry.lastWarningTime)
         {
-            charge (entry, feeWarning, state);
+            charge (entry, feeWarning);
             notify = true;
             entry.lastWarningTime = elapsed;
         }
-
         if (notify)
             m_journal.info <<
                 "Load warning: " << entry;
-
         if (notify)
             ++m_stats.warn;
-
         return notify;
     }
 
-    bool disconnect (Entry& entry, SharedState::Access& state)
+    bool disconnect (Entry& entry)
     {
+        if (entry.isUnlimited())
+            return false;
+
+        std::lock_guard<std::recursive_mutex> _(lock_);
         bool drop (false);
         clock_type::time_point const now (m_clock.now());
         int const balance (entry.balance (now));
@@ -523,60 +489,17 @@ public:
             // Adding feeDrop at this point keeps the dropped connection
             // from re-connecting for at least a little while after it is
             // dropped.
-            charge (entry, feeDrop, state);
+            charge (entry, feeDrop);
             ++m_stats.drop;
             drop = true;
         }
         return drop;
     }
 
-    int balance (Entry& entry, SharedState::Access& state)
-    {
-        return entry.balance (m_clock.now());
-    }
-
-    //--------------------------------------------------------------------------
-
-    void acquire (Entry& entry)
-    {
-        SharedState::Access state (m_state);
-        acquire (entry, state);
-    }
-
-    void release (Entry& entry)
-    {
-        SharedState::Access state (m_state);
-        release (entry, state);
-    }
-
-    Disposition charge (Entry& entry, Charge const& fee)
-    {
-        SharedState::Access state (m_state);
-        return charge (entry, fee, state);
-    }
-
-    bool warn (Entry& entry)
-    {
-        if (entry.admin())
-            return false;
-
-        SharedState::Access state (m_state);
-        return warn (entry, state);
-    }
-
-    bool disconnect (Entry& entry)
-    {
-        if (entry.admin())
-            return false;
-
-        SharedState::Access state (m_state);
-        return disconnect (entry, state);
-    }
-
     int balance (Entry& entry)
     {
-        SharedState::Access state (m_state);
-        return balance (entry, state);
+        std::lock_guard<std::recursive_mutex> _(lock_);
+        return entry.balance (m_clock.now());
     }
 
     //--------------------------------------------------------------------------
@@ -602,26 +525,26 @@ public:
     {
         clock_type::time_point const now (m_clock.now());
 
-        SharedState::Access state (m_state);
+        std::lock_guard<std::recursive_mutex> _(lock_);
 
         {
             beast::PropertyStream::Set s ("inbound", map);
-            writeList (now, s, state->inbound);
+            writeList (now, s, inbound_);
         }
 
         {
             beast::PropertyStream::Set s ("outbound", map);
-            writeList (now, s, state->outbound);
+            writeList (now, s, outbound_);
         }
 
         {
             beast::PropertyStream::Set s ("admin", map);
-            writeList (now, s, state->admin);
+            writeList (now, s, admin_);
         }
 
         {
             beast::PropertyStream::Set s ("inactive", map);
-            writeList (now, s, state->inactive);
+            writeList (now, s, inactive_);
         }
     }
 };

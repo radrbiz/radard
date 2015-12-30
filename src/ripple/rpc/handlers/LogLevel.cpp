@@ -18,6 +18,13 @@
 //==============================================================================
 
 #include <BeastConfig.h>
+#include <ripple/app/main/Application.h>
+#include <ripple/basics/Log.h>
+#include <ripple/json/json_value.h>
+#include <ripple/net/RPCErr.h>
+#include <ripple/protocol/ErrorCodes.h>
+#include <ripple/protocol/JsonFields.h>
+#include <ripple/rpc/Context.h>
 #include <boost/algorithm/string/predicate.hpp>
 
 namespace ripple {
@@ -25,49 +32,49 @@ namespace ripple {
 Json::Value doLogLevel (RPC::Context& context)
 {
     // log_level
-    if (!context.params.isMember ("severity"))
+    if (!context.params.isMember (jss::severity))
     {
         // get log severities
         Json::Value ret (Json::objectValue);
         Json::Value lev (Json::objectValue);
 
-        lev["base"] =
-                Logs::toString(Logs::fromSeverity(deprecatedLogs().severity()));
+        lev[jss::base] =
+                Logs::toString(Logs::fromSeverity(context.app.logs().severity()));
         std::vector< std::pair<std::string, std::string> > logTable (
-            deprecatedLogs().partition_severities());
-        typedef std::map<std::string, std::string>::value_type stringPair;
-        BOOST_FOREACH (const stringPair & it, logTable)
+            context.app.logs().partition_severities());
+        using stringPair = std::map<std::string, std::string>::value_type;
+        for (auto const& it : logTable)
             lev[it.first] = it.second;
 
-        ret["levels"] = lev;
+        ret[jss::levels] = lev;
         return ret;
     }
 
     LogSeverity const sv (
-        Logs::fromString (context.params["severity"].asString ()));
+        Logs::fromString (context.params[jss::severity].asString ()));
 
     if (sv == lsINVALID)
         return rpcError (rpcINVALID_PARAMS);
 
     auto severity = Logs::toSeverity(sv);
     // log_level severity
-    if (!context.params.isMember ("partition"))
+    if (!context.params.isMember (jss::partition))
     {
         // set base log severity
-        deprecatedLogs().severity(severity);
+        context.app.logs().severity(severity);
         return Json::objectValue;
     }
 
     // log_level partition severity base?
-    if (context.params.isMember ("partition"))
+    if (context.params.isMember (jss::partition))
     {
         // set partition severity
-        std::string partition (context.params["partition"].asString ());
+        std::string partition (context.params[jss::partition].asString ());
 
         if (boost::iequals (partition, "base"))
-            deprecatedLogs().severity (severity);
+            context.app.logs().severity (severity);
         else
-            deprecatedLogs().get(partition).severity(severity);
+            context.app.logs().get(partition).severity(severity);
 
         return Json::objectValue;
     }

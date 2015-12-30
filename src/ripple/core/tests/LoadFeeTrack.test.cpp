@@ -18,7 +18,7 @@
 //==============================================================================
 
 #include <BeastConfig.h>
-#include <ripple/core/impl/LoadFeeTrackImp.h>
+#include <ripple/core/LoadFeeTrack.h>
 #include <ripple/core/Config.h>
 #include <beast/unit_test/suite.h>
 
@@ -30,7 +30,7 @@ public:
     void run ()
     {
         Config d; // get a default configuration object
-        LoadFeeTrackImp l;
+        LoadFeeTrack l;
 
         expect (l.scaleFeeBase (10000, d.FEE_DEFAULT, d.TRANSACTION_FEE_BASE) == 10000);
         expect (l.scaleFeeLoad (10000, d.FEE_DEFAULT, d.TRANSACTION_FEE_BASE, false) == 10000);
@@ -39,10 +39,9 @@ public:
 
         // Check new default fee values give same fees as old defaults
         expect (l.scaleFeeBase (d.FEE_DEFAULT, d.FEE_DEFAULT, d.TRANSACTION_FEE_BASE) == 1000);
-        expect (l.scaleFeeBase (d.FEE_ACCOUNT_RESERVE, d.FEE_DEFAULT, d.TRANSACTION_FEE_BASE) == 0 * SYSTEM_CURRENCY_PARTS);
-        expect (l.scaleFeeBase (d.FEE_OWNER_RESERVE, d.FEE_DEFAULT, d.TRANSACTION_FEE_BASE) == 0 * SYSTEM_CURRENCY_PARTS);
+        // expect (l.scaleFeeBase (d.FEE_ACCOUNT_RESERVE, d.FEE_DEFAULT, d.TRANSACTION_FEE_BASE) == 20 * SYSTEM_CURRENCY_PARTS);
+        // expect (l.scaleFeeBase (d.FEE_OWNER_RESERVE, d.FEE_DEFAULT, d.TRANSACTION_FEE_BASE) == 50 * SYSTEM_CURRENCY_PARTS);
         expect (l.scaleFeeBase (d.FEE_OFFER, d.FEE_DEFAULT, d.TRANSACTION_FEE_BASE) == 1000);
-        expect (l.scaleFeeBase (d.FEE_CONTRACT_OPERATION, d.FEE_DEFAULT, d.TRANSACTION_FEE_BASE) == 1);
     }
 };
 

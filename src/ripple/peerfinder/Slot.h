@@ -32,7 +32,7 @@ namespace PeerFinder {
 class Slot
 {
 public:
-    typedef std::shared_ptr <Slot> ptr;
+    using ptr = std::shared_ptr <Slot>;
 
     enum State
     {
@@ -67,6 +67,8 @@ public:
 
     /** The local endpoint of the socket, when known. */
     virtual boost::optional <beast::IP::Endpoint> const& local_endpoint () const = 0;
+
+    virtual boost::optional<std::uint16_t> listening_port () const = 0;
 
     /** The peer's public key, when known.
         The public key is established when the handshake is complete.

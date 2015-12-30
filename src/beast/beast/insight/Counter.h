@@ -29,7 +29,7 @@ namespace beast {
 namespace insight {
 
 /** A metric for measuring an integral value.
-    
+
     A counter is a gauge calculated at the server. The owner of the counter
     may increment and decrement the value by an amount.
 
@@ -39,7 +39,7 @@ namespace insight {
 class Counter : public Base
 {
 public:
-    typedef CounterImpl::value_type value_type;
+    using value_type = CounterImpl::value_type;
 
     /** Create a null metric.
         A null metric reports no information.

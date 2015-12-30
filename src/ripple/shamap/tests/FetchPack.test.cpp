@@ -19,18 +19,19 @@
 
 #include <BeastConfig.h>
 #include <ripple/shamap/SHAMap.h>
+#include <ripple/shamap/tests/common.h>
+#include <ripple/protocol/digest.h>
+#include <ripple/basics/contract.h>
 #include <ripple/basics/StringUtilities.h>
 #include <ripple/basics/UnorderedContainers.h>
-#include <ripple/nodestore/DummyScheduler.h>
-#include <ripple/nodestore/Manager.h>
 #include <ripple/protocol/UInt160.h>
-#include <beast/chrono/manual_clock.h>
 #include <beast/module/core/maths/Random.h>
 #include <beast/unit_test/suite.h>
 #include <functional>
 #include <stdexcept>
 
 namespace ripple {
+namespace tests {
 
 class FetchPack_test : public beast::unit_test::suite
 {
@@ -41,15 +42,15 @@ public:
         tableItemsExtra = 20
     };
 
-    using Map = hash_map <uint256, Blob> ;
+    using Map   = hash_map <uint256, Blob>;
     using Table = SHAMap;
-    using Item = SHAMapItem;
+    using Item  = SHAMapItem;
 
     struct Handler
     {
         void operator()(std::uint32_t refNum) const
         {
-            throw std::runtime_error("missing node");
+            Throw<std::runtime_error> ("missing node");
         }
     };
 
@@ -89,7 +90,7 @@ public:
         for (int d = 0; d < 3; ++d)
             s.add32 (r.nextInt ());
         return std::make_shared <Item> (
-            to256(s.getRIPEMD160()), s.peekData ());
+            s.getSHA512Half(), s.peekData ());
     }
 
     void
@@ -107,24 +108,17 @@ public:
 
     void on_fetch (Map& map, uint256 const& hash, Blob const& blob)
     {
-        Serializer s (blob);
-        expect (s.getSHA512Half() == hash, "Hash mismatch");
+        expect (sha512Half(makeSlice(blob)) == hash,
+            "Hash mismatch");
         map.emplace (hash, blob);
     }
 
     void run ()
     {
-        beast::manual_clock <std::chrono::steady_clock> clock;  // manual advance clock
         beast::Journal const j;                            // debug journal
-
-        FullBelowCache fullBelowCache ("test.full_below", clock);
-        TreeNodeCache treeNodeCache ("test.tree_node_cache", 65536, 60, clock, j);
-        NodeStore::DummyScheduler scheduler;
-        auto db = NodeStore::Manager::instance().make_Database (
-            "test", scheduler, j, 0, parseDelimitedKeyValueString("type=memory|path=FetchPack"));
-
+        TestFamily f(j);
         std::shared_ptr <Table> t1 (std::make_shared <Table> (
-            smtFREE, fullBelowCache, treeNodeCache, *db, Handler(), beast::Journal()));
+            SHAMapType::FREE, f));
 
         pass ();
 
@@ -148,7 +142,7 @@ public:
 //         {
 //             TestFilter filter (map, beast::Journal());
 //
-//             t3 = std::make_shared <Table> (smtFREE, t2->getHash (),
+//             t3 = std::make_shared <Table> (SHAMapType::FREE, t2->getHash (),
 //                 fullBelowCache);
 //
 //             expect (t3->fetchRoot (t2->getHash (), &filter), "unable to get root");
@@ -160,13 +154,15 @@ public:
 //             expect (t3->getHash () == t2->getHash (), "root hashes do not match");
 //             expect (t3->deepCompare (*t2), "failed compare");
 //         }
-//         catch (...)
+//         catch (std::exception const&)
 //         {
 //             fail ("unhandled exception");
 //         }
     }
 };
 
-BEAST_DEFINE_TESTSUITE(FetchPack,ripple_app,ripple);
+BEAST_DEFINE_TESTSUITE(FetchPack,shamap,ripple);
 
-}
+} // tests
+} // ripple
+

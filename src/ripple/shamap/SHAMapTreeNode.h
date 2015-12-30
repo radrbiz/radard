@@ -17,19 +17,20 @@
 */
 //==============================================================================
 
-#ifndef RIPPLE_SHAMAP_SHAMAPTREENODE_H
-#define RIPPLE_SHAMAP_SHAMAPTREENODE_H
+#ifndef RIPPLE_SHAMAP_SHAMAPTREENODE_H_INCLUDED
+#define RIPPLE_SHAMAP_SHAMAPTREENODE_H_INCLUDED
 
 #include <ripple/shamap/SHAMapItem.h>
 #include <ripple/shamap/SHAMapNodeID.h>
-#include <ripple/shamap/TreeNodeCache.h>
-#include <ripple/basics/CountedObject.h>
 #include <ripple/basics/TaggedCache.h>
 #include <beast/utility/Journal.h>
 
-namespace ripple {
+#include <cstdint>
+#include <memory>
+#include <mutex>
+#include <string>
 
-class SHAMap;
+namespace ripple {
 
 enum SHANodeFormat
 {
@@ -38,15 +39,51 @@ enum SHANodeFormat
     snfHASH     = 3, // just the hash
 };
 
-class SHAMapTreeNode
-    : public CountedObject <SHAMapTreeNode>
+// A SHAMapHash is the hash of a node in a SHAMap, and also the
+// type of the hash of the entire SHAMap.
+class SHAMapHash
+{
+    uint256 hash_;
+public:
+    SHAMapHash() = default;
+    explicit SHAMapHash(uint256 const& hash)
+        : hash_(hash)
+        {}
+
+    uint256 const& as_uint256() const {return hash_;}
+    uint256& as_uint256() {return hash_;}
+    bool isZero() const {return hash_.isZero();}
+    bool isNonZero() const {return hash_.isNonZero();}
+    int signum() const {return hash_.signum();}
+    void zero() {hash_.zero();}
+
+    friend bool operator==(SHAMapHash const& x, SHAMapHash const& y)
+    {
+        return x.hash_ == y.hash_;
+    }
+
+    friend bool operator<(SHAMapHash const& x, SHAMapHash const& y)
+    {
+        return x.hash_ < y.hash_;
+    }
+
+    friend std::ostream& operator<<(std::ostream& os, SHAMapHash const& x)
+    {
+        return os << x.hash_;
+    }
+
+    friend std::string to_string(SHAMapHash const& x) {return to_string(x.hash_);}
+};
+
+inline
+bool operator!=(SHAMapHash const& x, SHAMapHash const& y)
+{
+    return !(x == y);
+}
+
+class SHAMapAbstractNode
 {
 public:
-    static char const* getCountedObjectName () { return "SHAMapTreeNode"; }
-
-    typedef std::shared_ptr<SHAMapTreeNode>           pointer;
-    typedef const std::shared_ptr<SHAMapTreeNode>&    ref;
-
     enum TNType
     {
         tnERROR             = 0,
@@ -56,151 +93,252 @@ public:
         tnACCOUNT_STATE     = 4
     };
 
+protected:
+    TNType                          mType;
+    SHAMapHash                      mHash;
+    std::uint32_t                   mSeq;
+
+protected:
+    virtual ~SHAMapAbstractNode() = 0;
+    SHAMapAbstractNode(SHAMapAbstractNode const&) = delete;
+    SHAMapAbstractNode& operator=(SHAMapAbstractNode const&) = delete;
+
+    SHAMapAbstractNode(TNType type, std::uint32_t seq);
+    SHAMapAbstractNode(TNType type, std::uint32_t seq, SHAMapHash const& hash);
+
+public:
+    std::uint32_t getSeq () const;
+    void setSeq (std::uint32_t s);
+    SHAMapHash const& getNodeHash () const;
+    TNType getType () const;
+    bool isLeaf () const;
+    bool isInner () const;
+    bool isValid () const;
+    bool isInBounds (SHAMapNodeID const &id) const;
+
+    virtual bool updateHash () = 0;
+    virtual void addRaw (Serializer&, SHANodeFormat format) const = 0;
+    virtual std::string getString (SHAMapNodeID const&) const;
+    virtual std::shared_ptr<SHAMapAbstractNode> clone(std::uint32_t seq) const = 0;
+
+    static std::shared_ptr<SHAMapAbstractNode>
+        make(Blob const& rawNode, std::uint32_t seq, SHANodeFormat format,
+             SHAMapHash const& hash, bool hashValid, beast::Journal j);
+
+    // debugging
+#ifdef BEAST_DEBUG
+    static void dump (SHAMapNodeID const&, beast::Journal journal);
+#endif
+};
+
+class SHAMapInnerNode
+    : public SHAMapAbstractNode
+{
+    SHAMapHash                      mHashes[16];
+    std::shared_ptr<SHAMapAbstractNode> mChildren[16];
+    int                             mIsBranch = 0;
+    std::uint32_t                   mFullBelowGen = 0;
+
+    static std::mutex               childLock;
+public:
+    SHAMapInnerNode(std::uint32_t seq = 0);
+    std::shared_ptr<SHAMapAbstractNode> clone(std::uint32_t seq) const override;
+
+    bool isEmpty () const;
+    bool isEmptyBranch (int m) const;
+    int getBranchCount () const;
+    SHAMapHash const& getChildHash (int m) const;
+
+    void setChild(int m, std::shared_ptr<SHAMapAbstractNode> const& child);
+    void shareChild (int m, std::shared_ptr<SHAMapAbstractNode> const& child);
+    SHAMapAbstractNode* getChildPointer (int branch);
+    std::shared_ptr<SHAMapAbstractNode> getChild (int branch);
+    std::shared_ptr<SHAMapAbstractNode>
+        canonicalizeChild (int branch, std::shared_ptr<SHAMapAbstractNode> node);
+
+    // sync functions
+    bool isFullBelow (std::uint32_t generation) const;
+    void setFullBelowGen (std::uint32_t gen);
+
+    bool updateHash () override;
+    void updateHashDeep();
+    void addRaw (Serializer&, SHANodeFormat format) const override;
+    std::string getString (SHAMapNodeID const&) const override;
+
+    friend std::shared_ptr<SHAMapAbstractNode>
+        SHAMapAbstractNode::make(Blob const& rawNode, std::uint32_t seq,
+             SHANodeFormat format, SHAMapHash const& hash, bool hashValid,
+                 beast::Journal j);
+};
+
+// SHAMapTreeNode represents a leaf, and may eventually be renamed to reflect that.
+class SHAMapTreeNode
+    : public SHAMapAbstractNode
+{
+private:
+    std::shared_ptr<SHAMapItem const> mItem;
+
 public:
     SHAMapTreeNode (const SHAMapTreeNode&) = delete;
     SHAMapTreeNode& operator= (const SHAMapTreeNode&) = delete;
 
-    SHAMapTreeNode (std::uint32_t seq); // empty node
-    SHAMapTreeNode (const SHAMapTreeNode & node, std::uint32_t seq); // copy node from older tree
-    SHAMapTreeNode (SHAMapItem::ref item, TNType type, std::uint32_t seq);
+    SHAMapTreeNode (std::shared_ptr<SHAMapItem const> const& item,
+                    TNType type, std::uint32_t seq);
+    SHAMapTreeNode(std::shared_ptr<SHAMapItem const> const& item, TNType type,
+                   std::uint32_t seq, SHAMapHash const& hash);
+    std::shared_ptr<SHAMapAbstractNode> clone(std::uint32_t seq) const override;
 
-    // raw node functions
-    SHAMapTreeNode (Blob const & data, std::uint32_t seq,
-                    SHANodeFormat format, uint256 const& hash, bool hashValid);
-    void addRaw (Serializer&, SHANodeFormat format);
+    void addRaw (Serializer&, SHANodeFormat format) const override;
 
-    // node functions
-    std::uint32_t getSeq () const
-    {
-        return mSeq;
-    }
-    void setSeq (std::uint32_t s)
-    {
-        mSeq = s;
-    }
-    uint256 const& getNodeHash () const
-    {
-        return mHash;
-    }
-    TNType getType () const
-    {
-        return mType;
-    }
-
-    // type functions
-    bool isLeaf () const
-    {
-        return (mType == tnTRANSACTION_NM) || (mType == tnTRANSACTION_MD) ||
-               (mType == tnACCOUNT_STATE);
-    }
-    bool isInner () const
-    {
-        return mType == tnINNER;
-    }
-    bool isInBounds (SHAMapNodeID const &id) const
-    {
-        // Nodes at depth 64 must be leaves
-        return (!isInner() || (id.getDepth() < 64));
-    }
-    bool isValid () const
-    {
-        return mType != tnERROR;
-    }
-    bool isTransaction () const
-    {
-        return (mType == tnTRANSACTION_NM) || (mType == tnTRANSACTION_MD);
-    }
-    bool hasMetaData () const
-    {
-        return mType == tnTRANSACTION_MD;
-    }
-    bool isAccountState () const
-    {
-        return mType == tnACCOUNT_STATE;
-    }
+public:  // public only to SHAMap
 
     // inner node functions
-    bool isInnerNode () const
-    {
-        return !mItem;
-    }
-
-    // We are modifying the child hash
-    bool setChild (int m, uint256 const& hash, std::shared_ptr<SHAMapTreeNode> const& child);
-
-    // We are sharing/unsharing the child
-    void shareChild (int m, std::shared_ptr<SHAMapTreeNode> const& child);
-
-    bool isEmptyBranch (int m) const
-    {
-        return (mIsBranch & (1 << m)) == 0;
-    }
-    bool isEmpty () const;
-    int getBranchCount () const;
-    void makeInner ();
-    uint256 const& getChildHash (int m) const
-    {
-        assert ((m >= 0) && (m < 16) && (mType == tnINNER));
-        return mHashes[m];
-    }
+    bool isInnerNode () const;
 
     // item node function
-    bool hasItem () const
-    {
-        return bool(mItem);
-    }
-    SHAMapItem::ref peekItem ()
-    {
-        // CAUTION: Do not modify the item TODO(tom): a comment in the code does
-        // nothing - this should return a const reference.
-        return mItem;
-    }
-    bool setItem (SHAMapItem::ref i, TNType type);
-    uint256 const& getTag () const
-    {
-        return mItem->getTag ();
-    }
-    Blob const& peekData ()
-    {
-        return mItem->peekData ();
-    }
+    bool hasItem () const;
+    std::shared_ptr<SHAMapItem const> const& peekItem () const;
+    bool setItem (std::shared_ptr<SHAMapItem const> const& i, TNType type);
 
-    // sync functions
-    bool isFullBelow (std::uint32_t generation) const
-    {
-        return mFullBelowGen == generation;
-    }
-    void setFullBelowGen (std::uint32_t gen)
-    {
-        mFullBelowGen = gen;
-    }
-
-    // VFALCO Why is this virtual?
-    virtual void dump (SHAMapNodeID const&, beast::Journal journal);
-    virtual std::string getString (SHAMapNodeID const&) const;
-
-    SHAMapTreeNode* getChildPointer (int branch);
-    SHAMapTreeNode::pointer getChild (int branch);
-    void canonicalizeChild (int branch, SHAMapTreeNode::pointer& node);
-
-private:
-
-    // VFALCO TODO remove the use of friend
-    friend class SHAMap;
-
-    uint256                 mHash;
-    uint256                 mHashes[16];
-    SHAMapTreeNode::pointer mChildren[16];
-    SHAMapItem::pointer     mItem;
-    std::uint32_t           mSeq;
-    TNType                  mType;
-    int                     mIsBranch;
-    std::uint32_t           mFullBelowGen;
-
-    bool updateHash ();
-
-    static std::mutex       childLock;
+    std::string getString (SHAMapNodeID const&) const override;
+    bool updateHash () override;
 };
+
+// SHAMapAbstractNode
+
+inline
+SHAMapAbstractNode::SHAMapAbstractNode(TNType type, std::uint32_t seq)
+    : mType(type)
+    , mSeq(seq)
+{
+}
+
+inline
+SHAMapAbstractNode::SHAMapAbstractNode(TNType type, std::uint32_t seq,
+                                       SHAMapHash const& hash)
+    : mType(type)
+    , mHash(hash)
+    , mSeq(seq)
+{
+}
+
+inline
+std::uint32_t
+SHAMapAbstractNode::getSeq () const
+{
+    return mSeq;
+}
+
+inline
+void
+SHAMapAbstractNode::setSeq (std::uint32_t s)
+{
+    mSeq = s;
+}
+
+inline
+SHAMapHash const&
+SHAMapAbstractNode::getNodeHash () const
+{
+    return mHash;
+}
+
+inline
+SHAMapAbstractNode::TNType
+SHAMapAbstractNode::getType () const
+{
+    return mType;
+}
+
+inline
+bool
+SHAMapAbstractNode::isLeaf () const
+{
+    return (mType == tnTRANSACTION_NM) || (mType == tnTRANSACTION_MD) ||
+           (mType == tnACCOUNT_STATE);
+}
+
+inline
+bool
+SHAMapAbstractNode::isInner () const
+{
+    return mType == tnINNER;
+}
+
+inline
+bool
+SHAMapAbstractNode::isValid () const
+{
+    return mType != tnERROR;
+}
+
+inline
+bool
+SHAMapAbstractNode::isInBounds (SHAMapNodeID const &id) const
+{
+    // Nodes at depth 64 must be leaves
+    return (!isInner() || (id.getDepth() < 64));
+}
+
+// SHAMapInnerNode
+
+inline
+SHAMapInnerNode::SHAMapInnerNode(std::uint32_t seq)
+    : SHAMapAbstractNode(tnINNER, seq)
+{
+}
+
+inline
+bool
+SHAMapInnerNode::isEmptyBranch (int m) const
+{
+    return (mIsBranch & (1 << m)) == 0;
+}
+
+inline
+SHAMapHash const&
+SHAMapInnerNode::getChildHash (int m) const
+{
+    assert ((m >= 0) && (m < 16) && (getType() == tnINNER));
+    return mHashes[m];
+}
+
+inline
+bool
+SHAMapInnerNode::isFullBelow (std::uint32_t generation) const
+{
+    return mFullBelowGen == generation;
+}
+
+inline
+void
+SHAMapInnerNode::setFullBelowGen (std::uint32_t gen)
+{
+    mFullBelowGen = gen;
+}
+
+// SHAMapTreeNode
+
+inline
+bool
+SHAMapTreeNode::isInnerNode () const
+{
+    return !mItem;
+}
+
+inline
+bool
+SHAMapTreeNode::hasItem () const
+{
+    return bool(mItem);
+}
+
+inline
+std::shared_ptr<SHAMapItem const> const&
+SHAMapTreeNode::peekItem () const
+{
+    return mItem;
+}
 
 } // ripple
 

@@ -17,10 +17,8 @@
 */
 //==============================================================================
 
-#ifndef JSONCPP_BATCHALLOCATOR_H_INCLUDED
-#define JSONCPP_BATCHALLOCATOR_H_INCLUDED
-
-#ifndef JSONCPP_DOC_EXCLUDE_IMPLEMENTATION
+#ifndef RIPPLE_JSON_JSON_BATCHALLOCATOR_H_INCLUDED
+#define RIPPLE_JSON_JSON_BATCHALLOCATOR_H_INCLUDED
 
 namespace Json
 {
@@ -42,7 +40,7 @@ template < typename AllocatedType
 class BatchAllocator
 {
 public:
-    typedef AllocatedType Type;
+    using Type = AllocatedType;
 
     BatchAllocator ( unsigned int objectsPerPage = 255 )
         : freeHead_ ( 0 )
@@ -138,8 +136,6 @@ private:
 
 
 } // namespace Json
-
-# endif // ifndef JSONCPP_DOC_INCLUDE_IMPLEMENTATION
 
 #endif // JSONCPP_BATCHALLOCATOR_H_INCLUDED
 

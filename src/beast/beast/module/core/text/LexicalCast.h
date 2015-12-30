@@ -17,8 +17,8 @@
 */
 //==============================================================================
 
-#ifndef BEAST_LEXICALCAST_H_INCLUDED
-#define BEAST_LEXICALCAST_H_INCLUDED
+#ifndef BEAST_MODULE_CORE_TEXT_LEXICALCAST_H_INCLUDED
+#define BEAST_MODULE_CORE_TEXT_LEXICALCAST_H_INCLUDED
 
 #include <beast/Config.h>
 #include <algorithm>
@@ -28,7 +28,7 @@
 #include <iterator>
 #include <limits>
 #include <string>
-#include <beast/cxx14/type_traits.h> // <type_traits>
+#include <type_traits>
 #include <typeinfo>
 #include <utility>
 
@@ -73,7 +73,7 @@ parse_negative_integral (Int& num, FwdIt first, FwdIt last)
     if (limit_digit < 0)
         limit_digit = -limit_digit;
 
-    return parse_integral<Int> (num, first, last, 
+    return parse_integral<Int> (num, first, last,
         [limit_value, limit_digit](Int& value, Int digit)
         {
             assert ((digit >= 0) && (digit <= 9));

@@ -19,25 +19,30 @@
 
 #include <BeastConfig.h>
 #include <ripple/app/paths/RippleLineCache.h>
+#include <ripple/ledger/OpenView.h>
 
 namespace ripple {
 
-RippleLineCache::RippleLineCache (Ledger::ref l)
-    : mLedger (l)
+RippleLineCache::RippleLineCache(
+    std::shared_ptr <ReadView const> const& ledger)
 {
+    // We want the caching that OpenView provides
+    // And we need to own a shared_ptr to the input view
+    // VFALCO TODO This should be a CachedLedger
+    mLedger = std::make_shared<OpenView>(&*ledger, ledger);
 }
 
 RippleLineCache::RippleStateVector const&
-RippleLineCache::getRippleLines (Account const& accountID)
+RippleLineCache::getRippleLines (AccountID const& accountID)
 {
     AccountKey key (accountID, hasher_ (accountID));
 
-    ScopedLockType sl (mLock);
+    std::lock_guard <std::mutex> sl (mLock);
 
     auto it = mRLMap.emplace (key, RippleStateVector ());
 
     if (it.second)
-        it.first->second = ripple::getRippleStateItems (accountID, mLedger);
+        it.first->second = ripple::getRippleStateItems (accountID, *mLedger);
 
     return it.first->second;
 }

@@ -17,10 +17,10 @@
 */
 //==============================================================================
 
-#ifndef RIPPLE_PATHFINDER_H
-#define RIPPLE_PATHFINDER_H
+#ifndef RIPPLE_APP_PATHS_PATHFINDER_H_INCLUDED
+#define RIPPLE_APP_PATHS_PATHFINDER_H_INCLUDED
 
-#include <ripple/app/book/Types.h>
+#include <ripple/app/ledger/Ledger.h>
 #include <ripple/app/paths/RippleLineCache.h>
 #include <ripple/core/LoadEvent.h>
 #include <ripple/protocol/STAmount.h>
@@ -37,23 +37,16 @@ namespace ripple {
 class Pathfinder
 {
 public:
-    /** Construct a pathfinder with an issuer.*/
-    Pathfinder (
-        RippleLineCache::ref cache,
-        Account const& srcAccount,
-        Account const& dstAccount,
-        Currency const& uSrcCurrency,
-        Account const& uSrcIssuer,
-        STAmount const& dstAmount);
-
     /** Construct a pathfinder without an issuer.*/
     Pathfinder (
         RippleLineCache::ref cache,
-        Account const& srcAccount,
-        Account const& dstAccount,
+        AccountID const& srcAccount,
+        AccountID const& dstAccount,
         Currency const& uSrcCurrency,
-        STAmount const& dstAmount);
-
+        boost::optional<AccountID> const& uSrcIssuer,
+        STAmount const& dstAmount,
+        boost::optional<STAmount> const& srcAmount,
+        Application& app);
     ~Pathfinder();
 
     static void initPathTable ();
@@ -68,11 +61,12 @@ public:
        On return, if fullLiquidityPath is not empty, then it contains the best
        additional single path which can consume all the liquidity.
     */
-    STPathSet getBestPaths (
+    STPathSet
+    getBestPaths (
         int maxPaths,
         STPath& fullLiquidityPath,
-        STPathSet& extraPaths,
-        Account const& srcIssuer);
+        STPathSet const& extraPaths,
+        AccountID const& srcIssuer);
 
     enum NodeType
     {
@@ -97,11 +91,10 @@ public:
         pt_nonXRP_to_same,   // Destination currency is the same as source.
         pt_nonXRP_to_nonXRP  // Destination currency is NOT the same as source.
         ,
-		pt_VBC_to_VBC,
-		pt_VBC_to_nonVBC,
-		pt_nonVBC_to_VBC,
-		pt_nonVBC_to_same,
-		pt_nonVBC_to_nonVBC,
+		pt_VBC_to_XRP,
+		pt_XRP_to_VBC,
+		pt_VBC_to_nonXRP,
+		pt_nonXRP_to_VBC,
     };
 
     struct PathRank
@@ -141,9 +134,9 @@ private:
 
     int getPathsOut (
         Currency const& currency,
-        Account const& account,
+        AccountID const& account,
         bool isDestCurrency,
-        Account const& dest);
+        AccountID const& dest);
 
     void addLink (
         STPath const& currentPath,
@@ -171,8 +164,8 @@ private:
 
     // Is the "no ripple" flag set from one account to another?
     bool isNoRipple (
-        Account const& fromAccount,
-        Account const& toAccount,
+        AccountID const& fromAccount,
+        AccountID const& toAccount,
         Currency const& currency);
 
     void rankPaths (
@@ -180,17 +173,19 @@ private:
         STPathSet const& paths,
         std::vector <PathRank>& rankedPaths);
 
-    Account mSrcAccount;
-    Account mDstAccount;
+    AccountID mSrcAccount;
+    AccountID mDstAccount;
+    AccountID mEffectiveDst; // The account the paths need to end at
     STAmount mDstAmount;
     Currency mSrcCurrency;
-    boost::optional<Account> mSrcIssuer;
+    boost::optional<AccountID> mSrcIssuer;
     STAmount mSrcAmount;
     /** The amount remaining from mSrcAccount after the default liquidity has
         been removed. */
     STAmount mRemainingAmount;
+    bool convert_all_;
 
-    Ledger::pointer mLedger;
+    std::shared_ptr <ReadView const> mLedger;
     LoadEvent::pointer m_loadEvent;
     RippleLineCache::pointer mRLCache;
 
@@ -200,6 +195,9 @@ private:
     std::map<PathType, STPathSet> mPaths;
 
     hash_map<Issue, int> mPathsOutCountMap;
+
+    Application& app_;
+    beast::Journal j_;
 
     // Add ripple paths
     static std::uint32_t const afADD_ACCOUNTS = 0x001;

@@ -17,12 +17,16 @@
 */
 //==============================================================================
 
-#ifndef RIPPLE_ACCEPTEDLEDGERTX_H
-#define RIPPLE_ACCEPTEDLEDGERTX_H
+#ifndef RIPPLE_APP_LEDGER_ACCEPTEDLEDGERTX_H_INCLUDED
+#define RIPPLE_APP_LEDGER_ACCEPTEDLEDGERTX_H_INCLUDED
 
 #include <ripple/app/ledger/Ledger.h>
+#include <ripple/protocol/AccountID.h>
+#include <boost/container/flat_set.hpp>
 
 namespace ripple {
+
+class Logs;
 
 /**
     A transaction that is in a closed ledger.
@@ -46,24 +50,34 @@ namespace ripple {
 class AcceptedLedgerTx
 {
 public:
-    typedef std::shared_ptr <AcceptedLedgerTx> pointer;
-    typedef const pointer& ref;
+    using pointer = std::shared_ptr <AcceptedLedgerTx>;
+    using ref = const pointer&;
 
 public:
-    AcceptedLedgerTx (Ledger::ref ledger, SerializerIterator& sit);
-    AcceptedLedgerTx (Ledger::ref ledger, STTx::ref,
-        TransactionMetaSet::ref);
-    AcceptedLedgerTx (Ledger::ref ledger, STTx::ref, TER result);
+    AcceptedLedgerTx (
+        std::shared_ptr<ReadView const> const& ledger,
+        std::shared_ptr<STTx const> const&,
+        std::shared_ptr<STObject const> const&,
+        AccountIDCache const&,
+        Logs&);
+    AcceptedLedgerTx (
+        std::shared_ptr<ReadView const> const&,
+        std::shared_ptr<STTx const> const&,
+        TER,
+        AccountIDCache const&,
+        Logs&);
 
-    STTx::ref getTxn () const
+    std::shared_ptr <STTx const> const& getTxn () const
     {
         return mTxn;
     }
-    TransactionMetaSet::ref getMeta () const
+    std::shared_ptr <TxMeta> const& getMeta () const
     {
         return mMeta;
     }
-    std::vector <RippleAddress> const& getAffected () const
+
+    boost::container::flat_set<AccountID> const&
+    getAffected() const
     {
         return mAffected;
     }
@@ -102,13 +116,15 @@ public:
     }
 
 private:
-    Ledger::pointer                 mLedger;
-    STTx::pointer  mTxn;
-    TransactionMetaSet::pointer     mMeta;
+    std::shared_ptr<ReadView const> mLedger;
+    std::shared_ptr<STTx const> mTxn;
+    std::shared_ptr<TxMeta> mMeta;
     TER                             mResult;
-    std::vector <RippleAddress>     mAffected;
+    boost::container::flat_set<AccountID> mAffected;
     Blob        mRawMeta;
     Json::Value                     mJson;
+    AccountIDCache const& accountCache_;
+    Logs& logs_;
 
     void buildJson ();
 };

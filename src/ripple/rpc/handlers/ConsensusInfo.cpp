@@ -18,6 +18,12 @@
 //==============================================================================
 
 #include <BeastConfig.h>
+#include <ripple/app/main/Application.h>
+#include <ripple/app/misc/NetworkOPs.h>
+#include <ripple/json/json_value.h>
+#include <ripple/protocol/JsonFields.h>
+#include <ripple/rpc/Context.h>
+#include <beast/utility/make_lock.h>
 
 namespace ripple {
 
@@ -26,8 +32,8 @@ Json::Value doConsensusInfo (RPC::Context& context)
     Json::Value ret (Json::objectValue);
 
     {
-        auto lock = getApp().masterLock();
-        ret["info"] = context.netOps.getConsensusInfo ();
+        auto lock = beast::make_lock(context.app.getMasterMutex());
+        ret[jss::info] = context.netOps.getConsensusInfo ();
     }
 
     return ret;

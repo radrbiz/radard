@@ -19,6 +19,7 @@
 
 #include <BeastConfig.h>
 #include <beast/hash/xxhasher.h>
+#include <ripple/basics/contract.h>
 #include <ripple/nodestore/impl/codec.h>
 #include <beast/chrono/basic_seconds_clock.h>
 #include <beast/chrono/chrono_io.h>
@@ -35,9 +36,6 @@
 #include <sstream>
 
 #include <ripple/unity/rocksdb.h>
-#if ! RIPPLE_ROCKSDB_AVAILABLE
-# include <ripple/unity/leveldb.h>
-#endif
 
 /*
 
@@ -283,18 +281,20 @@ parse_args(std::string const& s)
     {
         boost::smatch m;
         if (! boost::regex_match (kv, m, re1))
-            throw std::runtime_error(
+            Throw<std::runtime_error> (
                 "invalid parameter " + kv);
         auto const result =
             map.emplace(m[1], m[2]);
         if (! result.second)
-            throw std::runtime_error(
+            Throw<std::runtime_error> (
                 "duplicate parameter " + m[1]);
     }
     return map;
 }
 
 //------------------------------------------------------------------------------
+
+#if RIPPLE_ROCKSDB_AVAILABLE
 
 class import_test : public beast::unit_test::suite
 {
@@ -332,7 +332,7 @@ public:
                 "Missing parameter: buffer";
             usage = true;
         }
-        
+
         if (usage)
         {
             log <<
@@ -370,7 +370,6 @@ public:
             "to:      " << to_path << "\n"
             "buffer:  " << buffer_size;
 
-    #if RIPPLE_ROCKSDB_AVAILABLE
         std::unique_ptr<rocksdb::DB> db;
         {
             rocksdb::Options options;
@@ -381,27 +380,11 @@ public:
                 rocksdb::DB::OpenForReadOnly(
                     options, from_path, &pdb);
             if (! status.ok () || ! pdb)
-                throw std::runtime_error (
+                Throw<std::runtime_error> (
                     "Can't open '" + from_path + "': " +
                         status.ToString());
             db.reset(pdb);
         }
-    #else
-        std::unique_ptr<leveldb::DB> db;
-        {
-            leveldb::Options options;
-            options.create_if_missing = false;
-            options.max_open_files = 2000; // 5000?
-            leveldb::DB* pdb = nullptr;
-            leveldb::Status status =
-                leveldb::DB::Open (options, from_path, &pdb);
-            if (! status.ok () || ! pdb)
-                throw std::runtime_error (
-                    "Can't open '" + from_path + "': " +
-                        status.ToString());
-            db.reset(pdb);
-        }
-    #endif
         // Create data file with values
         std::size_t nitems = 0;
         std::size_t nbytes = 0;
@@ -420,26 +403,18 @@ public:
                 auto os = dw.prepare(dat_file_header::size);
                 write(os, dh);
             }
-        #if RIPPLE_ROCKSDB_AVAILABLE
             rocksdb::ReadOptions options;
             options.verify_checksums = false;
             options.fill_cache = false;
             std::unique_ptr<rocksdb::Iterator> it(
                 db->NewIterator(options));
-        #else
-            leveldb::ReadOptions options;
-            options.verify_checksums = false;
-            options.fill_cache = false;
-            std::unique_ptr<leveldb::Iterator> it(
-                db->NewIterator(options));
-        #endif
 
             buffer buf;
             codec_type codec;
             for (it->SeekToFirst (); it->Valid (); it->Next())
             {
                 if (it->key().size() != 32)
-                    throw std::runtime_error(
+                    Throw<std::runtime_error> (
                         "Unexpected key size " +
                             std::to_string(it->key().size()));
                 void const* const key = it->key().data();
@@ -589,6 +564,8 @@ public:
 
 BEAST_DEFINE_TESTSUITE_MANUAL(import,NodeStore,ripple);
 
+#endif
+
 //------------------------------------------------------------------------------
 
 class rekey_test : public beast::unit_test::suite
@@ -627,7 +604,7 @@ public:
                 "Missing parameter: buffer";
             usage = true;
         }
-        
+
         if (usage)
         {
             log <<
@@ -652,9 +629,6 @@ public:
 
         auto const dp = path + ".dat";
         auto const kp = path + ".key";
-
-        auto const start =
-            std::chrono::steady_clock::now();
 
         log <<
             "path:   " << path << "\n"
@@ -856,7 +830,7 @@ read (File& f, dat_file_header& dh)
     }
     catch (file_short_read_error const&)
     {
-        throw store_corrupt_error(
+        Throw<store_corrupt_error> (
             "short data file header");
     }
     istream is(buf);
@@ -915,7 +889,7 @@ read (File& f, key_file_header& kh)
     }
     catch (file_short_read_error const&)
     {
-        throw store_corrupt_error(
+        Throw<store_corrupt_error> (
             "short key file header");
     }
     istream is(buf);
@@ -946,7 +920,7 @@ public:
                 "Missing parameter: path";
             usage = true;
         }
-        
+
         if (usage)
         {
             log <<
@@ -962,9 +936,6 @@ public:
 
         auto const dp = path + ".dat";
         auto const kp = path + ".key";
-
-        auto const start =
-            std::chrono::steady_clock::now();
 
         log <<
             "path:   " << path;
@@ -1029,5 +1000,3 @@ BEAST_DEFINE_TESTSUITE_MANUAL(update,NodeStore,ripple);
 
 }
 }
-
-//--conf=D:\\config2\\rippled.cfg --unittest=ripple.NodeStore.rekey --unittest-arg=path=D:\config2\nudb,items=470772,buffer=67108864

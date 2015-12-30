@@ -21,12 +21,12 @@
 */
 //==============================================================================
 
-#ifndef BEAST_RANDOM_H_INCLUDED
-#define BEAST_RANDOM_H_INCLUDED
+#ifndef BEAST_MODULE_CORE_MATHS_RANDOM_H_INCLUDED
+#define BEAST_MODULE_CORE_MATHS_RANDOM_H_INCLUDED
 
 #include <cstddef>
 #include <cstdint>
-    
+
 namespace beast {
 
 //==============================================================================

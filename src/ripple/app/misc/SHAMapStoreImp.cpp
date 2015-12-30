@@ -18,91 +18,89 @@
 //==============================================================================
 
 #include <BeastConfig.h>
+
 #include <ripple/app/misc/SHAMapStoreImp.h>
 #include <ripple/app/ledger/LedgerMaster.h>
+#include <ripple/app/ledger/TransactionMaster.h>
 #include <ripple/app/main/Application.h>
+#include <ripple/basics/contract.h>
+#include <ripple/core/ConfigSections.h>
 #include <boost/format.hpp>
-#include <beast/cxx14/memory.h> // <memory>
+#include <boost/format.hpp>
+#include <boost/optional.hpp>
+#include <memory>
 
 namespace ripple {
-
-void
-SHAMapStoreImp::SavedStateDB::init (std::string const& databasePath,
-        std::string const& dbName)
+void SHAMapStoreImp::SavedStateDB::init (BasicConfig const& config,
+                                         std::string const& dbName)
 {
-    boost::filesystem::path pathName = databasePath;
-    pathName /= dbName;
+    std::lock_guard<std::mutex> lock (mutex_);
 
-    std::lock_guard <std::mutex> lock (mutex_);
+    open(session_, config, dbName);
 
-    auto error = session_.open (pathName.string());
-    checkError (error);
+    session_ << "PRAGMA synchronous=FULL;";
 
-    session_.once (error) << "PRAGMA synchronous=FULL;";
-    checkError (error);
+    session_ <<
+        "CREATE TABLE IF NOT EXISTS DbState ("
+        "  Key                    INTEGER PRIMARY KEY,"
+        "  WritableDb             TEXT,"
+        "  ArchiveDb              TEXT,"
+        "  LastRotatedLedger      INTEGER"
+        ");"
+        ;
 
-    session_.once (error) <<
-            "CREATE TABLE IF NOT EXISTS DbState ("
-            "  Key                    INTEGER PRIMARY KEY,"
-            "  WritableDb             TEXT,"
-            "  ArchiveDb              TEXT,"
-            "  LastRotatedLedger      INTEGER"
-            ");"
-            ;
-    checkError (error);
-
-    session_.once (error) <<
-            "CREATE TABLE IF NOT EXISTS CanDelete ("
-            "  Key                    INTEGER PRIMARY KEY,"
-            "  CanDeleteSeq           INTEGER"
-            ");"
-            ;
+    session_ <<
+        "CREATE TABLE IF NOT EXISTS CanDelete ("
+        "  Key                    INTEGER PRIMARY KEY,"
+        "  CanDeleteSeq           INTEGER"
+        ");"
+        ;
 
     std::int64_t count = 0;
-    beast::sqdb::statement st = (session_.prepare <<
-            "SELECT COUNT(Key) FROM DbState WHERE Key = 1;"
-            , beast::sqdb::into (count)
-            );
-    st.execute_and_fetch (error);
-    checkError (error);
-
-    if (!count)
     {
-        session_.once (error) <<
-                "INSERT INTO DbState VALUES (1, '', '', 0);";
-        checkError (error);
+        boost::optional<std::int64_t> countO;
+        session_ <<
+                "SELECT COUNT(Key) FROM DbState WHERE Key = 1;"
+                , soci::into (countO);
+        if (!countO)
+            Throw<std::runtime_error> ("Failed to fetch Key Count from DbState.");
+        count = *countO;
     }
 
-    st = (session_.prepare <<
-            "SELECT COUNT(Key) FROM CanDelete WHERE Key = 1;"
-            , beast::sqdb::into (count)
-            );
-    st.execute_and_fetch (error);
-    checkError (error);
+    if (!count)
+    {
+        session_ <<
+                "INSERT INTO DbState VALUES (1, '', '', 0);";
+    }
+
+
+    {
+        boost::optional<std::int64_t> countO;
+        session_ <<
+                "SELECT COUNT(Key) FROM CanDelete WHERE Key = 1;"
+                , soci::into (countO);
+        if (!countO)
+            Throw<std::runtime_error> ("Failed to fetch Key Count from CanDelete.");
+        count = *countO;
+    }
 
     if (!count)
     {
-        session_.once (error) <<
+        session_ <<
                 "INSERT INTO CanDelete VALUES (1, 0);";
-        checkError (error);
     }
 }
 
 LedgerIndex
 SHAMapStoreImp::SavedStateDB::getCanDelete()
 {
-    beast::Error error;
     LedgerIndex seq;
+    std::lock_guard<std::mutex> lock (mutex_);
 
-    {
-        std::lock_guard <std::mutex> lock (mutex_);
-
-        session_.once (error) <<
-                "SELECT CanDeleteSeq FROM CanDelete WHERE Key = 1;"
-                , beast::sqdb::into (seq);
-        ;
-    }
-    checkError (error);
+    session_ <<
+            "SELECT CanDeleteSeq FROM CanDelete WHERE Key = 1;"
+            , soci::into (seq);
+    ;
 
     return seq;
 }
@@ -110,16 +108,12 @@ SHAMapStoreImp::SavedStateDB::getCanDelete()
 LedgerIndex
 SHAMapStoreImp::SavedStateDB::setCanDelete (LedgerIndex canDelete)
 {
-    beast::Error error;
-    {
-        std::lock_guard <std::mutex> lock (mutex_);
+    std::lock_guard<std::mutex> lock (mutex_);
 
-        session_.once (error) <<
-                "UPDATE CanDelete SET CanDeleteSeq = ? WHERE Key = 1;"
-                , beast::sqdb::use (canDelete)
-                ;
-    }
-    checkError (error);
+    session_ <<
+            "UPDATE CanDelete SET CanDeleteSeq = :canDelete WHERE Key = 1;"
+            , soci::use (canDelete)
+            ;
 
     return canDelete;
 }
@@ -127,21 +121,16 @@ SHAMapStoreImp::SavedStateDB::setCanDelete (LedgerIndex canDelete)
 SHAMapStoreImp::SavedState
 SHAMapStoreImp::SavedStateDB::getState()
 {
-    beast::Error error;
     SavedState state;
 
-    {
-        std::lock_guard <std::mutex> lock (mutex_);
+    std::lock_guard<std::mutex> lock (mutex_);
 
-        session_.once (error) <<
-                "SELECT WritableDb, ArchiveDb, LastRotatedLedger"
-                " FROM DbState WHERE Key = 1;"
-                , beast::sqdb::into (state.writableDb)
-                , beast::sqdb::into (state.archiveDb)
-                , beast::sqdb::into (state.lastRotated)
-                ;
-    }
-    checkError (error);
+    session_ <<
+            "SELECT WritableDb, ArchiveDb, LastRotatedLedger"
+            " FROM DbState WHERE Key = 1;"
+            , soci::into (state.writableDb), soci::into (state.archiveDb)
+            , soci::into (state.lastRotated)
+            ;
 
     return state;
 }
@@ -149,80 +138,66 @@ SHAMapStoreImp::SavedStateDB::getState()
 void
 SHAMapStoreImp::SavedStateDB::setState (SavedState const& state)
 {
-    beast::Error error;
-
-    {
-        std::lock_guard <std::mutex> lock (mutex_);
-        session_.once (error) <<
-                "UPDATE DbState"
-                " SET WritableDb = ?,"
-                " ArchiveDb = ?,"
-                " LastRotatedLedger = ?"
-                " WHERE Key = 1;"
-                , beast::sqdb::use (state.writableDb)
-                , beast::sqdb::use (state.archiveDb)
-                , beast::sqdb::use (state.lastRotated)
-                ;
-    }
-    checkError (error);
+    std::lock_guard<std::mutex> lock (mutex_);
+    session_ <<
+            "UPDATE DbState"
+            " SET WritableDb = :writableDb,"
+            " ArchiveDb = :archiveDb,"
+            " LastRotatedLedger = :lastRotated"
+            " WHERE Key = 1;"
+            , soci::use (state.writableDb)
+            , soci::use (state.archiveDb)
+            , soci::use (state.lastRotated)
+            ;
 }
 
 void
 SHAMapStoreImp::SavedStateDB::setLastRotated (LedgerIndex seq)
 {
-    beast::Error error;
-    {
-        std::lock_guard <std::mutex> lock (mutex_);
-        session_.once (error) <<
-                "UPDATE DbState SET LastRotatedLedger = ?"
-                " WHERE Key = 1;"
-                , beast::sqdb::use (seq)
-                ;
-    }
-    checkError (error);
+    std::lock_guard<std::mutex> lock (mutex_);
+    session_ <<
+            "UPDATE DbState SET LastRotatedLedger = :seq"
+            " WHERE Key = 1;"
+            , soci::use (seq)
+            ;
 }
 
-void
-SHAMapStoreImp::SavedStateDB::checkError (beast::Error const& error)
-{
-    if (error)
-    {
-        journal_.fatal << "state database error: " << error.code()
-                << ": " << error.getReasonText();
-        throw std::runtime_error ("State database error.");
-    }
-}
+//------------------------------------------------------------------------------
 
-SHAMapStoreImp::SHAMapStoreImp (Setup const& setup,
+SHAMapStoreImp::SHAMapStoreImp (
+        Application& app,
+        Setup const& setup,
         Stoppable& parent,
         NodeStore::Scheduler& scheduler,
         beast::Journal journal,
         beast::Journal nodeStoreJournal,
-        TransactionMaster& transactionMaster)
+        TransactionMaster& transactionMaster,
+        BasicConfig const& config)
     : SHAMapStore (parent)
+    , app_ (app)
     , setup_ (setup)
     , scheduler_ (scheduler)
     , journal_ (journal)
     , nodeStoreJournal_ (nodeStoreJournal)
-    , database_ (nullptr)
     , transactionMaster_ (transactionMaster)
+    , canDelete_ (std::numeric_limits <LedgerIndex>::max())
 {
     if (setup_.deleteInterval)
     {
         if (setup_.deleteInterval < minimumDeletionInterval_)
         {
-            throw std::runtime_error ("online_delete must be at least " +
+            Throw<std::runtime_error> ("online_delete must be at least " +
                 std::to_string (minimumDeletionInterval_));
         }
 
         if (setup_.ledgerHistory > setup_.deleteInterval)
         {
-            throw std::runtime_error (
+            Throw<std::runtime_error> (
                 "online_delete must be less than ledger_history (currently " +
                 std::to_string (setup_.ledgerHistory) + ")");
         }
 
-        state_db_.init (setup_.databasePath, dbName_);
+        state_db_.init (config, dbName_);
 
         dbPaths();
     }
@@ -259,8 +234,7 @@ SHAMapStoreImp::makeDatabase (std::string const& name,
     else
     {
         db = NodeStore::Manager::instance().make_Database (name, scheduler_, nodeStoreJournal_,
-                readThreads, setup_.nodeDatabase,
-                setup_.ephemeralNodeDatabase);
+                readThreads, setup_.nodeDatabase);
     }
 
     return db;
@@ -278,10 +252,10 @@ SHAMapStoreImp::onLedgerClosed (Ledger::pointer validatedLedger)
 
 bool
 SHAMapStoreImp::copyNode (std::uint64_t& nodeCount,
-        SHAMapTreeNode const& node)
+        SHAMapAbstractNode const& node)
 {
     // Copy a single record from node to database_
-    database_->fetchNode (node.getNodeHash());
+    database_->fetchNode (node.getNodeHash().as_uint256());
     if (! (++nodeCount % checkHealthInterval_))
     {
         if (health())
@@ -295,48 +269,49 @@ void
 SHAMapStoreImp::run()
 {
     LedgerIndex lastRotated = state_db_.getState().lastRotated;
-    netOPs_ = &getApp().getOPs();
-    ledgerMaster_ = &getApp().getLedgerMaster();
-    fullBelowCache_ = &getApp().getFullBelowCache();
-    treeNodeCache_ = &getApp().getTreeNodeCache();
-    transactionDb_ = &getApp().getTxnDB();
-    ledgerDb_ = &getApp().getLedgerDB();
+    netOPs_ = &app_.getOPs();
+    ledgerMaster_ = &app_.getLedgerMaster();
+    fullBelowCache_ = &app_.family().fullbelow();
+    treeNodeCache_ = &app_.family().treecache();
+    transactionDb_ = &app_.getTxnDB();
+    ledgerDb_ = &app_.getLedgerDB();
+
+    if (setup_.advisoryDelete)
+        canDelete_ = state_db_.getCanDelete ();
 
     while (1)
     {
         healthy_ = true;
         validatedLedger_.reset();
 
-        std::unique_lock <std::mutex> lock (mutex_);
-        if (stop_)
         {
-            stopped();
-            return;
+            std::unique_lock <std::mutex> lock (mutex_);
+            if (stop_)
+            {
+                stopped();
+                return;
+            }
+            cond_.wait (lock);
+            if (newLedger_)
+                validatedLedger_ = std::move (newLedger_);
+            else
+                continue;
         }
-        cond_.wait (lock);
-        if (newLedger_)
-            validatedLedger_ = std::move (newLedger_);
-        else
-            continue;
-        lock.unlock();
 
-        LedgerIndex validatedSeq = validatedLedger_->getLedgerSeq();
+        LedgerIndex validatedSeq = validatedLedger_->info().seq;
         if (!lastRotated)
         {
             lastRotated = validatedSeq;
             state_db_.setLastRotated (lastRotated);
         }
-        LedgerIndex canDelete = std::numeric_limits <LedgerIndex>::max();
-        if (setup_.advisoryDelete)
-            canDelete = state_db_.getCanDelete();
 
         // will delete up to (not including) lastRotated)
         if (validatedSeq >= lastRotated + setup_.deleteInterval
-                && canDelete >= lastRotated - 1)
+                && canDelete_ >= lastRotated - 1)
         {
             journal_.debug << "rotating  validatedSeq " << validatedSeq
                     << " lastRotated " << lastRotated << " deleteInterval "
-                    << setup_.deleteInterval << " canDelete " << canDelete;
+                    << setup_.deleteInterval << " canDelete_ " << canDelete_;
 
             switch (health())
             {
@@ -364,7 +339,7 @@ SHAMapStoreImp::run()
             }
 
             std::uint64_t nodeCount = 0;
-            validatedLedger_->peekAccountStateMap()->snapShot (
+            validatedLedger_->stateMap().snapShot (
                     false)->visitNodes (
                     std::bind (&SHAMapStoreImp::copyNode, this,
                     std::ref(nodeCount), std::placeholders::_1));
@@ -437,7 +412,7 @@ void
 SHAMapStoreImp::dbPaths()
 {
     boost::filesystem::path dbPath =
-            setup_.nodeDatabase["path"].toStdString();
+            get<std::string>(setup_.nodeDatabase, "path");
 
     if (boost::filesystem::exists (dbPath))
     {
@@ -445,7 +420,7 @@ SHAMapStoreImp::dbPaths()
         {
             std::cerr << "node db path must be a directory. "
                     << dbPath.string();
-            throw std::runtime_error (
+            Throw<std::runtime_error> (
                     "node db path must be a directory.");
         }
     }
@@ -488,10 +463,10 @@ SHAMapStoreImp::dbPaths()
                 << "remove the files matching "
                 << stateDbPathName.string()
                 << " and contents of the directory "
-                << setup_.nodeDatabase["path"].toStdString()
+                << get<std::string>(setup_.nodeDatabase, "path")
                 << std::endl;
 
-        throw std::runtime_error ("state db error");
+        Throw<std::runtime_error> ("state db error");
     }
 }
 
@@ -499,7 +474,7 @@ std::shared_ptr <NodeStore::Backend>
 SHAMapStoreImp::makeBackendRotating (std::string path)
 {
     boost::filesystem::path newPath;
-    NodeStore::Parameters parameters = setup_.nodeDatabase;
+    Section parameters = setup_.nodeDatabase;
 
     if (path.size())
     {
@@ -507,7 +482,7 @@ SHAMapStoreImp::makeBackendRotating (std::string path)
     }
     else
     {
-        boost::filesystem::path p = parameters["path"].toStdString();
+        boost::filesystem::path p = get<std::string>(parameters, "path");
         p /= dbPrefix_;
         p += ".%%%%";
         newPath = boost::filesystem::unique_path (p);
@@ -524,14 +499,8 @@ SHAMapStoreImp::makeDatabaseRotating (std::string const& name,
         std::shared_ptr <NodeStore::Backend> writableBackend,
         std::shared_ptr <NodeStore::Backend> archiveBackend) const
 {
-    std::unique_ptr <NodeStore::Backend> fastBackend (
-        (setup_.ephemeralNodeDatabase.size() > 0)
-            ? NodeStore::Manager::instance().make_Backend (setup_.ephemeralNodeDatabase,
-            scheduler_, journal_) : nullptr);
-
     return NodeStore::Manager::instance().make_DatabaseRotating ("NodeStore.main", scheduler_,
-            readThreads, writableBackend, archiveBackend,
-            std::move (fastBackend), nodeStoreJournal_);
+            readThreads, writableBackend, archiveBackend, nodeStoreJournal_);
 }
 
 void
@@ -541,14 +510,16 @@ SHAMapStoreImp::clearSql (DatabaseCon& database,
         std::string const& deleteQuery)
 {
     LedgerIndex min = std::numeric_limits <LedgerIndex>::max();
-    Database* db = database.getDB();
 
-    std::unique_lock <std::recursive_mutex> lock (database.peekMutex());
-    if (!db->executeSQL (minQuery) || !db->startIterRows())
-        return;
-    min = db->getBigInt (0);
-    db->endIterRows ();
-    lock.unlock();
+    {
+        auto db = database.checkoutDb ();
+        boost::optional<std::uint64_t> m;
+        *db << minQuery, soci::into(m);
+        if (!m)
+            return;
+        min = *m;
+    }
+
     if (health() != Health::ok)
         return;
 
@@ -560,9 +531,10 @@ SHAMapStoreImp::clearSql (DatabaseCon& database,
     {
         min = (min + setup_.deleteBatch >= lastRotated) ? lastRotated :
             min + setup_.deleteBatch;
-        lock.lock();
-        db->executeSQL (boost::str (formattedDeleteQuery % min));
-        lock.unlock();
+        {
+            auto db =  database.checkoutDb ();
+            *db << boost::str (formattedDeleteQuery % min);
+        }
         if (health())
             return;
         if (min < lastRotated)
@@ -599,11 +571,19 @@ SHAMapStoreImp::clearPrior (LedgerIndex lastRotated)
 
     // TODO This won't remove validations for ledgers that do not get
     // validated. That will likely require inserting LedgerSeq into
-    // the validations table
+    // the validations table.
+    //
+    // This query has poor performance with large data sets.
+    // The schema needs to be redesigned to avoid the JOIN, or an
+    // RDBMS that supports concurrency should be used.
+    /*
     clearSql (*ledgerDb_, lastRotated,
         "SELECT MIN(LedgerSeq) FROM Ledgers;",
-        "DELETE FROM Validations WHERE Ledgers.LedgerSeq < %u"
-        " AND Validations.LedgerHash = Ledgers.LedgerHash;");
+        "DELETE FROM Validations WHERE LedgerHash IN "
+        "(SELECT Ledgers.LedgerHash FROM Validations JOIN Ledgers ON "
+        "Validations.LedgerHash=Ledgers.LedgerHash WHERE Ledgers.LedgerSeq < %u);");
+     */
+
     if (health())
         return;
 
@@ -693,34 +673,45 @@ setup_SHAMapStore (Config const& c)
 {
     SHAMapStore::Setup setup;
 
-    if (c.nodeDatabase["online_delete"].isNotEmpty())
-        setup.deleteInterval = c.nodeDatabase["online_delete"].getIntValue();
-    if (c.nodeDatabase["advisory_delete"].isNotEmpty() && setup.deleteInterval)
-        setup.advisoryDelete = c.nodeDatabase["advisory_delete"].getIntValue();
+    // Get existing settings and add some default values if not specified:
+    setup.nodeDatabase = c.section (ConfigSection::nodeDatabase ());
+
+    // These two parameters apply only to RocksDB. We want to give them sensible
+    // defaults if no values are specified.
+    if (!setup.nodeDatabase.exists ("cache_mb"))
+        setup.nodeDatabase.set ("cache_mb", std::to_string (c.getSize (siHashNodeDBCache)));
+
+    if (!setup.nodeDatabase.exists ("filter_bits") && (c.NODE_SIZE >= 2))
+        setup.nodeDatabase.set ("filter_bits", "10");
+
+    get_if_exists (setup.nodeDatabase, "online_delete", setup.deleteInterval);
+
+    if (setup.deleteInterval)
+        get_if_exists (setup.nodeDatabase, "advisory_delete", setup.advisoryDelete);
+
     setup.ledgerHistory = c.LEDGER_HISTORY;
-    setup.nodeDatabase = c.nodeDatabase;
-    setup.ephemeralNodeDatabase = c.ephemeralNodeDatabase;
-    setup.databasePath = c.DATABASE_PATH;
-    if (c.nodeDatabase["delete_batch"].isNotEmpty())
-        setup.deleteBatch = c.nodeDatabase["delete_batch"].getIntValue();
-    if (c.nodeDatabase["backOff"].isNotEmpty())
-        setup.backOff = c.nodeDatabase["backOff"].getIntValue();
-    if (c.nodeDatabase["age_threshold"].isNotEmpty())
-        setup.ageThreshold = c.nodeDatabase["age_threshold"].getIntValue();
+    setup.databasePath = c.legacy("database_path");
+
+    get_if_exists (setup.nodeDatabase, "delete_batch", setup.deleteBatch);
+    get_if_exists (setup.nodeDatabase, "backOff", setup.backOff);
+    get_if_exists (setup.nodeDatabase, "age_threshold", setup.ageThreshold);
 
     return setup;
 }
 
 std::unique_ptr<SHAMapStore>
-make_SHAMapStore (SHAMapStore::Setup const& s,
+make_SHAMapStore (Application& app,
+        SHAMapStore::Setup const& s,
         beast::Stoppable& parent,
         NodeStore::Scheduler& scheduler,
         beast::Journal journal,
         beast::Journal nodeStoreJournal,
-        TransactionMaster& transactionMaster)
+        TransactionMaster& transactionMaster,
+        BasicConfig const& config)
 {
-    return std::make_unique<SHAMapStoreImp> (s, parent, scheduler,
-            journal, nodeStoreJournal, transactionMaster);
+    return std::make_unique<SHAMapStoreImp>(app, s, parent, scheduler,
+            journal, nodeStoreJournal, transactionMaster,
+            config);
 }
 
 }

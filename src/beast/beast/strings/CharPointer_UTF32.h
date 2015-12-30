@@ -21,8 +21,8 @@
 */
 //==============================================================================
 
-#ifndef BEAST_CHARPOINTER_UTF32_H_INCLUDED
-#define BEAST_CHARPOINTER_UTF32_H_INCLUDED
+#ifndef BEAST_STRINGS_CHARPOINTER_UTF32_H_INCLUDED
+#define BEAST_STRINGS_CHARPOINTER_UTF32_H_INCLUDED
 
 #include <beast/Config.h>
 #include <beast/strings/CharacterFunctions.h>
@@ -41,7 +41,7 @@ namespace beast {
 class CharPointer_UTF32
 {
 public:
-    typedef beast_wchar CharType;
+    using CharType = beast_wchar;
 
     inline explicit CharPointer_UTF32 (const CharType* const rawPointer) noexcept
         : data (const_cast <CharType*> (rawPointer))

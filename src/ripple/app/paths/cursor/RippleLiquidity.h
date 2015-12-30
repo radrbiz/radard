@@ -17,14 +17,13 @@
 */
 //==============================================================================
 
-#ifndef RIPPLE_PATHS_CALCULATORS_H
-#define RIPPLE_PATHS_CALCULATORS_H
-
-#include <boost/log/trivial.hpp>
+#ifndef RIPPLE_APP_PATHS_CURSOR_RIPPLELIQUIDITY_H_INCLUDED
+#define RIPPLE_APP_PATHS_CURSOR_RIPPLELIQUIDITY_H_INCLUDED
 
 #include <ripple/app/paths/cursor/PathCursor.h>
 #include <ripple/app/paths/RippleCalc.h>
 #include <ripple/app/paths/Tuning.h>
+#include <ripple/ledger/View.h>
 
 namespace ripple {
 namespace path {
@@ -41,16 +40,16 @@ void rippleLiquidity (
 
 std::uint32_t
 quality_in (
-    LedgerEntrySet& ledger,
-    Account const& uToAccountID,
-    Account const& uFromAccountID,
+    ReadView const& view,
+    AccountID const& uToAccountID,
+    AccountID const& uFromAccountID,
     Currency const& currency);
 
 std::uint32_t
 quality_out (
-    LedgerEntrySet& ledger,
-    Account const& uToAccountID,
-    Account const& uFromAccountID,
+    ReadView const& view,
+    AccountID const& uToAccountID,
+    AccountID const& uFromAccountID,
     Currency const& currency);
 
 } // path

@@ -21,8 +21,8 @@
 */
 //==============================================================================
 
-#ifndef BEAST_BASICNATIVEHEADERS_H_INCLUDED
-#define BEAST_BASICNATIVEHEADERS_H_INCLUDED
+#ifndef BEAST_MODULE_CORE_NATIVE_BASICNATIVEHEADERS_H_INCLUDED
+#define BEAST_MODULE_CORE_NATIVE_BASICNATIVEHEADERS_H_INCLUDED
 
 #include <beast/Config.h>
 
@@ -106,7 +106,10 @@
  #include <mapi.h>
  #include <float.h>
  #include <process.h>
+ #pragma warning ( push )
+ #pragma warning ( disable: 4091 )
  #include <shlobj.h>
+ #pragma warning ( pop )
  #include <shlwapi.h>
  #include <mmsystem.h>
 

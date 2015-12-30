@@ -26,14 +26,17 @@
 namespace ripple {
 namespace RPC {
 
+/** Get an AccountID from an account ID or public key. */
+boost::optional<AccountID> accountFromStringStrict (std::string const&);
+
+// --> strIdent: public key, account ID, or regular seed.
+// --> bStrict: Only allow account id or public key.
+//
+// Returns a Json::objectValue, containing error information if there was one.
 Json::Value accountFromString (
-    Ledger::ref lrLedger,
-    RippleAddress& naAccount,
-    bool& bIndex,
+    AccountID& result,
     std::string const& strIdent,
-    const int iIndex,
-    const bool bStrict,
-    NetworkOPs& netOps);
+    bool bStrict = false);
 
 } // RPC
 } // ripple

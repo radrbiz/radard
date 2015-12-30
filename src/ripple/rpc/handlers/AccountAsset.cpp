@@ -1,12 +1,13 @@
 #include <BeastConfig.h>
-#include <ripple/rpc/impl/Tuning.h>
-#include <ripple/rpc/impl/AccountFromString.h>
 #include <ripple/app/paths/RippleState.h>
+#include <ripple/ledger/PaymentSandbox.h>
 #include <ripple/protocol/Indexes.h>
+#include <ripple/rpc/impl/AccountFromString.h>
+#include <ripple/rpc/impl/LookupLedger.h>
 
 namespace ripple {
 
-void addLine (Json::Value& jsonLines, RippleState const& line, Ledger::pointer ledger);
+void addLine (RPC::Context& context, Json::Value& jsonLines, RippleState const& line, std::shared_ptr<ReadView const> ledger);
 
 // {
 //   account: [<account>|<account_public_key>]
@@ -25,52 +26,45 @@ Json::Value doAccountAsset (RPC::Context& context)
     if (!params.isMember(jss::currency))
         return RPC::missing_field_error("currency");
 
-    Ledger::pointer ledger;
-    Json::Value result(RPC::lookupLedger(params, ledger, context.netOps));
+    std::shared_ptr<ReadView const> ledger;
+    auto result = RPC::lookupLedger (ledger, context);
     if (!ledger)
         return result;
 
-    std::string strIdent(params[jss::account].asString());
-    bool bIndex(params.isMember(jss::account_index));
-    int iIndex(bIndex ? params[jss::account_index].asUInt() : 0);
-    RippleAddress rippleAddress;
+    std::string strIdent (params[jss::account].asString ());
+    AccountID raAccount;
 
-    Json::Value const jv(RPC::accountFromString(ledger, rippleAddress, bIndex,
-                                                strIdent, iIndex, false, context.netOps));
-    if (!jv.empty()) {
-        for (Json::Value::const_iterator it(jv.begin()); it != jv.end(); ++it)
-            result[it.memberName()] = it.key();
+    if (auto jv = RPC::accountFromString (raAccount, strIdent))
+    {
+        for (auto it = jv.begin (); it != jv.end (); ++it)
+            result[it.memberName ()] = it.key ();
 
         return result;
     }
 
-    if (!ledger->hasAccount(rippleAddress))
-        return rpcError(rpcACT_NOT_FOUND);
+    if (! ledger->exists(keylet::account (raAccount)))
+        return rpcError (rpcACT_NOT_FOUND);
 
-    std::string strPeer(params.isMember(jss::peer) ? params[jss::peer].asString() : "");
-    bool bPeerIndex(params.isMember(jss::peer_index));
-    int iPeerIndex(bIndex ? params[jss::peer_index].asUInt() : 0);
-    RippleAddress rippleAddressPeer;
+    std::string strPeer (params[jss::peer].asString ());
+    AccountID raPeerAccount;
 
-    Json::Value const jvPeer(RPC::accountFromString(ledger, rippleAddressPeer, bPeerIndex,
-                                                    strPeer, iPeerIndex, false, context.netOps));
-    if (!jvPeer.empty()) {
+    if (auto jv = RPC::accountFromString (raPeerAccount, strPeer))
+    {
+        for (auto it = jv.begin (); it != jv.end (); ++it)
+            result[it.memberName ()] = it.key ();
+
         return result;
     }
 
-    if (!ledger->hasAccount(rippleAddressPeer))
-        return rpcError(rpcACT_NOT_FOUND);
+    if (! ledger->exists(keylet::account (raPeerAccount)))
+        return rpcError (rpcACT_NOT_FOUND);
 
     Currency uCurrency;
     if (!to_currency(uCurrency, params[jss::currency].asString()))
         return RPC::make_error(rpcSRC_CUR_MALFORMED, "Invalid field 'currency', bad currency.");
 
-    Account const& raAccount(rippleAddress.getAccountID());
-    Account const& raPeerAccount(rippleAddressPeer.getAccountID());
-
-    uint256 uNodeIndex = getRippleStateIndex(raAccount, raPeerAccount, uCurrency);
-    auto sleNode = context.netOps.getSLEi(ledger, uNodeIndex);
-    auto const line(RippleState::makeItem(raAccount, sleNode));
+    auto sleNode = ledger->read (keylet::line (raAccount, raPeerAccount, uCurrency));
+    auto const line = RippleState::makeItem (raAccount, sleNode);
 
     if (line == nullptr ||
         raAccount != line->getAccountID() ||
@@ -78,29 +72,28 @@ Json::Value doAccountAsset (RPC::Context& context)
         return result;
 
     Json::Value jsonLines(Json::arrayValue);
-    addLine(jsonLines, *line, ledger);
+    addLine(context, jsonLines, *line, ledger);
     result[jss::lines] = jsonLines[0u];
     
     Json::Value& jsonAssetStates(result[jss::states] = Json::arrayValue);
     
     // get asset_states for currency ASSET.
     if (assetCurrency() == line->getBalance().getCurrency()) {
-        auto lpLedger = std::make_shared<Ledger> (std::ref (*ledger), false);
-        LedgerEntrySet les(lpLedger, tapNONE);
-        auto sleRippleState = les.entryCache(ltRIPPLE_STATE, getRippleStateIndex(raAccount, raPeerAccount, assetCurrency()));
-        les.assetRelease(raAccount, raPeerAccount, assetCurrency(), sleRippleState);
+        PaymentSandbox les (&*ledger, tapNONE);
+        auto sleRippleState = les.peek (keylet::line (raAccount, raPeerAccount, assetCurrency ()));
+        assetRelease (les, raAccount, raPeerAccount, assetCurrency (), sleRippleState, context.app.journal ("View"));
 
         uint256 baseIndex = getAssetStateIndex(line->getAccountID(), line->getAccountIDPeer(), assetCurrency());
         uint256 assetStateIndex = getQualityIndex(baseIndex);
         uint256 assetStateEnd = getQualityNext(assetStateIndex);
 
         for (;;) {
-            auto const& sle = les.entryCache(ltASSET_STATE, assetStateIndex);
+            auto const& sle = les.read (keylet::asset_state (assetStateIndex));
             if (sle) {
                 STAmount amount = sle->getFieldAmount(sfAmount);
                 STAmount released = sle->getFieldAmount(sfDeliveredAmount);
 
-                if (sle->getFieldAccount160(sfAccount) == line->getAccountIDPeer()) {
+                if (sle->getAccountID(sfAccount) == line->getAccountIDPeer()) {
                     amount.negate();
                     released.negate();
                 }
@@ -113,13 +106,13 @@ Json::Value doAccountAsset (RPC::Context& context)
                 state[jss::reserve] = reserved.getText();
             }
 
-            auto const nextAssetState(
-                les.getNextLedgerIndex(assetStateIndex, assetStateEnd));
+            auto const nextAssetState =
+                les.succ (assetStateIndex, assetStateEnd);
 
-            if (nextAssetState.isZero())
+            if (!nextAssetState)
                 break;
 
-            assetStateIndex = nextAssetState;
+            assetStateIndex = *nextAssetState;
         }
     }
 

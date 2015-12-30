@@ -18,18 +18,54 @@
 //==============================================================================
 
 #include <BeastConfig.h>
+#include <ripple/basics/contract.h>
 #include <ripple/basics/Log.h>
 #include <ripple/protocol/STBase.h>
 #include <ripple/protocol/STArray.h>
 
 namespace ripple {
 
-std::unique_ptr<STBase>
-STArray::deserialize (SerializerIterator& sit, SField::ref field)
+STArray::STArray()
 {
-    std::unique_ptr <STArray> ret (std::make_unique <STArray> (field));
-    vector& value (ret->getValue ());
+    // VFALCO NOTE We need to determine if this is
+    //             the right thing to do, and consider
+    //             making it optional.
+    //v_.reserve(reserveSize);
+}
 
+STArray::STArray (STArray&& other)
+    : STBase(other.getFName())
+    , v_(std::move(other.v_))
+{
+}
+
+STArray& STArray::operator= (STArray&& other)
+{
+    setFName(other.getFName());
+    v_ = std::move(other.v_);
+    return *this;
+}
+
+STArray::STArray (int n)
+{
+    v_.reserve(n);
+}
+
+STArray::STArray (SField const& f)
+    : STBase (f)
+{
+    v_.reserve(reserveSize);
+}
+
+STArray::STArray (SField const& f, int n)
+    : STBase (f)
+{
+    v_.reserve(n);
+}
+
+STArray::STArray (SerialIter& sit, SField const& f)
+    : STBase(f)
+{
     while (!sit.empty ())
     {
         int type, field;
@@ -42,28 +78,32 @@ STArray::deserialize (SerializerIterator& sit, SField::ref field)
         {
             WriteLog (lsWARNING, STObject) <<
                 "Encountered array with end of object marker";
-            throw std::runtime_error ("Illegal terminator in array");
+            Throw<std::runtime_error> ("Illegal terminator in array");
         }
 
-        SField::ref fn = SField::getField (type, field);
+        auto const& fn = SField::getField (type, field);
 
         if (fn.isInvalid ())
         {
             WriteLog (lsTRACE, STObject) <<
                 "Unknown field: " << type << "/" << field;
-            throw std::runtime_error ("Unknown field");
+            Throw<std::runtime_error> ("Unknown field");
         }
 
         if (fn.fieldType != STI_OBJECT)
         {
             WriteLog (lsTRACE, STObject) << "Array contains non-object";
-            throw std::runtime_error ("Non-object in array");
+            Throw<std::runtime_error> ("Non-object in array");
         }
 
-        value.push_back (new STObject (fn));
-        value.rbegin ()->set (sit, 1);
+        v_.emplace_back(fn);
+        v_.back().set (sit, 1);
+
+        if (v_.back().setTypeFromSField (fn) == STObject::typeSetFail)
+        {
+            Throw<std::runtime_error> ("Malformed object in array");
+        }
     }
-    return std::move (ret);
 }
 
 std::string STArray::getFullText () const
@@ -71,12 +111,12 @@ std::string STArray::getFullText () const
     std::string r = "[";
 
     bool first = true;
-    for (STObject const& o : value)
+    for (auto const& obj : v_)
     {
         if (!first)
             r += ",";
 
-        r += o.getFullText ();
+        r += obj.getFullText ();
         first = false;
     }
 
@@ -89,7 +129,7 @@ std::string STArray::getText () const
     std::string r = "[";
 
     bool first = true;
-    for (STObject const& o : value)
+    for (STObject const& o : v_)
     {
         if (!first)
             r += ",";
@@ -106,15 +146,14 @@ Json::Value STArray::getJson (int p) const
 {
     Json::Value v = Json::arrayValue;
     int index = 1;
-    for (auto const& object: value)
+    for (auto const& object: v_)
     {
         if (object.getSType () != STI_NOTPRESENT)
         {
-            Json::Value inner = Json::objectValue;
+            Json::Value& inner = v.append (Json::objectValue);
             auto const& fname = object.getFName ();
             auto k = fname.hasName () ? fname.fieldName : std::to_string(index);
             inner[k] = object.getJson (p);
-            v.append (inner);
             index++;
         }
     }
@@ -123,7 +162,7 @@ Json::Value STArray::getJson (int p) const
 
 void STArray::add (Serializer& s) const
 {
-    for (STObject const& object : value)
+    for (STObject const& object : v_)
     {
         object.addFieldID (s);
         object.add (s);
@@ -142,12 +181,12 @@ bool STArray::isEquivalent (const STBase& t) const
         return false;
     }
 
-    return value == v->value;
+    return v_ == v->v_;
 }
 
 void STArray::sort (bool (*compare) (const STObject&, const STObject&))
 {
-    value.sort (compare);
+    std::sort(v_.begin(), v_.end(), compare);
 }
 
 } // ripple

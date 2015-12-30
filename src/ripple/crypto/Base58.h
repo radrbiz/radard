@@ -29,8 +29,8 @@
 // - E-mail usually won't line-break if there's no punctuation to break at.
 // - Doubleclicking selects the whole number as one word if it's all alphanumeric.
 //
-#ifndef RIPPLE_CRYPTO_BASE58_H
-#define RIPPLE_CRYPTO_BASE58_H
+#ifndef RIPPLE_CRYPTO_BASE58_H_INCLUDED
+#define RIPPLE_CRYPTO_BASE58_H_INCLUDED
 
 #include <ripple/basics/Blob.h>
 #include <array>
@@ -96,7 +96,7 @@ public:
     static std::string encode (InputIt first, InputIt last,
         Alphabet const& alphabet, bool withCheck)
     {
-        typedef typename std::iterator_traits<InputIt>::value_type value_type;
+        using value_type = typename std::iterator_traits<InputIt>::value_type;
         std::vector <typename std::remove_const <value_type>::type> v;
         std::size_t const size (std::distance (first, last));
         if (withCheck)

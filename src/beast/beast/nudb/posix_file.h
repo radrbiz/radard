@@ -17,8 +17,8 @@
 */
 //==============================================================================
 
-#ifndef BEAST_NUDB_POSIX_FILE_H_INCLUDED
-#define BEAST_NUDB_POSIX_FILE_H_INCLUDED
+#ifndef BEAST_NUDB_DETAIL_POSIX_FILE_H_INCLUDED
+#define BEAST_NUDB_DETAIL_POSIX_FILE_H_INCLUDED
 
 #include <beast/nudb/common.h>
 #include <cassert>
@@ -74,7 +74,7 @@ private:
     std::string
     text (int errnum)
     {
-        return ::strerror(errnum);
+        return std::strerror(errnum);
     }
 };
 

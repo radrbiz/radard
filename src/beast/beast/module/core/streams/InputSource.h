@@ -21,8 +21,8 @@
 */
 //==============================================================================
 
-#ifndef BEAST_INPUTSOURCE_H_INCLUDED
-#define BEAST_INPUTSOURCE_H_INCLUDED
+#ifndef BEAST_MODULE_CORE_STREAMS_INPUTSOURCE_H_INCLUDED
+#define BEAST_MODULE_CORE_STREAMS_INPUTSOURCE_H_INCLUDED
 
 namespace beast
 {
@@ -33,10 +33,8 @@ namespace beast
 
     This may be used to refer to a file, or some other kind of source, allowing a
     caller to create an input stream that can read from it when required.
-
-    @see FileInputSource
 */
-class InputSource : LeakChecked <InputSource>
+class InputSource
 {
 public:
     //==============================================================================

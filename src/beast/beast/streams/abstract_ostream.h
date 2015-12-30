@@ -17,15 +17,15 @@
 */
 //==============================================================================
 
-#ifndef BEAST_UTILITY_ABSTRACT_OSTREAM_H_INCLUDED
-#define BEAST_UTILITY_ABSTRACT_OSTREAM_H_INCLUDED
+#ifndef BEAST_STREAMS_ABSTRACT_OSTREAM_H_INCLUDED
+#define BEAST_STREAMS_ABSTRACT_OSTREAM_H_INCLUDED
 
 #include <beast/streams/basic_abstract_ostream.h>
 
 namespace beast {
 
 /** An abstract ostream for `char`. */
-typedef basic_abstract_ostream <char> abstract_ostream;
+using abstract_ostream = basic_abstract_ostream <char>;
 
 }
 

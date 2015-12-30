@@ -18,12 +18,42 @@
 //==============================================================================
 
 #include <BeastConfig.h>
+#include <ripple/json/json_value.h>
+#include <ripple/protocol/JsonFields.h>
+#include <ripple/server/Role.h>
+#include <ripple/rpc/Context.h>
 
 namespace ripple {
 
+namespace RPC {
+struct Context;
+} // RPC
+
 Json::Value doPing (RPC::Context& context)
 {
-    return Json::Value (Json::objectValue);
+    // For testing connection privileges.
+    if (isUnlimited(context.role))
+    {
+        Json::Value ret;
+
+        switch (context.role)
+        {
+            case Role::ADMIN:
+                ret[jss::role] = "admin";
+                break;
+            case Role::IDENTIFIED:
+                ret[jss::role] = "identified";
+                break;
+            default:
+                ;
+        }
+
+        return ret;
+    }
+    else
+    {
+        return Json::Value (Json::objectValue);
+    }
 }
 
 } // ripple

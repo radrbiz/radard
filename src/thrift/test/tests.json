@@ -1,0 +1,280 @@
+{
+    "client": [
+        {
+            "description": "Python TestClient",
+            "lib": "py",
+            "executable": "py/TestClient.py",
+            "exit": "hard",
+            "extra_args":  ["--genpydir=gen-py"],
+            "protocols": [
+                "binary",
+                "compact",
+                "json",
+                "accel"
+            ],
+            "transports": [
+                "buffered",
+                "framed"
+            ],
+            "sockets": [
+                "ip",
+                "ip-ssl"
+            ],
+            "platform": [
+                "Linux"
+            ]
+        },
+        {
+            "description": "C++ TestClient",
+            "lib": "cpp",
+            "executable": "cpp/TestClient",
+            "exit": "hard",
+            "protocols": [
+                "binary",
+                "compact",
+                "json"
+            ],
+            "transports": [
+                "buffered",
+                "framed",
+                "http"
+            ],
+            "sockets": [
+                "ip",
+                "ip-ssl",
+                "domain"
+            ],
+            "platform": [
+                "Linux"
+            ]
+        },
+        {
+            "description": "Nodejs TestClient",
+            "lib": "nodejs",
+            "executable": "../lib/nodejs/test/client.js",
+            "exit": "soft",
+            "protocols": [
+                "binary",
+                "compact",
+                "json"
+            ],
+            "transports": [
+                "buffered",
+                "framed"
+            ],
+            "sockets": [
+                "ip",
+                "ip-ssl"
+            ],
+            "platform": [
+                "Linux"
+            ]
+        },
+        {
+            "description": "Ruby TestClient",
+            "lib": "ruby",
+            "executable": "rb/integration/TestClient.rb",
+            "exit": "soft",
+            "protocols": [
+                "binary",
+                "compact",
+                "json",
+                "accel"
+            ],
+            "transports": [
+                "buffered",
+                "framed"
+            ],
+            "sockets": [
+                "ip"
+            ],
+            "platform": [
+                "Linux"
+            ]
+        },
+        {
+            "description": "Java TestClient",
+            "lib": "java",
+            "executable": ["ant","-f","../lib/java/build.xml","-Dno-gen-thrift=\"\""],
+            "extra_args": ["run-testclient"],
+            "exit": "hard",
+            "protocols": [
+                "binary",
+                "compact",
+                "json"
+            ],
+            "transports": [
+                "buffered",
+                "framed",
+                "fastframed",
+                "http"
+            ],
+            "sockets": [
+                "ip",
+                "ip-ssl"
+            ],
+            "platform": [
+                "Linux"
+            ]
+        },
+        {
+            "description": "Haskell TestClient",
+            "lib": "hs",
+            "executable": "hs/TestClient",
+            "exit": "hard",
+            "protocols": [
+                "binary",
+                "compact",
+                "json"
+            ],
+            "transports": [
+                "buffered"
+            ],
+            "sockets": [
+                "ip"
+            ],
+            "platform": [
+                "Linux"
+            ]
+        }
+    ],
+    "server": [
+        {
+            "description": "Python TSimpleServer",
+            "lib": "py",
+            "executable": "py/TestServer.py",
+            "extra_args": ["--genpydir=gen-py", "TSimpleServer"],
+            "extra_delay": 0,
+            "exit": "soft",
+            "protocols": [
+                "binary",
+                "compact",
+                "json",
+                "accel"
+            ],
+            "transports": [
+                "buffered",
+                "framed"
+            ],
+            "sockets": [
+                "ip",
+                "ip-ssl"
+            ],
+            "platform": [
+                "Linux"
+            ]
+        },
+        {
+            "description": "C++ TestServer",
+            "lib": "cpp",
+            "executable": "cpp/TestServer",
+            "exit": "hard",
+            "protocols": [
+                "binary",
+                "compact",
+                "json"
+            ],
+            "transports": [
+                "buffered",
+                "framed",
+                "http"
+            ],
+            "sockets": [
+                "ip",
+                "ip-ssl",
+                "domain"
+            ],
+            "platform": [
+                "Linux"
+            ]
+        },
+        {
+            "description": "Ruby TestServer",
+            "lib": "ruby",
+            "executable": "rb/integration/TestServer.rb",
+            "exit": "soft",
+            "protocols": [
+                "binary",
+                "compact",
+                "json",
+                "accel"
+            ],
+            "transports": [
+                "buffered",
+                "framed"
+            ],
+            "sockets": [
+                "ip"
+            ],
+            "platform": [
+                "Linux"
+            ]
+        },
+        {
+            "description": "Nodejs TestServer",
+            "lib": "nodejs",
+            "executable": "../lib/nodejs/test/server.js",
+            "exit": "soft",
+            "protocols": [
+                "binary",
+                "compact",
+                "json"
+            ],
+            "transports": [
+                "buffered",
+                "framed"
+            ],
+            "sockets": [
+                "ip",
+                "ip-ssl"
+            ],
+            "platform": [
+                "Linux"
+            ]
+        },
+        {
+            "description": "Java TestServer",
+            "lib": "java",
+            "executable": ["ant","-f","../lib/java/build.xml","-Dno-gen-thrift=\"\""],
+            "extra_args": ["run-testserver"],
+            "exit": "hard",
+            "protocols": [
+                "binary",
+                "compact",
+                "json"
+            ],
+            "transports": [
+                "buffered",
+                "framed",
+                "fastframed"
+            ],
+            "sockets": [
+                "ip",
+                "ip-ssl"
+            ],
+            "platform": [
+                "Linux"
+            ]
+        },
+        {
+            "description": "Haskell TestServer",
+            "lib": "hs",
+            "executable": "hs/TestServer",
+            "exit": "hard",
+            "protocols": [
+                "binary",
+                "compact",
+                "json"
+            ],
+            "transports": [
+                "buffered"
+            ],
+            "sockets": [
+                "ip"
+            ],
+            "platform": [
+                "Linux"
+            ]
+        }
+    ]
+}

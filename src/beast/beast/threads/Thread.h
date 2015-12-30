@@ -24,7 +24,6 @@
 #ifndef BEAST_THREADS_THREAD_H_INCLUDED
 #define BEAST_THREADS_THREAD_H_INCLUDED
 
-#include <beast/utility/LeakChecked.h>
 #include <beast/threads/RecursiveMutex.h>
 #include <beast/threads/WaitableEvent.h>
 
@@ -43,7 +42,7 @@ namespace beast {
     @see CriticalSection, WaitableEvent, Process, ThreadWithProgressWindow,
          MessageManagerLock
 */
-class Thread : LeakChecked <Thread>
+class Thread
 {
 public:
     //==============================================================================
@@ -57,7 +56,7 @@ public:
 
     Thread (Thread const&) = delete;
     Thread& operator= (Thread const&) = delete;
-    
+
     /** Destructor.
 
         If the thread has not been stopped first, this will generate a fatal error.

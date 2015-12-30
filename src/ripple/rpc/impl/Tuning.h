@@ -27,42 +27,44 @@ namespace RPC {
 /** @{ */
 namespace Tuning {
 
-/** Default account lines return per request to the
-account_lines command when no limit param is specified
-*/
-unsigned int const defaultLinesPerRequest (200);
+/** Represents RPC limit parameter values that have a min, default and max. */
+struct LimitRange {
+    unsigned int rmin, rdefault, rmax;
+};
 
-/** Minimum account lines return per request to the
-account_lines command. Specified in the limit param.
-*/
-unsigned int const minLinesPerRequest (10);
+/** Limits for the account_lines command. */
+static LimitRange const accountLines = {10, 200, 400};
 
-/** Maximum account lines return per request to the
-account_lines command. Specified in the limit param.
-*/
-unsigned int const maxLinesPerRequest (400);
+/** Limits for the account_objects command. */
+static LimitRange const accountObjects = {10, 200, 400};
 
-/** Default offers return per request to the account_offers command
-when no limit param is specified
-*/
-unsigned int const defaultOffersPerRequest (200);
+/** Limits for the account_offers command. */
+static LimitRange const accountOffers = {10, 200, 400};
 
-/** Minimum offers return per request to the account_offers command.
-Specified in the limit param.
-*/
-unsigned int const minOffersPerRequest (10);
+/** Limits for the book_offers command. */
+static LimitRange const bookOffers = {0, 0, 400};
 
-/** Maximum offers return per request to the account_lines command.
-Specified in the limit param.
-*/
-unsigned int const maxOffersPerRequest (400);
+/** Limits for the no_ripple_check command. */
+static LimitRange const noRippleCheck = {10, 300, 400};
 
-int const defaultAutoFillFeeMultiplier (10);
-int const maxPathfindsInProgress (2);
-int const maxPathfindJobCount (50);
-int const maxJobQueueClients (500);
-int const maxValidatedLedgerAge (120);
-int const maxRequestSize (1000000);
+static int const defaultAutoFillFeeMultiplier = 10;
+static int const maxPathfindsInProgress = 2;
+static int const maxPathfindJobCount = 50;
+static int const maxJobQueueClients = 500;
+static int const maxValidatedLedgerAge = 120;
+static int const maxRequestSize = 1000000;
+
+/** Maximum number of pages in one response from a binary LedgerData request. */
+static int const binaryPageLength = 2048;
+
+/** Maximum number of pages in one response from a Json LedgerData request. */
+static int const jsonPageLength = 256;
+
+/** Maximum number of pages in a LedgerData response. */
+inline int pageLength(bool isBinary)
+{
+    return isBinary ? binaryPageLength : jsonPageLength;
+}
 
 } // Tuning
 /** @} */

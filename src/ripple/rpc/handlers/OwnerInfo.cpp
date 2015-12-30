@@ -18,59 +18,46 @@
 //==============================================================================
 
 #include <BeastConfig.h>
+#include <ripple/app/ledger/LedgerMaster.h>
+#include <ripple/app/misc/NetworkOPs.h>
+#include <ripple/json/json_value.h>
+#include <ripple/protocol/ErrorCodes.h>
+#include <ripple/protocol/JsonFields.h>
+#include <ripple/rpc/impl/AccountFromString.h>
+#include <ripple/rpc/Context.h>
 
 namespace ripple {
 
 // {
 //   'ident' : <indent>,
-//   'account_index' : <index> // optional
 // }
 Json::Value doOwnerInfo (RPC::Context& context)
 {
-    auto lock = getApp().masterLock();
-    if (!context.params.isMember ("account") &&
-        !context.params.isMember ("ident"))
+    if (!context.params.isMember (jss::account) &&
+        !context.params.isMember (jss::ident))
     {
-        return RPC::missing_field_error ("account");
+        return RPC::missing_field_error (jss::account);
     }
 
-    std::string strIdent = context.params.isMember ("account")
-            ? context.params["account"].asString ()
-            : context.params["ident"].asString ();
-    bool bIndex;
-    int iIndex = context.params.isMember ("account_index")
-            ? context.params["account_index"].asUInt () : 0;
-    RippleAddress raAccount;
+    std::string strIdent = context.params.isMember (jss::account)
+            ? context.params[jss::account].asString ()
+            : context.params[jss::ident].asString ();
     Json::Value ret;
 
     // Get info on account.
 
-    auto const& closedLedger = context.netOps.getClosedLedger ();
-    Json::Value jAccepted = RPC::accountFromString (
-        closedLedger,
-        raAccount,
-        bIndex,
-        strIdent,
-        iIndex,
-        false,
-        context.netOps);
+    auto const& closedLedger = context.ledgerMaster.getClosedLedger ();
+    AccountID accountID;
+    auto jAccepted = RPC::accountFromString (accountID, strIdent);
 
-    ret["accepted"] = jAccepted.empty () ? context.netOps.getOwnerInfo (
-        closedLedger, raAccount) : jAccepted;
+    ret[jss::accepted] = ! jAccepted ?
+            context.netOps.getOwnerInfo (closedLedger, accountID) : jAccepted;
 
-    auto const& currentLedger = context.netOps.getCurrentLedger ();
-    Json::Value jCurrent = RPC::accountFromString (
-        currentLedger,
-        raAccount,
-        bIndex,
-        strIdent,
-        iIndex,
-        false,
-        context.netOps);
+    auto const& currentLedger = context.ledgerMaster.getCurrentLedger ();
+    auto jCurrent = RPC::accountFromString (accountID, strIdent);
 
-    ret["current"] = jCurrent.empty () ? context.netOps.getOwnerInfo (
-        currentLedger, raAccount) : jCurrent;
-
+    ret[jss::current] = ! jCurrent ?
+            context.netOps.getOwnerInfo (currentLedger, accountID) : jCurrent;
     return ret;
 }
 

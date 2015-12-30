@@ -46,21 +46,27 @@ struct Protocol
     static int const txMaxSizeBytes = 1024 * 1024; // 1048576
 };
 
-/** A ledger index.
+/** A clock representing network time.
+    This measures seconds since the Ripple epoch as seen
+    by the ledger close clock.
 */
-// VFALCO TODO pick one. I like Index since its not an abbreviation
-typedef std::uint32_t LedgerIndex;
-// VFALCO NOTE "LedgerSeq" appears in some SQL statement text
-typedef std::uint32_t LedgerSeq;
+class Clock // : public abstract_clock <std::chrono::seconds>
+{
+public:
+    using time_point = std::uint32_t;
+    using duration = std::chrono::seconds;
+};
+
+/** A ledger index. */
+using LedgerIndex = std::uint32_t;
 
 /** A transaction identifier.
+    The value is computed as the hash of the
+    canonicalized, serialized transaction object.
 */
-// VFALCO TODO maybe rename to TxHash
-typedef uint256 TxID;
+using TxID = uint256;
 
-/** A transaction index.
-*/
-typedef std::uint32_t TxSeq; // VFALCO NOTE Should read TxIndex or TxNum
+using TxSeq = std::uint32_t;
 
 } // ripple
 

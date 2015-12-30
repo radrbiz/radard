@@ -17,9 +17,10 @@
 */
 //==============================================================================
 
-#ifndef RIPPLE_LOCALCREDENTIALS_H
-#define RIPPLE_LOCALCREDENTIALS_H
+#ifndef RIPPLE_APP_MAIN_LOCALCREDENTIALS_H_INCLUDED
+#define RIPPLE_APP_MAIN_LOCALCREDENTIALS_H_INCLUDED
 
+#include <ripple/app/main/Application.h>
 #include <ripple/protocol/RippleAddress.h>
 #include <mutex>
 #include <string>
@@ -30,7 +31,7 @@ namespace ripple {
 class LocalCredentials
 {
 public:
-    LocalCredentials () = default;
+    LocalCredentials (Application& app);
     LocalCredentials (LocalCredentials const&) = delete;
     LocalCredentials& operator= (LocalCredentials const&) = delete;
 
@@ -48,18 +49,12 @@ public:
         return mNodePrivateKey;
     }
 
-    // Local persistence of RPC clients
-    bool dataDelete (std::string const& strKey);
-
-    // VFALCO NOTE why is strValue non-const?
-    bool dataFetch (std::string const& strKey, std::string& strValue);
-    bool dataStore (std::string const& strKey, std::string const& strValue);
-
 private:
     bool nodeIdentityLoad ();
     bool nodeIdentityCreate ();
 
 private:
+    Application& app_;
     std::recursive_mutex mLock;
 
     RippleAddress mNodePublicKey;

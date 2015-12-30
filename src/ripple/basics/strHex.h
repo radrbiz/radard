@@ -25,15 +25,26 @@
 #ifndef RIPPLE_BASICS_STRHEX_H_INCLUDED
 #define RIPPLE_BASICS_STRHEX_H_INCLUDED
 
+#include <cassert>
 #include <string>
-    
+
 namespace ripple {
 
 /** Converts an integer to the corresponding hex digit
     @param iDigit 0-15 inclusive
-    @return a character from '0'-'9' or 'A'-'F' on success; 0 on failure.
+    @return a character from '0'-'9' or 'A'-'F'.
 */
-char charHex (int iDigit);
+inline
+char
+charHex (unsigned int digit)
+{
+    static
+    char const xtab[] = "0123456789ABCDEF";
+
+    assert (digit < 16);
+
+    return xtab[digit];
+}
 
 /** @{ */
 /** Converts a hex digit to the corresponding integer
@@ -53,22 +64,18 @@ charUnHex (char c)
 
 // NIKB TODO cleanup this function and reduce the need for the many overloads
 //           it has in various places.
-template<class Iterator>
-std::string strHex (Iterator first, int iSize)
+template<class FwdIt>
+std::string strHex (FwdIt first, int size)
 {
-    std::string strDst;
-
-    strDst.resize (iSize * 2);
-
-    for (int i = 0; i < iSize; i++)
+    std::string s;
+    s.resize (size * 2);
+    for (int i = 0; i < size; i++)
     {
         unsigned char c = *first++;
-
-        strDst[i * 2]     = charHex (c >> 4);
-        strDst[i * 2 + 1] = charHex (c & 15);
+        s[i * 2]     = charHex (c >> 4);
+        s[i * 2 + 1] = charHex (c & 15);
     }
-
-    return strDst;
+    return s;
 }
 
 }

@@ -21,12 +21,11 @@ namespace beast
 {
 
 class DeadlineTimer::Manager
-    : public LeakChecked <Manager>
-    , protected Thread
+    : protected Thread
 {
 private:
-    typedef CriticalSection LockType;
-    typedef List <DeadlineTimer> Items;
+    using LockType = CriticalSection;
+    using Items = List <DeadlineTimer>;
 
 public:
     Manager () : Thread ("DeadlineTimer::Manager")
@@ -40,6 +39,14 @@ public:
         notify ();
         waitForThreadToExit ();
         bassert (m_items.empty ());
+    }
+
+    static
+    Manager&
+    instance()
+    {
+        static Manager m;
+        return m;
     }
 
     // Okay to call on an active timer.
@@ -210,19 +217,18 @@ private:
 
 DeadlineTimer::DeadlineTimer (Listener* listener)
     : m_listener (listener)
-    , m_manager (SharedSingleton <Manager>::getInstance ())
     , m_isActive (false)
 {
 }
 
 DeadlineTimer::~DeadlineTimer ()
 {
-    m_manager->deactivate (*this);
+    Manager::instance().deactivate (*this);
 }
 
 void DeadlineTimer::cancel ()
 {
-    m_manager->deactivate (*this);
+    Manager::instance().deactivate (*this);
 }
 
 void DeadlineTimer::setExpiration (double secondsUntilDeadline)
@@ -232,7 +238,7 @@ void DeadlineTimer::setExpiration (double secondsUntilDeadline)
     RelativeTime const when (
         RelativeTime::fromStartup() + secondsUntilDeadline);
 
-    m_manager->activate (*this, 0, when);
+    Manager::instance().activate (*this, 0, when);
 }
 
 void DeadlineTimer::setRecurringExpiration (double secondsUntilDeadline)
@@ -242,7 +248,7 @@ void DeadlineTimer::setRecurringExpiration (double secondsUntilDeadline)
     RelativeTime const when (
         RelativeTime::fromStartup() + secondsUntilDeadline);
 
-    m_manager->activate (*this, secondsUntilDeadline, when);
+    Manager::instance().activate (*this, secondsUntilDeadline, when);
 }
 
 } // beast

@@ -19,58 +19,116 @@
 
 #include <BeastConfig.h>
 #include <ripple/app/ledger/LedgerProposal.h>
+#include <ripple/protocol/digest.h>
 #include <ripple/core/Config.h>
+#include <ripple/protocol/JsonFields.h>
 #include <ripple/protocol/HashPrefix.h>
 #include <ripple/protocol/Serializer.h>
 
 namespace ripple {
 
-LedgerProposal::LedgerProposal (uint256 const& pLgr, std::uint32_t seq,
-                                uint256 const& tx, std::uint32_t closeTime,
-                                RippleAddress const& naPeerPublic, uint256 const& suppression) :
-    mPreviousLedger (pLgr), mCurrentHash (tx), mSuppression (suppression), mCloseTime (closeTime),
-    mProposeSeq (seq), mPublicKey (naPeerPublic)
+LedgerProposal::LedgerProposal (
+        uint256 const& pLgr,
+        std::uint32_t seq,
+        uint256 const& tx,
+        std::uint32_t closeTime,
+        RippleAddress const& publicKey,
+        PublicKey const& pk,
+        uint256 const& suppression)
+    : mPreviousLedger (pLgr)
+    , mCurrentHash (tx)
+    , mSuppression (suppression)
+    , mCloseTime (closeTime)
+    , mProposeSeq (seq)
+    , mPublicKey (publicKey)
+    , publicKey_ (pk)
 {
-    // XXX Validate key.
-    // if (!mKey->SetPubKey(pubKey))
-    // throw std::runtime_error("Invalid public key in proposal");
-
-    mPeerID         = mPublicKey.getNodeID ();
-    mTime           = boost::posix_time::second_clock::universal_time ();
+    mPeerID = mPublicKey.getNodeID ();
+    mTime = std::chrono::steady_clock::now ();
 }
 
-LedgerProposal::LedgerProposal (RippleAddress const& naPub, RippleAddress const& naPriv,
-                                uint256 const& prevLgr, uint256 const& position,
-                                std::uint32_t closeTime) :
-    mPreviousLedger (prevLgr), mCurrentHash (position), mCloseTime (closeTime), mProposeSeq (0),
-    mPublicKey (naPub), mPrivateKey (naPriv)
+LedgerProposal::LedgerProposal (
+        RippleAddress const& publicKey,
+        uint256 const& prevLgr,
+        uint256 const& position,
+        std::uint32_t closeTime)
+    : mPreviousLedger (prevLgr)
+    , mCurrentHash (position)
+    , mCloseTime (closeTime)
+    , mProposeSeq (seqJoin)
+    , mPublicKey (publicKey)
 {
-    mPeerID      = mPublicKey.getNodeID ();
-    mTime        = boost::posix_time::second_clock::universal_time ();
-}
+    if (mPublicKey.isValid ())
+        mPeerID = mPublicKey.getNodeID ();
 
-LedgerProposal::LedgerProposal (uint256 const& prevLgr, uint256 const& position,
-                                std::uint32_t closeTime) :
-    mPreviousLedger (prevLgr), mCurrentHash (position), mCloseTime (closeTime), mProposeSeq (0)
-{
-    mTime       = boost::posix_time::second_clock::universal_time ();
+    mTime = std::chrono::steady_clock::now ();
 }
 
 uint256 LedgerProposal::getSigningHash () const
 {
-    Serializer s ((32 + 32 + 32 + 256 + 256) / 8);
-
-    s.add32 (HashPrefix::proposal);
-    s.add32 (mProposeSeq);
-    s.add32 (mCloseTime);
-    s.add256 (mPreviousLedger);
-    s.add256 (mCurrentHash);
-
-    return s.getSHA512Half ();
+    return sha512Half(
+        HashPrefix::proposal,
+        std::uint32_t(mProposeSeq),
+        std::uint32_t(mCloseTime),
+        mPreviousLedger,
+        mCurrentHash);
 }
 
-// Compute a unique identifier for this signed proposal
-uint256 LedgerProposal::computeSuppressionID (
+bool LedgerProposal::checkSign (std::string const& signature) const
+{
+    return mPublicKey.verifyNodePublic(
+        getSigningHash(), signature, ECDSA::not_strict);
+}
+
+bool LedgerProposal::changePosition (
+    uint256 const& newPosition,
+    std::uint32_t closeTime)
+{
+    if (mProposeSeq == seqLeave)
+        return false;
+
+    mCurrentHash    = newPosition;
+    mCloseTime      = closeTime;
+    mTime           = std::chrono::steady_clock::now ();
+    ++mProposeSeq;
+    return true;
+}
+
+void LedgerProposal::bowOut ()
+{
+    mTime           = std::chrono::steady_clock::now ();
+    mProposeSeq     = seqLeave;
+}
+
+Blob LedgerProposal::sign (RippleAddress const& privateKey)
+{
+    Blob ret;
+    privateKey.signNodePrivate (getSigningHash (), ret);
+    mSuppression = proposalUniqueId (mCurrentHash, mPreviousLedger, mProposeSeq,
+        mCloseTime, mPublicKey.getNodePublic (), ret);
+    return ret;
+}
+
+Json::Value LedgerProposal::getJson () const
+{
+    Json::Value ret = Json::objectValue;
+    ret[jss::previous_ledger] = to_string (mPreviousLedger);
+
+    if (mProposeSeq != seqLeave)
+    {
+        ret[jss::transaction_hash] = to_string (mCurrentHash);
+        ret[jss::propose_seq] = mProposeSeq;
+    }
+
+    ret[jss::close_time] = mCloseTime;
+
+    if (mPublicKey.isValid ())
+        ret[jss::peer_id] = mPublicKey.humanNodePublic ();
+
+    return ret;
+}
+
+uint256 proposalUniqueId (
     uint256 const& proposeHash,
     uint256 const& previousLedger,
     std::uint32_t proposeSeq,
@@ -88,63 +146,6 @@ uint256 LedgerProposal::computeSuppressionID (
     s.addVL (signature);
 
     return s.getSHA512Half ();
-}
-
-bool LedgerProposal::checkSign (std::string const& signature, uint256 const& signingHash)
-{
-    return mPublicKey.verifyNodePublic (signingHash, signature, ECDSA::not_strict);
-}
-
-bool LedgerProposal::changePosition (uint256 const& newPosition, std::uint32_t closeTime)
-{
-    if (mProposeSeq == seqLeave)
-        return false;
-
-    mCurrentHash    = newPosition;
-    mCloseTime      = closeTime;
-    mTime           = boost::posix_time::second_clock::universal_time ();
-    ++mProposeSeq;
-    return true;
-}
-
-void LedgerProposal::bowOut ()
-{
-    mTime           = boost::posix_time::second_clock::universal_time ();
-    mProposeSeq     = seqLeave;
-}
-
-Blob LedgerProposal::sign (void)
-{
-    Blob ret;
-
-    mPrivateKey.signNodePrivate (getSigningHash (), ret);
-    // XXX If this can fail, find out sooner.
-    // if (!mPrivateKey.signNodePrivate(getSigningHash(), ret))
-    //  throw std::runtime_error("unable to sign proposal");
-
-    mSuppression = computeSuppressionID (mCurrentHash, mPreviousLedger, mProposeSeq,
-        mCloseTime, mPublicKey.getNodePublic (), ret);
-
-    return ret;
-}
-
-Json::Value LedgerProposal::getJson () const
-{
-    Json::Value ret = Json::objectValue;
-    ret["previous_ledger"] = to_string (mPreviousLedger);
-
-    if (mProposeSeq != seqLeave)
-    {
-        ret["transaction_hash"] = to_string (mCurrentHash);
-        ret["propose_seq"] = mProposeSeq;
-    }
-
-    ret["close_time"] = mCloseTime;
-
-    if (mPublicKey.isValid ())
-        ret["peer_id"] = mPublicKey.humanNodePublic ();
-
-    return ret;
 }
 
 } // ripple

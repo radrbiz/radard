@@ -21,6 +21,7 @@
 #ifndef BEAST_HASH_SPOOKY_H_INCLUDED
 #define BEAST_HASH_SPOOKY_H_INCLUDED
 
+#include <beast/hash/endian.h>
 #include <beast/hash/impl/spookyv2.h>
 
 namespace beast {
@@ -33,6 +34,7 @@ private:
 
 public:
     using result_type = std::size_t;
+    static beast::endian const endian = beast::endian::native;
 
     spooky (std::size_t seed1 = 1, std::size_t seed2 = 2) noexcept
     {
@@ -40,7 +42,7 @@ public:
     }
 
     void
-    append (void const* key, std::size_t len) noexcept
+    operator() (void const* key, std::size_t len) noexcept
     {
         state_.Update (key, len);
     }

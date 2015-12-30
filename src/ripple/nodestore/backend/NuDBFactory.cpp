@@ -19,6 +19,7 @@
 
 #include <BeastConfig.h>
 
+#include <ripple/basics/contract.h>
 #include <ripple/nodestore/Factory.h>
 #include <ripple/nodestore/Manager.h>
 #include <ripple/nodestore/impl/codec.h>
@@ -26,7 +27,6 @@
 #include <ripple/nodestore/impl/EncodedBlob.h>
 #include <beast/nudb.h>
 #include <beast/nudb/detail/varint.h>
-#include <beast/nudb/identity_codec.h>
 #include <beast/nudb/visit.h>
 #include <beast/hash/xxhasher.h>
 #include <boost/filesystem.hpp>
@@ -63,16 +63,16 @@ public:
     std::atomic <bool> deletePath_;
     Scheduler& scheduler_;
 
-    NuDBBackend (int keyBytes, Parameters const& keyValues,
+    NuDBBackend (int keyBytes, Section const& keyValues,
         Scheduler& scheduler, beast::Journal journal)
         : journal_ (journal)
         , keyBytes_ (keyBytes)
-        , name_ (keyValues ["path"].toStdString ())
+        , name_ (get<std::string>(keyValues, "path"))
         , deletePath_(false)
         , scheduler_ (scheduler)
     {
         if (name_.empty())
-            throw std::runtime_error (
+            Throw<std::runtime_error> (
                 "nodestore: Missing path in NuDB backend");
         auto const folder = boost::filesystem::path (name_);
         boost::filesystem::create_directories (folder);
@@ -86,13 +86,10 @@ public:
             0.50);
         try
         {
-            if (! db_.open (dp, kp, lp,
-                    arena_alloc_size))
-                throw std::runtime_error(
-                    "nodestore: open failed");
+            if (! db_.open (dp, kp, lp, arena_alloc_size))
+                Throw<std::runtime_error> ("nodestore: open failed");
             if (db_.appnum() != currentType)
-                throw std::runtime_error(
-                    "nodestore: unknown appnum");
+                Throw<std::runtime_error> ("nodestore: unknown appnum");
         }
         catch (std::exception const& e)
         {
@@ -108,7 +105,7 @@ public:
     }
 
     std::string
-    getName()
+    getName() override
     {
         return name_;
     }
@@ -127,7 +124,7 @@ public:
     }
 
     Status
-    fetch (void const* key, NodeObject::Ptr* pno)
+    fetch (void const* key, std::shared_ptr<NodeObject>* pno) override
     {
         Status status;
         pno->reset();
@@ -147,6 +144,19 @@ public:
             return notFound;
         }
         return status;
+    }
+
+    bool
+    canFetchBatch() override
+    {
+        return false;
+    }
+
+    std::vector<std::shared_ptr<NodeObject>>
+    fetchBatch (std::size_t n, void const* const* keys) override
+    {
+        Throw<std::runtime_error> ("pure virtual called");
+        return {};
     }
 
     void
@@ -189,7 +199,7 @@ public:
     }
 
     void
-    for_each (std::function <void(NodeObject::Ptr)> f)
+    for_each (std::function <void(std::shared_ptr<NodeObject>)> f) override
     {
         auto const dp = db_.dat_path();
         auto const kp = db_.key_path();
@@ -212,7 +222,7 @@ public:
     }
 
     int
-    getWriteLoad ()
+    getWriteLoad () override
     {
         return 0;
     }
@@ -260,7 +270,7 @@ public:
     std::unique_ptr <Backend>
     createInstance (
         size_t keyBytes,
-        Parameters const& keyValues,
+        Section const& keyValues,
         Scheduler& scheduler,
         beast::Journal journal)
     {

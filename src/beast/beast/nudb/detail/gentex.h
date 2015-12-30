@@ -17,10 +17,9 @@
 */
 //==============================================================================
 
-#ifndef BEAST_NUDB_GENTEX_H_INCLUDED
-#define BEAST_NUDB_GENTEX_H_INCLUDED
+#ifndef BEAST_NUDB_DETAIL_GENTEX_H_INCLUDED
+#define BEAST_NUDB_DETAIL_GENTEX_H_INCLUDED
 
-#include <beast/utility/noexcept.h>
 #include <condition_variable>
 #include <cstddef>
 #include <mutex>
@@ -48,10 +47,10 @@ public:
     gentex_t& operator= (gentex_t const&) = delete;
 
     void
-    lock();
+    start();
 
     void
-    unlock();
+    finish();
 
     std::size_t
     lock_gen();
@@ -62,7 +61,7 @@ public:
 
 template <class _>
 void
-gentex_t<_>::lock()
+gentex_t<_>::start()
 {
     std::lock_guard<
         std::mutex> l(m_);
@@ -73,7 +72,7 @@ gentex_t<_>::lock()
 
 template <class _>
 void
-gentex_t<_>::unlock()
+gentex_t<_>::finish()
 {
     std::unique_lock<
         std::mutex> l(m_);
@@ -106,7 +105,7 @@ gentex_t<_>::unlock_gen (
     {
         --prev_;
         if (prev_ == 0)
-                cond_.notify_all();
+            cond_.notify_all();
     }
 }
 

@@ -11,7 +11,6 @@ assert      = require 'assert'
   Base
   UInt160
   Transaction
-  sjcl
 }           = require 'ripple-lib'
 testutils   = require './testutils'
 
@@ -27,9 +26,8 @@ exports.TestAccount = class TestAccount
     seed = Seed.from_json(passphrase)
     master_seed = seed.to_json()
     key_pair = seed.get_key()
-    pubKey = sjcl.codec.hex.toBits key_pair.to_hex_pub()
-    address = Base.encode_check(0,
-              sjcl.codec.bytes.fromBits(@SHA256_RIPEMD160 pubKey))
+    pubKey = key_pair.pubKeyHex()
+    address = key_pair.accountID()
     [address, master_seed, key_pair]
 
   constructor: (passphrase) ->
@@ -357,12 +355,12 @@ exports.LedgerState = class LedgerState
     incr_reserve_amt = @incr_reserve()
 
     base_reserve = @parse_amount base_reserve_amt
-    inc_reserve = @parse_amount incr_reserve_amt
+    incr_reserve = @parse_amount incr_reserve_amt
 
     @assert base_reserve != null,
            "Base reserve amount #{base_reserve_amt} is invalid"
 
-    @assert base_reserve != null,
+    @assert incr_reserve != null,
            "incremental amount #{incr_reserve_amt} is invalid"
 
     for account_id, account of @declaration.accounts
@@ -380,10 +378,10 @@ exports.LedgerState = class LedgerState
         owner_count += Object.keys(@trusts_by_ci[account_id]).length
 
       owner_count_amount = Amount.from_json(String(owner_count))
-      inc_reserve_n = owner_count_amount.multiply(inc_reserve)
+      inc_reserve_n = owner_count_amount.multiply(incr_reserve)
       total_needed = total_needed.add(inc_reserve_n)
 
-      @assert  @accounts[account_id].compareTo total_needed != - 1,
+      @assert @accounts[account_id].compareTo(total_needed) != - 1,
              "Account #{account_id} needs more XRP for reserve"
 
       @reserves[account_id] = total_needed
@@ -481,12 +479,6 @@ exports.LedgerState = class LedgerState
       tx.offer_create(src, pays, gets)
       tx.set_flags(flags)
 
-      # console.log tx.tx_json
-      # process.exit()
-
-      # tx_json = make_tx_json(src, 'OfferCreate')
-      # tx_json.TakerPays = pays.to_json()
-      # tx_json.TakerGets = gets.to_json()
       lines.push submit_line(src, tx.tx_json)
 
     ledger_accept()
@@ -497,8 +489,9 @@ exports.LedgerState = class LedgerState
 
   add_transaction_fees: ->
     extra_fees = {}
+    account_sets = ([k] for k,ac of @accounts)
     fee = Amount.from_json(@remote.fee_cushion * 10)
-    for list in [@trusts, @iou_payments, @offers]
+    for list in [@trusts, @iou_payments, @offers, account_sets]
       for [src, args...] in list
         extra = extra_fees[src]
         extra = if extra? then extra.add(fee) else fee
@@ -532,6 +525,13 @@ exports.LedgerState = class LedgerState
                LOG("Account `#{src}` creating account `#{dest}` by "+
                      "making payment of #{amt.to_text_full()}") ),
             cb)
+      (cb) ->
+        reqs.transactor(
+          Transaction::account_set,
+          accounts_apply_arguments,
+          ((account, tx) ->
+            tx.tx_json.SetFlag = 8
+          ), cb)
       (cb) ->
         reqs.transactor(
             Transaction::ripple_line_set,

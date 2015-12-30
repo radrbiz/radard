@@ -22,73 +22,93 @@
 
 namespace ripple {
 
-Role
-adminRole (HTTP::Port const& port, Json::Value const& params,
-    beast::IP::Endpoint const& remoteIp,
-        std::vector<beast::IP::Endpoint> const& admin_allow)
+bool
+passwordUnrequiredOrSentCorrect (HTTP::Port const& port,
+                                 Json::Value const& params) {
+
+    assert(! port.admin_ip.empty ());
+    bool const passwordRequired = (!port.admin_user.empty() ||
+                                   !port.admin_password.empty());
+
+    return !passwordRequired  ||
+            ((params["admin_password"].isString() &&
+              params["admin_password"].asString() == port.admin_password) &&
+             (params["admin_user"].isString() &&
+              params["admin_user"].asString() == port.admin_user));
+}
+
+bool
+ipAllowed (beast::IP::Address const& remoteIp,
+           std::vector<beast::IP::Address> const& adminIp)
 {
-    Role role (Role::FORBID);
+    return std::find_if (adminIp.begin (), adminIp.end (),
+        [&remoteIp](beast::IP::Address const& ip) { return ip.is_any () ||
+            ip == remoteIp; }) != adminIp.end ();
+}
 
-    bool const bPasswordSupplied =
-        params.isMember ("admin_user") ||
-        params.isMember ("admin_password");
+bool
+isAdmin (HTTP::Port const& port, Json::Value const& params,
+         beast::IP::Address const& remoteIp)
+{
+    return ipAllowed (remoteIp, port.admin_ip) &&
+        passwordUnrequiredOrSentCorrect (port, params);
+}
 
-    bool const bPasswordRequired =
-        ! port.admin_user.empty() || ! port.admin_password.empty();
+Role
+requestRole (Role const& required, HTTP::Port const& port,
+             Json::Value const& params, beast::IP::Endpoint const& remoteIp,
+             std::string const& user)
+{
+    if (isAdmin(port, params, remoteIp.address()))
+        return Role::ADMIN;
 
-    bool bPasswordWrong;
+    if (required == Role::ADMIN)
+        return Role::FORBID;
 
-    if (bPasswordSupplied)
-    {
-        if (bPasswordRequired)
-        {
-            // Required, and supplied, check match
-            bPasswordWrong =
-                (port.admin_user !=
-                    (params.isMember ("admin_user") ? params["admin_user"].asString () : ""))
-                ||
-                (port.admin_password !=
-                    (params.isMember ("admin_user") ? params["admin_password"].asString () : ""));
-        }
-        else
-        {
-            // Not required, but supplied
-            bPasswordWrong = false;
-        }
-    }
+    if (isIdentified(port, remoteIp.address(), user))
+        return Role::IDENTIFIED;
+
+    return Role::GUEST;
+}
+
+/**
+ * ADMIN and IDENTIFIED roles shall have unlimited resources.
+ */
+bool
+isUnlimited (Role const& required, HTTP::Port const& port,
+    Json::Value const&params, beast::IP::Endpoint const& remoteIp,
+    std::string const& user)
+{
+    Role role = requestRole(required, port, params, remoteIp, user);
+
+    if (role == Role::ADMIN || role == Role::IDENTIFIED)
+        return true;
     else
-    {
-        // Required but not supplied,
-        bPasswordWrong = bPasswordRequired;
-    }
+        return false;
+}
 
-    // Meets IP restriction for admin.
-    beast::IP::Endpoint const remote_addr (remoteIp.at_port (0));
-    bool bAdminIP = false;
+bool
+isUnlimited (Role const& role)
+{
+    return role == Role::ADMIN || role == Role::IDENTIFIED;
+}
 
-    // VFALCO TODO Don't use this!
-    for (auto const& allow_addr : admin_allow)
-    {
-        if (allow_addr == remote_addr)
-        {
-            bAdminIP = true;
-            break;
-        }
-    }
+Resource::Consumer
+requestInboundEndpoint (Resource::Manager& manager,
+    beast::IP::Endpoint const& remoteAddress,
+        HTTP::Port const& port, std::string const& user)
+{
+    if (isUnlimited (Role::GUEST, port, Json::Value(), remoteAddress, user))
+        return manager.newUnlimitedEndpoint (to_string (remoteAddress));
 
-    if (bPasswordWrong                          // Wrong
-            || (bPasswordSupplied && !bAdminIP))    // Supplied and doesn't meet IP filter.
-    {
-        role   = Role::FORBID;
-    }
-    // If supplied, password is correct.
-    else
-    {
-        // Allow admin, if from admin IP and no password is required or it was supplied and correct.
-        role = bAdminIP && (!bPasswordRequired || bPasswordSupplied) ? Role::ADMIN : Role::GUEST;
-    }
+    return manager.newInboundEndpoint(remoteAddress);
+}
 
-    return role;
+bool
+isIdentified (HTTP::Port const& port, beast::IP::Address const& remoteIp,
+        std::string const& user)
+{
+    return ! user.empty() && ipAllowed (remoteIp, port.secure_gateway_ip);
 }
 
 }

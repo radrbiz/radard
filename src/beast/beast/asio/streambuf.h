@@ -28,7 +28,7 @@
 #include <cassert>
 #include <memory>
 #include <exception>
-#include <beast/cxx14/type_traits.h> // <type_traits>
+#include <type_traits>
 #include <string>
 #include <utility>
 
@@ -112,7 +112,7 @@ private:
         the output sequence is empty, out_ will point to the end of
         the list of buffers, and out_pos_ and out_end_ will be 0:
 
-                                                     
+
         |<------+------------------>|   out_     == list_.end()
               in_pos_                   out_pos_ == 0
                                         out_end_ == 0

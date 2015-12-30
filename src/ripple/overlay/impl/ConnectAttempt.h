@@ -26,7 +26,7 @@
 #include <ripple/overlay/impl/TMHello.h>
 #include <ripple/overlay/impl/Tuning.h>
 #include <ripple/overlay/Message.h>
-#include <ripple/app/peers/UniqueNodeList.h> // move to .cpp
+#include <ripple/app/misc/UniqueNodeList.h> // move to .cpp
 #include <ripple/protocol/BuildInfo.h>
 #include <ripple/protocol/UintTypes.h>
 #include <beast/asio/placeholders.h>
@@ -39,9 +39,9 @@
 #include <boost/asio/basic_waitable_timer.hpp>
 #include <boost/asio/buffers_iterator.hpp>
 #include <boost/asio/ip/tcp.hpp>
-#include <beast/cxx14/memory.h> // <memory>
 #include <chrono>
 #include <functional>
+#include <memory>
 
 namespace ripple {
 
@@ -54,6 +54,7 @@ private:
     using error_code = boost::system::error_code;
     using endpoint_type = boost::asio::ip::tcp::endpoint;
 
+    Application& app_;
     std::uint32_t const id_;
     beast::WrappedSink sink_;
     beast::Journal journal_;
@@ -72,7 +73,7 @@ private:
     PeerFinder::Slot::ptr slot_;
 
 public:
-    ConnectAttempt (boost::asio::io_service& io_service,
+    ConnectAttempt (Application& app, boost::asio::io_service& io_service,
         endpoint_type const& remote_endpoint, Resource::Consumer usage,
             beast::asio::ssl_bundle::shared_context const& context,
                 std::uint32_t id, PeerFinder::Slot::ptr const& slot,
@@ -98,11 +99,6 @@ private:
     void onWrite (error_code ec, std::size_t bytes_transferred);
     void onRead (error_code ec, std::size_t bytes_transferred);
     void onShutdown (error_code ec);
-
-    void doLegacy();
-    void onWriteHello (error_code ec, std::size_t bytes_transferred);
-    void onReadHeader (error_code ec, std::size_t bytes_transferred);
-    void onReadBody (error_code ec, std::size_t bytes_transferred);
 
     static
     beast::http::message

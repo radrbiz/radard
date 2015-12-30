@@ -18,16 +18,21 @@
 //==============================================================================
 
 #include <BeastConfig.h>
+#include <ripple/app/misc/NetworkOPs.h>
+#include <ripple/json/json_value.h>
+#include <ripple/net/RPCErr.h>
+#include <ripple/protocol/JsonFields.h>
+#include <ripple/rpc/Context.h>
+#include <ripple/rpc/impl/TransactionSign.h>
 #include <ripple/server/Role.h>
 
 namespace ripple {
 
 Json::Value doServerInfo (RPC::Context& context)
 {
-    auto lock = getApp().masterLock();
     Json::Value ret (Json::objectValue);
 
-    ret["info"] = context.netOps.getServerInfo (
+    ret[jss::info] = context.netOps.getServerInfo (
         true, context.role == Role::ADMIN);
 
     return ret;

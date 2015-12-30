@@ -17,8 +17,8 @@
 */
 //==============================================================================
 
-#ifndef RIPPLED_RIPPLE_APP_PATHS_FINDPATHS_H
-#define RIPPLED_RIPPLE_APP_PATHS_FINDPATHS_H
+#ifndef RIPPLE_APP_PATHS_FINDPATHS_H_INCLUDED
+#define RIPPLE_APP_PATHS_FINDPATHS_H_INCLUDED
 
 #include <ripple/app/paths/RippleLineCache.h>
 
@@ -29,9 +29,10 @@ class FindPaths
 public:
     FindPaths (
         RippleLineCache::ref cache,
-        Account const& srcAccount,
-        Account const& dstAccount,
+        AccountID const& srcAccount,
+        AccountID const& dstAccount,
         STAmount const& dstAmount,
+        boost::optional<STAmount> const& srcAmount,
         /** searchLevel is the maximum search level allowed in an output path.
          */
         int searchLevel,
@@ -40,31 +41,36 @@ public:
         unsigned int const maxPaths);
     ~FindPaths();
 
-    bool findPathsForIssue (
+    /** The return value will have any additional paths found. Only
+        non-default paths without source or destination will be added. */
+    boost::optional<STPathSet>
+    findPathsForIssue (
         Issue const& issue,
 
-        /** On input, pathsInOut contains any paths you want to ensure are
-            included if still good.
-
-            On output, pathsInOut will have any additional paths found. Only
-            non-default paths without source or destination will be added. */
-        STPathSet& pathsInOut,
+        /** Contains any paths you want to ensure are
+            included if still good. */
+        STPathSet const& paths,
 
         /** On input, fullLiquidityPath must be an empty STPath.
 
             On output, if fullLiquidityPath is non-empty, it contains one extra
             path that can move the entire liquidity requested. */
-        STPath& fullLiquidityPath);
+        STPath& fullLiquidityPath,
+
+        Application& app);
 
 private:
     class Impl;
     std::unique_ptr<Impl> impl_;
 };
 
-bool findPathsForOneIssuer (
+/** The return value will have any additional paths found. Only
+    non-default paths without source or destination will be added. */
+boost::optional<STPathSet>
+findPathsForOneIssuer (
     RippleLineCache::ref cache,
-    Account const& srcAccount,
-    Account const& dstAccount,
+    AccountID const& srcAccount,
+    AccountID const& dstAccount,
     Issue const& srcIssue,
     STAmount const& dstAmount,
 
@@ -75,18 +81,18 @@ bool findPathsForOneIssuer (
         pathsOut. */
     unsigned int const maxPaths,
 
-    /** On input, pathsInOut contains any paths you want to ensure are included if
+    /** Contains any paths you want to ensure are included if
         still good.
-
-        On output, pathsInOut will have any additional paths found. Only
-        non-default paths without source or destination will be added. */
-    STPathSet& pathsInOut,
+    */
+    STPathSet const& paths,
 
     /** On input, fullLiquidityPath must be an empty STPath.
 
         On output, if fullLiquidityPath is non-empty, it contains one extra path
         that can move the entire liquidity requested. */
-    STPath& fullLiquidityPath);
+    STPath& fullLiquidityPath,
+
+    Application& app);
 
 void initializePathfinding ();
 

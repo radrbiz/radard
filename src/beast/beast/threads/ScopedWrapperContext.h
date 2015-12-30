@@ -17,8 +17,8 @@
 */
 //==============================================================================
 
-#ifndef BEAST_THREADS_WRAPSCOPED_H_INCLUDED
-#define BEAST_THREADS_WRAPSCOPED_H_INCLUDED
+#ifndef BEAST_THREADS_SCOPEDWRAPPERCONTEXT_H_INCLUDED
+#define BEAST_THREADS_SCOPEDWRAPPERCONTEXT_H_INCLUDED
 
 namespace beast {
 
@@ -56,8 +56,8 @@ template <typename Context, typename ScopedType>
 class ScopedWrapperContext
 {
 public:
-    typedef Context context_type;
-    typedef ScopedType scoped_type;
+    using context_type = Context;
+    using scoped_type = ScopedType;
 
     class Scope
     {

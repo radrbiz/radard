@@ -21,9 +21,9 @@
 #define BEAST_UTILITY_PROPERTYSTREAM_H_INCLUDED
 
 #include <beast/intrusive/List.h>
-#include <beast/threads/SharedData.h>
 
 #include <cstdint>
+#include <mutex>
 #include <sstream>
 #include <string>
 #include <utility>
@@ -214,7 +214,7 @@ public:
         add (ss.str(), value);
     }
 
-    Proxy operator[] (std::string const& key);    
+    Proxy operator[] (std::string const& key);
 
     Proxy operator[] (char const* key)
         { return Proxy (*this, key); }
@@ -274,31 +274,11 @@ public:
 class PropertyStream::Source
 {
 private:
-    struct State
-    {
-        explicit State (Source* source)
-            : item (source)
-            , parent (nullptr)
-            { }
-
-        Item item;
-        Source* parent;
-        List <Item> children;
-    };
-
-    typedef SharedData <State> SharedState;
-
     std::string const m_name;
-    SharedState m_state;
-
-    //--------------------------------------------------------------------------
-
-    void remove    (SharedState::Access& state,
-                    SharedState::Access& childState);
-
-    void removeAll (SharedState::Access& state);
-
-    void write     (SharedState::Access& state, PropertyStream& stream);
+    std::recursive_mutex lock_;
+    Item item_;
+    Source* parent_;
+    List <Item> children_;
 
 public:
     explicit Source (std::string const& name);
@@ -326,7 +306,7 @@ public:
     /** Remove a child source from this Source. */
     void remove (Source& child);
 
-    /** Remove all child sources of this Source. */
+    /** Remove all child sources from this Source. */
     void removeAll ();
 
     /** Write only this Source to the stream. */
@@ -364,7 +344,7 @@ public:
 
     static bool peel_leading_slash (std::string* path);
     static bool peel_trailing_slashstar (std::string* path);
-    static std::string peel_name(std::string* path);    
+    static std::string peel_name(std::string* path);
 
 
     //--------------------------------------------------------------------------

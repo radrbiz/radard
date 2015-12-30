@@ -17,36 +17,46 @@
 */
 //==============================================================================
 
-#ifndef RIPPLE_PATHREQUESTS_H
-#define RIPPLE_PATHREQUESTS_H
+#ifndef RIPPLE_APP_PATHS_PATHREQUESTS_H_INCLUDED
+#define RIPPLE_APP_PATHS_PATHREQUESTS_H_INCLUDED
 
+#include <ripple/app/main/Application.h>
 #include <ripple/app/paths/PathRequest.h>
 #include <ripple/app/paths/RippleLineCache.h>
 #include <ripple/core/Job.h>
 #include <atomic>
+#include <mutex>
 
 namespace ripple {
 
 class PathRequests
 {
 public:
-    PathRequests (beast::Journal journal, beast::insight::Collector::ptr const& collector)
-        : mJournal (journal)
+    PathRequests (Application& app,
+            beast::Journal journal, beast::insight::Collector::ptr const& collector)
+        : app_ (app)
+        , mJournal (journal)
         , mLastIdentifier (0)
     {
         mFast = collector->make_event ("pathfind_fast");
         mFull = collector->make_event ("pathfind_full");
     }
 
-    void updateAll (const std::shared_ptr<Ledger>& ledger,
+    void updateAll (std::shared_ptr<ReadView const> const& ledger,
                     Job::CancelCallback shouldCancel);
 
     RippleLineCache::pointer getLineCache (
-        Ledger::pointer& ledger, bool authoritative);
+        std::shared_ptr <ReadView const> const& ledger, bool authoritative);
 
     Json::Value makePathRequest (
         std::shared_ptr <InfoSub> const& subscriber,
-        const std::shared_ptr<Ledger>& ledger,
+        std::shared_ptr<ReadView const> const& ledger,
+        Json::Value const& request);
+
+    Json::Value makeLegacyPathRequest (
+        PathRequest::pointer& req,
+        std::function <void (void)> completion,
+        std::shared_ptr<ReadView const> const& inLedger,
         Json::Value const& request);
 
     void reportFast (int milliseconds)
@@ -60,6 +70,9 @@ public:
     }
 
 private:
+    void insertPathRequest (PathRequest::pointer const&);
+
+    Application& app_;
     beast::Journal                   mJournal;
 
     beast::insight::Event            mFast;
@@ -73,9 +86,8 @@ private:
 
     std::atomic<int>                 mLastIdentifier;
 
-    typedef RippleRecursiveMutex     LockType;
-    typedef std::lock_guard <LockType> ScopedLockType;
-    LockType                         mLock;
+    using ScopedLockType = std::lock_guard <std::recursive_mutex>;
+    std::recursive_mutex mLock;
 
 };
 

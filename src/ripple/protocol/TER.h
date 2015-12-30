@@ -17,18 +17,19 @@
 */
 //==============================================================================
 
-#ifndef RIPPLE_PROTOCOL_TER_H
-#define RIPPLE_PROTOCOL_TER_H
+#ifndef RIPPLE_PROTOCOL_TER_H_INCLUDED
+#define RIPPLE_PROTOCOL_TER_H_INCLUDED
 
 #include <string>
 
 namespace ripple {
 
 // See https://ripple.com/wiki/Transaction_errors
-
-// VFALCO TODO consider renaming TER to TxErr or TxResult for clarity.
 //
-enum TER    // aka TransactionEngineResult
+// "Transaction Engine Result"
+// or Transaction ERror.
+//
+enum TER
 {
     // Note: Range is stable.  Exact numbers are currently unstable.  Use tokens.
 
@@ -56,7 +57,6 @@ enum TER    // aka TransactionEngineResult
     temMALFORMED    = -299,
 
     temBAD_AMOUNT,
-    temBAD_AUTH_MASTER,
     temBAD_CURRENCY,
     temBAD_EXPIRATION,
     temBAD_FEE,
@@ -79,11 +79,13 @@ enum TER    // aka TransactionEngineResult
     temINVALID,
     temINVALID_FLAG,
     temREDUNDANT,
-    temREDUNDANT_SEND_MAX,
     temRIPPLE_EMPTY,
     temDISABLED,
     temBAD_DIV_TYPE,
     temBAD_RELEASE_SCHEDULE,
+    temBAD_SIGNER,
+    temBAD_QUORUM,
+    temBAD_WEIGHT,
 
     // An intermediate result used internally, should never be returned.
     temUNCERTAIN,
@@ -107,7 +109,6 @@ enum TER    // aka TransactionEngineResult
     tefBAD_AUTH,
     tefBAD_LEDGER,
     tefCREATED,
-    tefDST_TAG_NEEDED,
     tefEXCEPTION,
     tefINTERNAL,
     tefNO_AUTH_REQUIRED,    // Can't set auth if auth is not required.
@@ -117,6 +118,10 @@ enum TER    // aka TransactionEngineResult
     tefMAX_LEDGER,
     tefREFEREE_EXIST,
     tefREFERENCE_EXIST,
+    tefBAD_SIGNATURE,
+    tefBAD_QUORUM,
+    tefNOT_MULTI_SIGNING,
+    tefBAD_AUTH_MASTER,
 
     // -99 .. -1: R Retry
     //   sequence too high, no funds for txn fee, originating -account
@@ -143,6 +148,7 @@ enum TER    // aka TransactionEngineResult
                          // burden network.
     terLAST,             // Process after all other transactions
     terNO_RIPPLE,        // Rippling not allowed
+    terQUEUED,           // Transaction is being held in TxQ until fee drops
 
     // 0: S Success (success)
     // Causes:
@@ -184,7 +190,7 @@ enum TER    // aka TransactionEngineResult
     tecNO_LINE_REDUNDANT        = 127,
     tecPATH_DRY                 = 128,
     tecUNFUNDED                 = 129,  // Deprecated, old ambiguous unfunded.
-    tecMASTER_DISABLED          = 130,
+    tecNO_ALTERNATIVE_KEY       = 130,
     tecNO_REGULAR_KEY           = 131,
     tecOWNERS                   = 132,
     tecNO_ISSUER                = 133,
@@ -196,6 +202,10 @@ enum TER    // aka TransactionEngineResult
     tecNO_PERMISSION            = 139,
     tecNO_ENTRY                 = 140,
     tecINSUFFICIENT_RESERVE     = 141,
+    tecNEED_MASTER_KEY          = 142,
+    tecDST_TAG_NEEDED           = 143,
+    tecINTERNAL                 = 144,
+    tecOVERSIZE                 = 145,
 };
 
 inline bool isTelLocal(TER x)

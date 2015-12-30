@@ -18,29 +18,29 @@
 //==============================================================================
 
 #include <BeastConfig.h>
+#include <ripple/protocol/Serializer.h>
 #include <ripple/shamap/SHAMapItem.h>
-    
+
 namespace ripple {
 
 class SHAMap;
 
 SHAMapItem::SHAMapItem (uint256 const& tag, Blob const& data)
-    : mTag (tag)
-    , mData (data)
+    : tag_(tag)
+    , data_(data)
 {
 }
 
 SHAMapItem::SHAMapItem (uint256 const& tag, const Serializer& data)
-    : mTag (tag)
-    , mData (data.peekData ())
+    : tag_ (tag)
+    , data_(data.peekData())
 {
 }
 
-// VFALCO This function appears not to be called
-void SHAMapItem::dump (beast::Journal journal)
+SHAMapItem::SHAMapItem (uint256 const& tag, Serializer&& data)
+    : tag_ (tag)
+    , data_(std::move(data.modData()))
 {
-    if (journal.info) journal.info <<
-        "SHAMapItem(" << mTag << ") " << mData.size () << "bytes";
 }
 
 } // ripple

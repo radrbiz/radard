@@ -23,36 +23,49 @@
 #include <ripple/overlay/impl/Tuning.h>
 #include <ripple/app/ledger/InboundLedgers.h>
 #include <ripple/app/ledger/LedgerMaster.h>
-#include <ripple/app/misc/IHashRouter.h>
+#include <ripple/app/ledger/LedgerTiming.h>
+#include <ripple/app/ledger/InboundTransactions.h>
+#include <ripple/app/misc/HashRouter.h>
 #include <ripple/app/misc/NetworkOPs.h>
-#include <ripple/app/peers/ClusterNodeStatus.h>
-#include <ripple/app/peers/UniqueNodeList.h>
+#include <ripple/app/misc/Transaction.h>
+#include <ripple/app/misc/UniqueNodeList.h>
+#include <ripple/app/misc/Validations.h>
+#include <ripple/app/tx/apply.h>
+#include <ripple/protocol/digest.h>
 #include <ripple/basics/StringUtilities.h>
 #include <ripple/basics/UptimeTimer.h>
 #include <ripple/core/JobQueue.h>
+#include <ripple/core/TimeKeeper.h>
 #include <ripple/json/json_reader.h>
 #include <ripple/resource/Fees.h>
 #include <ripple/server/ServerHandler.h>
+#include <ripple/overlay/Cluster.h>
+#include <ripple/overlay/ClusterNode.h>
 #include <ripple/protocol/BuildInfo.h>
+#include <ripple/protocol/JsonFields.h>
+#include <beast/module/core/diagnostic/SemanticVersion.h>
 #include <beast/streams/debug_ostream.h>
 #include <beast/weak_fn.h>
+#include <boost/algorithm/string/predicate.hpp>
 #include <boost/asio/io_service.hpp>
+#include <algorithm>
 #include <functional>
-#include <beast/cxx14/memory.h> // <memory>
+#include <memory>
 #include <sstream>
 
 namespace ripple {
 
-PeerImp::PeerImp (id_t id, endpoint_type remote_endpoint,
+PeerImp::PeerImp (Application& app, id_t id, endpoint_type remote_endpoint,
     PeerFinder::Slot::ptr const& slot, beast::http::message&& request,
         protocol::TMHello const& hello, RippleAddress const& publicKey,
             Resource::Consumer consumer,
                 std::unique_ptr<beast::asio::ssl_bundle>&& ssl_bundle,
                     OverlayImpl& overlay)
     : Child (overlay)
+    , app_ (app)
     , id_(id)
-    , sink_(deprecatedLogs().journal("Peer"), makePrefix(id))
-    , p_sink_(deprecatedLogs().journal("Protocol"), makePrefix(id))
+    , sink_(app_.journal("Peer"), makePrefix(id))
+    , p_sink_(app_.journal("Protocol"), makePrefix(id))
     , journal_ (sink_)
     , p_journal_(p_sink_)
     , ssl_bundle_(std::move(ssl_bundle))
@@ -65,12 +78,15 @@ PeerImp::PeerImp (id_t id, endpoint_type remote_endpoint,
     , overlay_ (overlay)
     , m_inbound (true)
     , state_ (State::active)
+    , sanity_ (Sanity::unknown)
+    , insaneTime_ (clock_type::now())
     , publicKey_(publicKey)
+    , creationTime_ (clock_type::now())
     , hello_(hello)
     , usage_(consumer)
+    , fee_ (Resource::feeLightPeer)
     , slot_ (slot)
     , http_message_(std::move(request))
-    , validatorsConnection_(getApp().getValidators().newConnection(id))
 {
 }
 
@@ -95,12 +111,23 @@ PeerImp::run()
     if(! strand_.running_in_this_thread())
         return strand_.post(std::bind (
             &PeerImp::run, shared_from_this()));
+    {
+        auto s = getVersion();
+        if (boost::starts_with(s, "rippled-"))
+        {
+            s.erase(s.begin(), s.begin() + 8);
+            beast::SemanticVersion v;
+            if (v.parse(s))
+            {
+                beast::SemanticVersion av;
+                av.parse("0.28.1-b7");
+                hopsAware_ = v >= av;
+            }
+        }
+    }
     if (m_inbound)
     {
-        if (read_buffer_.size() > 0)
-            doLegacyAccept();
-        else
-            doAccept();
+        doAccept();
     }
     else
     {
@@ -124,8 +151,10 @@ PeerImp::run()
                 previousLedgerHash_.zero();
             }
         }
-        doProtocolStart(false);
+        doProtocolStart();
     }
+
+    setTimer();
 }
 
 void
@@ -167,10 +196,26 @@ PeerImp::send (Message::pointer const& m)
         return;
     if(detaching_)
         return;
+
+    overlay_.reportTraffic (
+        static_cast<TrafficCount::category>(m->getCategory()),
+        false, static_cast<int>(m->getBuffer().size()));
+
+    auto sendq_size = send_queue_.size();
+
+    if (sendq_size < Tuning::targetSendQueue)
+    {
+        // To detect a peer that does not read from their
+        // side of the connection, we expect a peer to have
+        // a small senq periodically
+        large_sendq_ = 0;
+    }
+
     send_queue_.push(m);
-    if(send_queue_.size() > 1)
+
+    if(sendq_size != 0)
         return;
-    setTimer();
+
     boost::asio::async_write (stream_, boost::asio::buffer(
         send_queue_.front()->getBuffer()), strand_.wrap(std::bind(
             &PeerImp::onWriteMessage, shared_from_this(),
@@ -181,8 +226,12 @@ PeerImp::send (Message::pointer const& m)
 void
 PeerImp::charge (Resource::Charge const& fee)
 {
-    if ((usage_.charge(fee) == Resource::drop) && usage_.disconnect())
+    if ((usage_.charge(fee) == Resource::drop) &&
+        usage_.disconnect() && strand_.running_in_this_thread())
+    {
+        // Sever the connection
         fail("charge: Resources");
+    }
 }
 
 //------------------------------------------------------------------------------
@@ -196,68 +245,108 @@ PeerImp::crawl() const
     return beast::ci_equal(iter->second, "public");
 }
 
+std::string
+PeerImp::getVersion() const
+{
+    if (hello_.has_fullversion ())
+        return hello_.fullversion ();
+
+    return std::string ();
+}
+
 Json::Value
 PeerImp::json()
 {
     Json::Value ret (Json::objectValue);
 
-    ret["public_key"]   = publicKey_.ToString ();
-    ret["address"]      = remote_address_.to_string();
+    ret[jss::public_key]   = publicKey_.ToString ();
+    ret[jss::address]      = remote_address_.to_string();
 
     if (m_inbound)
-        ret["inbound"] = true;
+        ret[jss::inbound] = true;
 
     if (cluster())
     {
-        ret["cluster"] = true;
+        ret[jss::cluster] = true;
 
         if (!name_.empty ())
-            ret["name"] = name_;
+            ret[jss::name] = name_;
     }
 
+    ret[jss::load] = usage_.balance ();
+
     if (hello_.has_fullversion ())
-        ret["version"] = hello_.fullversion ();
+        ret[jss::version] = hello_.fullversion ();
 
     if (hello_.has_protoversion ())
     {
         auto protocol = BuildInfo::make_protocol (hello_.protoversion ());
 
         if (protocol != BuildInfo::getCurrentProtocol())
-            ret["protocol"] = to_string (protocol);
+            ret[jss::protocol] = to_string (protocol);
     }
+
+    {
+        std::chrono::milliseconds latency;
+        {
+            std::lock_guard<std::mutex> sl (recentLock_);
+            latency = latency_;
+        }
+
+        if (latency != std::chrono::milliseconds (-1))
+            ret[jss::latency] = static_cast<Json::UInt> (latency.count());
+    }
+
+    ret[jss::uptime] = static_cast<Json::UInt>(
+        std::chrono::duration_cast<std::chrono::seconds>(uptime()).count());
 
     std::uint32_t minSeq, maxSeq;
     ledgerRange(minSeq, maxSeq);
 
     if ((minSeq != 0) || (maxSeq != 0))
-        ret["complete_ledgers"] = boost::lexical_cast<std::string>(minSeq) +
+        ret[jss::complete_ledgers] = boost::lexical_cast<std::string>(minSeq) +
             " - " + boost::lexical_cast<std::string>(maxSeq);
 
     if (closedLedgerHash_ != zero)
-        ret["ledger"] = to_string (closedLedgerHash_);
+        ret[jss::ledger] = to_string (closedLedgerHash_);
+
+    switch (sanity_.load ())
+    {
+        case Sanity::insane:
+            ret[jss::sanity] = "insane";
+            break;
+
+        case Sanity::unknown:
+            ret[jss::sanity] = "unknown";
+            break;
+
+        case Sanity::sane:
+            // Nothing to do here
+            break;
+    }
 
     if (last_status_.has_newstatus ())
     {
         switch (last_status_.newstatus ())
         {
         case protocol::nsCONNECTING:
-            ret["status"] = "connecting";
+            ret[jss::status] = "connecting";
             break;
 
         case protocol::nsCONNECTED:
-            ret["status"] = "connected";
+            ret[jss::status] = "connected";
             break;
 
         case protocol::nsMONITORING:
-            ret["status"] = "monitoring";
+            ret[jss::status] = "monitoring";
             break;
 
         case protocol::nsVALIDATING:
-            ret["status"] = "validating";
+            ret[jss::status] = "validating";
             break;
 
         case protocol::nsSHUTTING:
-            ret["status"] = "shutting";
+            ret[jss::status] = "shutting";
             break;
 
         default:
@@ -276,7 +365,8 @@ bool
 PeerImp::hasLedger (uint256 const& hash, std::uint32_t seq) const
 {
     std::lock_guard<std::mutex> sl(recentLock_);
-    if ((seq != 0) && (seq >= minLedger_) && (seq <= maxLedger_))
+    if ((seq != 0) && (seq >= minLedger_) && (seq <= maxLedger_) &&
+            (sanity_.load() == Sanity::sane))
         return true;
     return std::find (recentLedgers_.begin(),
         recentLedgers_.end(), hash) != recentLedgers_.end();
@@ -316,7 +406,7 @@ PeerImp::supportsVersion (int version)
 bool
 PeerImp::hasRange (std::uint32_t uMin, std::uint32_t uMax)
 {
-    return (uMin >= minLedger_) && (uMax <= maxLedger_);
+    return (sanity_ != Sanity::insane) && (uMin >= minLedger_) && (uMax <= maxLedger_);
 }
 
 //------------------------------------------------------------------------------
@@ -347,7 +437,10 @@ PeerImp::close()
 void
 PeerImp::fail(std::string const& reason)
 {
-    assert(strand_.running_in_this_thread());
+    if(! strand_.running_in_this_thread())
+        return strand_.post(std::bind (
+            (void(Peer::*)(std::string const&))&PeerImp::fail,
+                shared_from_this(), reason));
     if (socket_.is_open())
         if (journal_.debug) journal_.debug <<
             reason;
@@ -387,7 +480,9 @@ void
 PeerImp::setTimer()
 {
     error_code ec;
-    timer_.expires_from_now(std::chrono::seconds(15), ec);
+    timer_.expires_from_now( std::chrono::seconds(
+        Tuning::timerSeconds), ec);
+
     if (ec)
     {
         if (journal_.error) journal_.error <<
@@ -433,7 +528,45 @@ PeerImp::onTimer (error_code const& ec)
         return close();
     }
 
-    fail("Timeout");
+    if (large_sendq_++ >= Tuning::sendqIntervals)
+    {
+        fail ("Large send queue");
+        return;
+    }
+
+    if (no_ping_++ >= Tuning::noPing)
+    {
+        fail ("No ping reply received");
+        return;
+    }
+
+    if (lastPingSeq_ == 0)
+    {
+        // Make sequence unpredictable enough that a peer
+        // can't fake their latency
+        lastPingSeq_ = (rand() % 65536);
+        lastPingTime_ = clock_type::now();
+
+        protocol::TMPing message;
+        message.set_type (protocol::TMPing::ptPING);
+        message.set_seq (lastPingSeq_);
+
+        send (std::make_shared<Message> (
+            message, protocol::mtPING));
+    }
+    else
+    {
+        // We have an outstanding ping, raise latency
+        auto minLatency = std::chrono::duration_cast <std::chrono::milliseconds>
+            (clock_type::now() - lastPingTime_);
+
+        std::lock_guard<std::mutex> sl(recentLock_);
+
+        if (latency_ < minLatency)
+            latency_ = minLatency;
+    }
+
+    setTimer();
 }
 
 void
@@ -453,17 +586,6 @@ PeerImp::onShutdown(error_code ec)
 }
 
 //------------------------------------------------------------------------------
-
-void PeerImp::doLegacyAccept()
-{
-    assert(read_buffer_.size() > 0);
-    if(journal_.debug) journal_.debug <<
-        "doLegacyAccept: " << remote_address_;
-    usage_ = overlay_.resourceManager().newInboundEndpoint (remote_address_);
-    if (usage_.disconnect ())
-        return fail("doLegacyAccept: Resources");
-    doProtocolStart(true);
-}
 
 void PeerImp::doAccept()
 {
@@ -486,7 +608,7 @@ void PeerImp::doAccept()
 
     auto resp = makeResponse(
         ! overlay_.peerFinder().config().peerPrivate,
-            http_message_, sharedValue);
+            http_message_, remote_address_, sharedValue);
     beast::http::write (write_buffer_, resp);
 
     auto const protocol = BuildInfo::make_protocol(hello_.protoversion());
@@ -494,10 +616,13 @@ void PeerImp::doAccept()
         "Protocol: " << to_string(protocol);
     if(journal_.info) journal_.info <<
         "Public Key: " << publicKey_.humanNodePublic();
-    bool const cluster = getApp().getUNL().nodeInCluster(publicKey_, name_);
-    if (cluster)
+
+    if (auto member = app_.cluster().member(publicKey_))
+    {
+        name_ = *member;
         if (journal_.info) journal_.info <<
             "Cluster name: " << name_;
+    }
 
     overlay_.activate(shared_from_this());
 
@@ -526,7 +651,9 @@ void PeerImp::doAccept()
 
 beast::http::message
 PeerImp::makeResponse (bool crawl,
-    beast::http::message const& req, uint256 const& sharedValue)
+    beast::http::message const& req,
+    beast::IP::Endpoint remote,
+    uint256 const& sharedValue)
 {
     beast::http::message resp;
     resp.request(false);
@@ -538,7 +665,8 @@ PeerImp::makeResponse (bool crawl,
     resp.headers.append("Connect-AS", "Peer");
     resp.headers.append("Server", BuildInfo::getFullVersionString());
     resp.headers.append ("Crawl", crawl ? "public" : "private");
-    protocol::TMHello hello = buildHello(sharedValue, getApp());
+    protocol::TMHello hello = buildHello(sharedValue,
+        overlay_.setup().public_ip, remote, app_);
     appendHello(resp, hello);
     return resp;
 }
@@ -547,7 +675,6 @@ PeerImp::makeResponse (bool crawl,
 void
 PeerImp::onWriteResponse (error_code ec, std::size_t bytes_transferred)
 {
-    cancelTimer();
     if(! socket_.is_open())
         return;
     if(ec == boost::asio::error::operation_aborted)
@@ -564,9 +691,8 @@ PeerImp::onWriteResponse (error_code ec, std::size_t bytes_transferred)
 
     write_buffer_.consume (bytes_transferred);
     if (write_buffer_.size() == 0)
-        return doProtocolStart(false);
+        return doProtocolStart();
 
-    setTimer();
     stream_.async_write_some (write_buffer_.data(),
         strand_.wrap (std::bind (&PeerImp::onWriteResponse,
             shared_from_this(), beast::asio::placeholders::error,
@@ -577,21 +703,28 @@ PeerImp::onWriteResponse (error_code ec, std::size_t bytes_transferred)
 
 // Protocol logic
 
-// We have an encrypted connection to the peer.
-// Have it say who it is so we know to avoid redundant connections.
-// Establish that it really who we are talking to by having it sign a
-// connection detail. Also need to establish no man in the middle attack
-// is in progress.
 void
-PeerImp::doProtocolStart(bool legacy)
+PeerImp::doProtocolStart()
 {
-    if (legacy && !sendHello ())
-    {
-        journal_.error << "Unable to send HELLO to " << remote_address_;
-        return fail ("hello");
-    }
-
     onReadMessage(error_code(), 0);
+
+    protocol::TMManifests tm;
+    tm.set_history (true);
+
+    overlay_.manifestCache ().for_each_manifest (
+        [&tm](size_t s){tm.mutable_list()->Reserve(s);},
+        [&tm](Manifest const& manifest)
+        {
+            auto const& s = manifest.serialized;
+            auto& tm_e = *tm.add_list();
+            tm_e.set_stobject(s.data(), s.size());
+        });
+
+    if (tm.list_size() > 0)
+    {
+        auto m = std::make_shared<Message>(tm, protocol::mtMANIFESTS);
+        send (m);
+    }
 }
 
 // Called repeatedly with protocol message data
@@ -645,7 +778,6 @@ PeerImp::onReadMessage (error_code ec, std::size_t bytes_transferred)
 void
 PeerImp::onWriteMessage (error_code ec, std::size_t bytes_transferred)
 {
-    cancelTimer();
     if(! socket_.is_open())
         return;
     if(ec == boost::asio::error::operation_aborted)
@@ -665,7 +797,6 @@ PeerImp::onWriteMessage (error_code ec, std::size_t bytes_transferred)
     if (! send_queue_.empty())
     {
         // Timeout on writes only
-        setTimer();
         return boost::asio::async_write (stream_, boost::asio::buffer(
             send_queue_.front()->getBuffer()), strand_.wrap(std::bind(
                 &PeerImp::onWriteMessage, shared_from_this(),
@@ -675,7 +806,6 @@ PeerImp::onWriteMessage (error_code ec, std::size_t bytes_transferred)
 
     if (gracefulClose_)
     {
-        setTimer();
         return stream_.async_shutdown(strand_.wrap(std::bind(
             &PeerImp::onShutdown, shared_from_this(),
                 beast::asio::placeholders::error)));
@@ -699,30 +829,15 @@ PeerImp::onMessageUnknown (std::uint16_t type)
 
 PeerImp::error_code
 PeerImp::onMessageBegin (std::uint16_t type,
-    std::shared_ptr <::google::protobuf::Message> const& m)
+    std::shared_ptr <::google::protobuf::Message> const& m,
+    std::size_t size)
 {
-    error_code ec;
-
-    if (type == protocol::mtHELLO && state_ != State::connected)
-    {
-        journal_.warning <<
-            "Unexpected TMHello";
-        ec = invalid_argument_error();
-    }
-    else if (type != protocol::mtHELLO && state_ == State::connected)
-    {
-        journal_.warning <<
-            "Expected TMHello";
-        ec = invalid_argument_error();
-    }
-
-    if (! ec)
-    {
-        load_event_ = getApp().getJobQueue ().getLoadEventAP (
-            jtPEER, protocolMessageName(type));
-    }
-
-    return ec;
+    load_event_ = app_.getJobQueue ().getLoadEventAP (
+        jtPEER, protocolMessageName(type));
+    fee_ = Resource::feeLightPeer;
+    overlay_.reportTraffic (TrafficCount::categorize (*m, type, true),
+        true, static_cast<int>(size));
+    return error_code{};
 }
 
 void
@@ -730,122 +845,23 @@ PeerImp::onMessageEnd (std::uint16_t,
     std::shared_ptr <::google::protobuf::Message> const&)
 {
     load_event_.reset();
+    charge (fee_);
 }
 
 void
 PeerImp::onMessage (std::shared_ptr <protocol::TMHello> const& m)
 {
-    std::uint32_t const ourTime (getApp().getOPs ().getNetworkTimeNC ());
-    std::uint32_t const minTime (ourTime - clockToleranceDeltaSeconds);
-    std::uint32_t const maxTime (ourTime + clockToleranceDeltaSeconds);
+    fail("Deprecated TMHello");
+}
 
-#ifdef BEAST_DEBUG
-    if (m->has_nettime ())
-    {
-        std::int64_t to = ourTime;
-        to -= m->nettime ();
-        journal_.debug <<
-            "Time offset: " << to;
-    }
-#endif
-
-    // VFALCO TODO Report these failures in the HTTP response
-
-    auto const protocol = BuildInfo::make_protocol(m->protoversion());
-    if (m->has_nettime () &&
-        ((m->nettime () < minTime) || (m->nettime () > maxTime)))
-    {
-        if (m->nettime () > maxTime)
-        {
-            journal_.info <<
-                "Hello: Clock off by +" << m->nettime () - ourTime;
-        }
-        else if (m->nettime () < minTime)
-        {
-            journal_.info <<
-                "Hello: Clock off by -" << ourTime - m->nettime ();
-        }
-    }
-    else if (m->protoversionmin () > to_packed (BuildInfo::getCurrentProtocol()))
-    {
-        journal_.info <<
-            "Hello: Disconnect: Protocol mismatch [" <<
-            "Peer expects " << to_string (protocol) <<
-            " and we run " << to_string (BuildInfo::getCurrentProtocol()) << "]";
-    }
-    else if (! publicKey_.setNodePublic (m->nodepublic ()))
-    {
-        journal_.info <<
-            "Hello: Disconnect: Bad node public key.";
-    }
-    else if (! publicKey_.verifyNodePublic (
-        sharedValue_, m->nodeproof (), ECDSA::not_strict))
-    {
-        // Unable to verify they have private key for claimed public key.
-        journal_.info <<
-            "Hello: Disconnect: Failed to verify session.";
-    }
-    else
-    {
-        if(journal_.info) journal_.info <<
-            "Protocol: " << to_string(protocol);
-        if(journal_.info) journal_.info <<
-            "Public Key: " << publicKey_.humanNodePublic();
-        bool const cluster = getApp().getUNL().nodeInCluster(publicKey_, name_);
-        if (cluster)
-            if (journal_.info) journal_.info <<
-                "Cluster name: " << name_;
-
-        assert (state_ == State::connected);
-        // VFALCO TODO Remove this needless state
-        state_ = State::handshaked;
-        hello_ = *m;
-
-        auto const result = overlay_.peerFinder().activate (slot_,
-            publicKey_.toPublicKey(), cluster);
-
-        if (result == PeerFinder::Result::success)
-        {
-            state_ = State::active;
-            overlay_.activate(shared_from_this ());
-
-            // XXX Set timer: connection is in grace period to be useful.
-            // XXX Set timer: connection idle (idle may vary depending on connection type.)
-            if ((hello_.has_ledgerclosed ()) && (
-                hello_.ledgerclosed ().size () == (256 / 8)))
-            {
-                memcpy (closedLedgerHash_.begin (),
-                    hello_.ledgerclosed ().data (), 256 / 8);
-                if ((hello_.has_ledgerprevious ()) &&
-                    (hello_.ledgerprevious ().size () == (256 / 8)))
-                {
-                    memcpy (previousLedgerHash_.begin (),
-                        hello_.ledgerprevious ().data (), 256 / 8);
-                    addLedger (previousLedgerHash_);
-                }
-                else
-                {
-                    previousLedgerHash_.zero();
-                }
-            }
-
-            return sendGetPeers();
-        }
-
-        if (result == PeerFinder::Result::full)
-        {
-            // TODO Provide correct HTTP response
-            auto const redirects = overlay_.peerFinder().redirect (slot_);
-            sendEndpoints (redirects.begin(), redirects.end());
-            return gracefulClose();
-        }
-        else if (result == PeerFinder::Result::duplicate)
-        {
-            return fail("Duplicate public key");
-        }
-    }
-
-    fail("TMHello invalid");
+void
+PeerImp::onMessage (std::shared_ptr<protocol::TMManifests> const& m)
+{
+    // VFALCO What's the right job type?
+    auto that = shared_from_this();
+    app_.getJobQueue().addJob (
+        jtVALIDATION_ut, "receiveManifests",
+        [this, that, m] (Job&) { overlay_.onManifests(m, that); });
 }
 
 void
@@ -853,8 +869,36 @@ PeerImp::onMessage (std::shared_ptr <protocol::TMPing> const& m)
 {
     if (m->type () == protocol::TMPing::ptPING)
     {
+        // We have received a ping request, reply with a pong
+        fee_ = Resource::feeMediumBurdenPeer;
         m->set_type (protocol::TMPing::ptPONG);
         send (std::make_shared<Message> (*m, protocol::mtPING));
+
+        return;
+    }
+
+    if ((m->type () == protocol::TMPing::ptPONG) && m->has_seq ())
+    {
+        // We have received a pong, update our latency estimate
+        auto unknownLatency = std::chrono::milliseconds (-1);
+
+        std::lock_guard<std::mutex> sl(recentLock_);
+
+        if ((lastPingSeq_ != 0) && (m->seq () == lastPingSeq_))
+        {
+            no_ping_ = 0;
+            auto estimate = std::chrono::duration_cast <std::chrono::milliseconds>
+                (clock_type::now() - lastPingTime_);
+            if (latency_ == unknownLatency)
+                latency_ = estimate;
+            else
+                latency_ = (latency_ * 7 + estimate) / 8;
+        }
+        else
+            latency_ = unknownLatency;
+        lastPingSeq_ = 0;
+
+        return;
     }
 }
 
@@ -863,7 +907,10 @@ PeerImp::onMessage (std::shared_ptr <protocol::TMCluster> const& m)
 {
     // VFALCO NOTE I think we should drop the peer immediately
     if (! cluster())
-        return charge (Resource::feeUnwantedData);
+    {
+        fee_ = Resource::feeUnwantedData;
+        return;
+    }
 
     for (int i = 0; i < m->clusternodes().size(); ++i)
     {
@@ -872,12 +919,12 @@ PeerImp::onMessage (std::shared_ptr <protocol::TMCluster> const& m)
         std::string name;
         if (node.has_nodename())
             name = node.nodename();
-        ClusterNodeStatus s(name, node.nodeload(), node.reporttime());
 
-        RippleAddress nodePub;
-        nodePub.setNodePublic(node.publickey());
-
-        getApp().getUNL().nodeUpdate(nodePub, s);
+        app_.cluster().update(
+            RippleAddress::createNodePublic(node.publickey()),
+            name,
+            node.nodeload(),
+            node.reporttime());
     }
 
     int loadSources = m->loadsources().size();
@@ -897,7 +944,31 @@ PeerImp::onMessage (std::shared_ptr <protocol::TMCluster> const& m)
         overlay_.resourceManager().importConsumers (name_, gossip);
     }
 
-    getApp().getFeeTrack().setClusterFee(getApp().getUNL().getClusterFee());
+    // Calculate the cluster fee:
+    auto const thresh = app_.timeKeeper().now().time_since_epoch().count() - 90;
+    std::uint32_t clusterFee = 0;
+
+    std::vector<std::uint32_t> fees;
+    fees.reserve (app_.cluster().size());
+
+    app_.cluster().for_each(
+        [&fees,thresh](ClusterNode const& status)
+        {
+            if (status.getReportTime() >= thresh)
+                fees.push_back (status.getLoadFee ());
+        });
+
+    if (!fees.empty())
+    {
+        auto const index = fees.size() / 2;
+        std::nth_element (
+            fees.begin(),
+            fees.begin () + index,
+            fees.end());
+        clusterFee = fees[index];
+    }
+
+    app_.getFeeTrack().setClusterFee(clusterFee);
 }
 
 void
@@ -932,6 +1003,12 @@ PeerImp::onMessage (std::shared_ptr <protocol::TMPeers> const& m)
 void
 PeerImp::onMessage (std::shared_ptr <protocol::TMEndpoints> const& m)
 {
+    if (sanity_.load() != Sanity::sane)
+    {
+        // Don't allow endpoints from peer not known sane
+        return;
+    }
+
     std::vector <PeerFinder::Endpoint> endpoints;
 
     endpoints.reserve (m->endpoints().size());
@@ -975,31 +1052,32 @@ void
 PeerImp::onMessage (std::shared_ptr <protocol::TMTransaction> const& m)
 {
 
-    if (getApp().getOPs().isNeedNetworkLedger ())
+    if (sanity_.load() == Sanity::insane)
+        return;
+
+    if (app_.getOPs().isNeedNetworkLedger ())
     {
         // If we've never been in synch, there's nothing we can do
         // with a transaction
         return;
     }
 
-    Serializer s (m->rawtransaction ());
+    SerialIter sit (makeSlice(m->rawtransaction()));
 
     try
     {
-        SerializerIterator sit (s);
-        STTx::pointer stx = std::make_shared <
-            STTx> (std::ref (sit));
+        auto stx = std::make_shared<STTx const>(sit);
         uint256 txID = stx->getTransactionID ();
 
         int flags;
 
-        if (! getApp().getHashRouter ().addSuppressionPeer (
+        if (! app_.getHashRouter ().addSuppressionPeer (
             txID, id_, flags))
         {
             // we have seen this transaction recently
             if (flags & SF_BAD)
             {
-                charge (Resource::feeInvalidSignature);
+                fee_ = Resource::feeInvalidSignature;
                 return;
             }
 
@@ -1010,6 +1088,7 @@ PeerImp::onMessage (std::shared_ptr <protocol::TMTransaction> const& m)
         p_journal_.debug <<
             "Got tx " << txID;
 
+        bool checkSignature = true;
         if (cluster())
         {
             if (! m->has_deferred () || ! m->deferred ())
@@ -1019,36 +1098,48 @@ PeerImp::onMessage (std::shared_ptr <protocol::TMTransaction> const& m)
                 flags |= SF_TRUSTED;
             }
 
-            if (! getConfig().VALIDATION_PRIV.isSet())
+            if (! app_.config().VALIDATION_PRIV.isSet())
             {
                 // For now, be paranoid and have each validator
                 // check each transaction, regardless of source
-                flags |= SF_SIGGOOD;
+                checkSignature = false;
             }
         }
 
-        if (getApp().getJobQueue().getJobCount(jtTRANSACTION) > 100)
+        if (app_.getJobQueue().getJobCount(jtTRANSACTION) > 500)
             p_journal_.info << "Transaction queue is full";
-        else if (getApp().getLedgerMaster().getValidatedLedgerAge() > 240)
+        else if (app_.getLedgerMaster().getValidatedLedgerAge() > 240)
             p_journal_.trace << "No new transactions until synchronized";
         else
-            getApp().getJobQueue ().addJob (jtTRANSACTION,
-                "recvTransaction->checkTransaction",
-                std::bind(beast::weak_fn(&PeerImp::checkTransaction,
-                shared_from_this()), std::placeholders::_1, flags, stx));
+        {
+            app_.getJobQueue ().addJob (
+                jtTRANSACTION, "recvTransaction->checkTransaction",
+                [weak = std::weak_ptr<PeerImp>(shared_from_this()),
+                flags, checkSignature, stx] (Job&) {
+                    if (auto peer = weak.lock())
+                        peer->checkTransaction(flags,
+                            checkSignature, stx);
+                });
+        }
     }
-    catch (...)
+    catch (std::exception const&)
     {
         p_journal_.warning << "Transaction invalid: " <<
-            s.getHex();
+            strHex(m->rawtransaction ());
     }
 }
 
 void
 PeerImp::onMessage (std::shared_ptr <protocol::TMGetLedger> const& m)
 {
-    getApp().getJobQueue().addJob (jtPACK, "recvGetLedger", std::bind(
-        beast::weak_fn(&PeerImp::getLedger, shared_from_this()), m));
+    fee_ = Resource::feeMediumBurdenPeer;
+    std::weak_ptr<PeerImp> weak = shared_from_this();
+    app_.getJobQueue().addJob (
+        jtLEDGER_REQ, "recvGetLedger",
+        [weak, m] (Job&) {
+            if (auto peer = weak.lock())
+                peer->getLedger(m);
+        });
 }
 
 void
@@ -1074,7 +1165,7 @@ PeerImp::onMessage (std::shared_ptr <protocol::TMLedgerData> const& m)
         else
         {
             p_journal_.info << "Unable to route TX/ledger data reply";
-            charge (Resource::feeUnwantedData);
+            fee_ = Resource::feeUnwantedData;
         }
         return;
     }
@@ -1084,7 +1175,7 @@ PeerImp::onMessage (std::shared_ptr <protocol::TMLedgerData> const& m)
     if (m->ledgerhash ().size () != 32)
     {
         p_journal_.warning << "TX candidate reply with invalid hash size";
-        charge (Resource::feeInvalidRequest);
+        fee_ = Resource::feeInvalidRequest;
         return;
     }
 
@@ -1093,17 +1184,22 @@ PeerImp::onMessage (std::shared_ptr <protocol::TMLedgerData> const& m)
     if (m->type () == protocol::liTS_CANDIDATE)
     {
         // got data for a candidate transaction set
-        getApp().getJobQueue().addJob(jtTXN_DATA, "recvPeerData", std::bind(
-            beast::weak_fn(&PeerImp::peerTXData, shared_from_this()),
-            std::placeholders::_1, hash, m, p_journal_));
+        std::weak_ptr<PeerImp> weak = shared_from_this();
+        auto& journal = p_journal_;
+        app_.getJobQueue().addJob(
+            jtTXN_DATA, "recvPeerData",
+            [weak, hash, journal, m] (Job&) {
+                if (auto peer = weak.lock())
+                    peer->peerTXData(hash, m, journal);
+            });
         return;
     }
 
-    if (!getApp().getInboundLedgers ().gotLedgerData (
+    if (!app_.getInboundLedgers ().gotLedgerData (
         hash, shared_from_this(), m))
     {
         p_journal_.trace  << "Got data for unwanted ledger";
-        charge (Resource::feeUnwantedData);
+        fee_ = Resource::feeUnwantedData;
     }
 }
 
@@ -1112,45 +1208,46 @@ PeerImp::onMessage (std::shared_ptr <protocol::TMProposeSet> const& m)
 {
     protocol::TMProposeSet& set = *m;
 
+    if (set.has_hops() && ! slot_->cluster())
+        set.set_hops(set.hops() + 1);
+
     // VFALCO Magic numbers are bad
-    if ((set.closetime() + 180) < getApp().getOPs().getCloseTimeNC())
+    if ((set.closetime() + 180) < app_.timeKeeper().closeTime().time_since_epoch().count())
         return;
+
+    auto const type = publicKeyType(
+        makeSlice(set.nodepubkey()));
 
     // VFALCO Magic numbers are bad
     // Roll this into a validation function
-    if (
+    if ((! type) ||
         (set.currenttxhash ().size () != 32) ||
-        (set.nodepubkey ().size () < 28) ||
         (set.signature ().size () < 56) ||
-        (set.nodepubkey ().size () > 128) ||
         (set.signature ().size () > 128)
     )
     {
         p_journal_.warning << "Proposal: malformed";
-        charge (Resource::feeInvalidSignature);
+        fee_ = Resource::feeInvalidSignature;
         return;
     }
 
-    if (set.has_previousledger () && (set.previousledger ().size () != 32))
+    if (set.previousledger ().size () != 32)
     {
         p_journal_.warning << "Proposal: malformed";
-        charge (Resource::feeInvalidRequest);
+        fee_ = Resource::feeInvalidRequest;
         return;
     }
 
     uint256 proposeHash, prevLedger;
     memcpy (proposeHash.begin (), set.currenttxhash ().data (), 32);
+    memcpy (prevLedger.begin (), set.previousledger ().data (), 32);
 
-    if (set.has_previousledger ())
-        memcpy (prevLedger.begin (), set.previousledger ().data (), 32);
-
-    uint256 suppression = LedgerProposal::computeSuppressionID (
+    uint256 suppression = proposalUniqueId (
         proposeHash, prevLedger, set.proposeseq(), set.closetime (),
-            Blob(set.nodepubkey ().begin (), set.nodepubkey ().end ()),
-                Blob(set.signature ().begin (), set.signature ().end ()));
+        Blob(set.nodepubkey ().begin (), set.nodepubkey ().end ()),
+        Blob(set.signature ().begin (), set.signature ().end ()));
 
-    if (! getApp().getHashRouter ().addSuppressionPeer (
-        suppression, id_))
+    if (! app_.getHashRouter ().addSuppressionPeer (suppression, id_))
     {
         p_journal_.trace << "Proposal: duplicate";
         return;
@@ -1159,38 +1256,44 @@ PeerImp::onMessage (std::shared_ptr <protocol::TMProposeSet> const& m)
     RippleAddress signerPublic = RippleAddress::createNodePublic (
         strCopy (set.nodepubkey ()));
 
-    if (signerPublic == getConfig ().VALIDATION_PUB)
+    if (signerPublic == app_.config().VALIDATION_PUB)
     {
         p_journal_.trace << "Proposal: self";
         return;
     }
 
-    bool isTrusted = getApp().getUNL ().nodeInUNL (signerPublic);
-    if (!isTrusted && getApp().getFeeTrack ().isLoadedLocal ())
+    bool isTrusted = app_.getUNL ().nodeInUNL (signerPublic);
+
+    if (!isTrusted)
     {
-        p_journal_.debug << "Proposal: Dropping UNTRUSTED (load)";
-        return;
+        if (sanity_.load() == Sanity::insane)
+        {
+            p_journal_.debug << "Proposal: Dropping UNTRUSTED (insane)";
+            return;
+        }
+
+        if (app_.getFeeTrack ().isLoadedLocal ())
+        {
+            p_journal_.debug << "Proposal: Dropping UNTRUSTED (load)";
+            return;
+        }
     }
 
     p_journal_.trace <<
         "Proposal: " << (isTrusted ? "trusted" : "UNTRUSTED");
 
-    uint256 consensusLCL;
+    auto proposal = std::make_shared<LedgerProposal> (
+        prevLedger, set.proposeseq (), proposeHash, set.closetime (),
+            signerPublic, PublicKey(makeSlice(set.nodepubkey())),
+                suppression);
 
-    {
-        Application::ScopedLockType lock (getApp ().getMasterLock ());
-        consensusLCL = getApp().getOPs ().getConsensusLCL ();
-    }
-
-    LedgerProposal::pointer proposal = std::make_shared<LedgerProposal> (
-        prevLedger.isNonZero () ? prevLedger : consensusLCL,
-            set.proposeseq (), proposeHash, set.closetime (),
-                signerPublic, suppression);
-
-    getApp().getJobQueue ().addJob (isTrusted ? jtPROPOSAL_t : jtPROPOSAL_ut,
-        "recvPropose->checkPropose", std::bind(beast::weak_fn(
-            &PeerImp::checkPropose, shared_from_this()), std::placeholders::_1,
-            m, proposal, consensusLCL));
+    std::weak_ptr<PeerImp> weak = shared_from_this();
+    app_.getJobQueue ().addJob (
+        isTrusted ? jtPROPOSAL_t : jtPROPOSAL_ut, "recvPropose->checkPropose",
+        [weak, m, proposal] (Job& job) {
+            if (auto peer = weak.lock())
+                peer->checkPropose(job, m, proposal);
+        });
 }
 
 void
@@ -1199,7 +1302,7 @@ PeerImp::onMessage (std::shared_ptr <protocol::TMStatusChange> const& m)
     p_journal_.trace << "Status: Change";
 
     if (!m->has_networktime ())
-        m->set_networktime (getApp().getOPs ().getNetworkTimeNC ());
+        m->set_networktime (app_.timeKeeper().now().time_since_epoch().count());
 
     if (!last_status_.has_newstatus () || m->has_newstatus ())
         last_status_ = *m;
@@ -1257,6 +1360,157 @@ PeerImp::onMessage (std::shared_ptr <protocol::TMStatusChange> const& m)
         if (maxLedger_ == 0)
             minLedger_ = 0;
     }
+
+    if (m->has_ledgerseq() &&
+        app_.getLedgerMaster().getValidatedLedgerAge() < 120)
+    {
+        checkSanity (m->ledgerseq(), app_.getLedgerMaster().getValidLedgerIndex());
+    }
+
+    app_.getOPs().pubPeerStatus (
+        [=]() -> Json::Value
+        {
+            Json::Value j = Json::objectValue;
+
+            if (m->has_newstatus ())
+            {
+               switch (m->newstatus ())
+               {
+                   case protocol::nsCONNECTING:
+                       j[jss::status] = "CONNECTING";
+                       break;
+                   case protocol::nsCONNECTED:
+                       j[jss::status] = "CONNECTED";
+                       break;
+                   case protocol::nsMONITORING:
+                       j[jss::status] = "MONITORING";
+                       break;
+                   case protocol::nsVALIDATING:
+                       j[jss::status] = "VALIDATING";
+                       break;
+                   case protocol::nsSHUTTING:
+                       j[jss::status] = "SHUTTING";
+                       break;
+               }
+            }
+
+            if (m->has_newevent())
+            {
+                switch (m->newevent ())
+                {
+                    case protocol::neCLOSING_LEDGER:
+                        j[jss::action] = "CLOSING_LEDGER";
+                        break;
+                    case protocol::neACCEPTED_LEDGER:
+                        j[jss::action] = "ACCEPTED_LEDGER";
+                        break;
+                    case protocol::neSWITCHED_LEDGER:
+                        j[jss::action] = "SWITCHED_LEDGER";
+                        break;
+                    case protocol::neLOST_SYNC:
+                        j[jss::action] = "LOST_SYNC";
+                        break;
+                }
+            }
+
+            if (m->has_ledgerseq ())
+            {
+                j[jss::ledger_index] = m->ledgerseq();
+            }
+
+            if (m->has_ledgerhash ())
+            {
+                j[jss::ledger_hash] = to_string (closedLedgerHash_);
+            }
+
+            if (m->has_networktime ())
+            {
+                j[jss::date] = Json::UInt (m->networktime());
+            }
+
+            if (m->has_firstseq () && m->has_lastseq ())
+            {
+                j[jss::ledger_index_min] =
+                    Json::UInt (m->firstseq ());
+                j[jss::ledger_index_max] =
+                    Json::UInt (m->lastseq ());
+            }
+
+            return j;
+        });
+}
+
+void
+PeerImp::checkSanity (std::uint32_t validationSeq)
+{
+    std::uint32_t serverSeq;
+    {
+        // Extract the seqeuence number of the highest
+        // ledger this peer has
+        std::lock_guard<std::mutex> sl (recentLock_);
+
+        serverSeq = maxLedger_;
+    }
+    if (serverSeq != 0)
+    {
+        // Compare the peer's ledger sequence to the
+        // sequence of a recently-validated ledger
+        checkSanity (serverSeq, validationSeq);
+    }
+}
+
+void
+PeerImp::checkSanity (std::uint32_t seq1, std::uint32_t seq2)
+{
+        int diff = std::max (seq1, seq2) - std::min (seq1, seq2);
+
+        if (diff < Tuning::saneLedgerLimit)
+        {
+            // The peer's ledger sequence is close to the validation's
+            sanity_ = Sanity::sane;
+        }
+
+        if ((diff > Tuning::insaneLedgerLimit) && (sanity_.load() != Sanity::insane))
+        {
+            // The peer's ledger sequence is way off the validation's
+            std::lock_guard<std::mutex> sl(recentLock_);
+
+            sanity_ = Sanity::insane;
+            insaneTime_ = clock_type::now();
+        }
+}
+
+// Should this connection be rejected
+// and considered a failure
+void PeerImp::check ()
+{
+    if (m_inbound || (sanity_.load() == Sanity::sane))
+        return;
+
+    clock_type::time_point insaneTime;
+    {
+        std::lock_guard<std::mutex> sl(recentLock_);
+
+        insaneTime = insaneTime_;
+    }
+
+    bool reject = false;
+
+    if (sanity_.load() == Sanity::insane)
+        reject = (insaneTime - clock_type::now())
+            > std::chrono::seconds (Tuning::maxInsaneTime);
+
+    if (sanity_.load() == Sanity::unknown)
+        reject = (insaneTime - clock_type::now())
+            > std::chrono::seconds (Tuning::maxUnknownTime);
+
+    if (reject)
+    {
+        overlay_.peerFinder().on_failure (slot_);
+        strand_.post (std::bind (
+            (void (PeerImp::*)(std::string const&)) &PeerImp::fail,
+                shared_from_this(), "Not useful"));
+    }
 }
 
 void
@@ -1266,7 +1520,7 @@ PeerImp::onMessage (std::shared_ptr <protocol::TMHaveTransactionSet> const& m)
 
     if (m->hash ().size () != (256 / 8))
     {
-        charge (Resource::feeInvalidRequest);
+        fee_ = Resource::feeInvalidRequest;
         return;
     }
 
@@ -1278,14 +1532,20 @@ PeerImp::onMessage (std::shared_ptr <protocol::TMHaveTransactionSet> const& m)
     memcpy (hash.begin (), m->hash ().data (), 32);
 
     if (m->status () == protocol::tsHAVE)
-        addTxSet (hash);
-
     {
-        Application::ScopedLockType lock (getApp ().getMasterLock ());
+        std::lock_guard<std::mutex> sl(recentLock_);
 
-        if (!getApp().getOPs ().hasTXSet (
-                shared_from_this (), hash, m->status ()))
-            charge (Resource::feeUnwantedData);
+        if (std::find (recentTxSets_.begin (),
+            recentTxSets_.end (), hash) != recentTxSets_.end ())
+        {
+            fee_ = Resource::feeUnwantedData;
+            return;
+        }
+
+        if (recentTxSets_.size () == 128)
+            recentTxSets_.pop_front ();
+
+        recentTxSets_.push_back (hash);
     }
 }
 
@@ -1293,44 +1553,59 @@ void
 PeerImp::onMessage (std::shared_ptr <protocol::TMValidation> const& m)
 {
     error_code ec;
-    std::uint32_t closeTime = getApp().getOPs().getCloseTimeNC();
+    auto const closeTime =
+        app_.timeKeeper().closeTime().time_since_epoch().count();
+
+    if (m->has_hops() && ! slot_->cluster())
+        m->set_hops(m->hops() + 1);
 
     if (m->validation ().size () < 50)
     {
         p_journal_.warning << "Validation: Too small";
-        charge (Resource::feeInvalidRequest);
+        fee_ = Resource::feeInvalidRequest;
         return;
     }
 
     try
     {
-        Serializer s (m->validation ());
-        SerializerIterator sit (s);
-        STValidation::pointer val = std::make_shared <
-            STValidation> (std::ref (sit), false);
-
-        if (closeTime > (120 + val->getFieldU32(sfSigningTime)))
+        STValidation::pointer val;
         {
-            p_journal_.trace << "Validation: Too old";
-            charge (Resource::feeUnwantedData);
+            SerialIter sit (makeSlice(m->validation()));
+            val = std::make_shared <
+                STValidation> (std::ref (sit), false);
+            val->setSeen (closeTime);
+        }
+
+        if (! app_.getValidations().current (val))
+        {
+            p_journal_.trace << "Validation: Not current";
+            fee_ = Resource::feeUnwantedData;
             return;
         }
 
-        if (! getApp().getHashRouter ().addSuppressionPeer (
-            s.getSHA512Half(), id_))
+        if (! app_.getHashRouter ().addSuppressionPeer(
+            sha512Half(makeSlice(m->validation())), id_))
         {
             p_journal_.trace << "Validation: duplicate";
             return;
         }
 
-        bool isTrusted = getApp().getUNL ().nodeInUNL (val->getSignerPublic ());
-        if (isTrusted || !getApp().getFeeTrack ().isLoadedLocal ())
+        bool isTrusted = app_.getUNL ().nodeInUNL (val->getSignerPublic ());
+        if (!isTrusted && (sanity_.load () == Sanity::insane))
         {
-            getApp().getJobQueue ().addJob (isTrusted ?
-                jtVALIDATION_t : jtVALIDATION_ut, "recvValidation->checkValidation",
-                    std::bind(beast::weak_fn(&PeerImp::checkValidation,
-                        shared_from_this()), std::placeholders::_1, val,
-                            isTrusted, m));
+            p_journal_.debug <<
+                "Validation: dropping untrusted from insane peer";
+        }
+        if (isTrusted || !app_.getFeeTrack ().isLoadedLocal ())
+        {
+            std::weak_ptr<PeerImp> weak = shared_from_this();
+            app_.getJobQueue ().addJob (
+                isTrusted ? jtVALIDATION_t : jtVALIDATION_ut,
+                "recvValidation->checkValidation",
+                [weak, val, isTrusted, m] (Job&) {
+                    if (auto peer = weak.lock())
+                        peer->checkValidation(val, isTrusted, m);
+                });
         }
         else
         {
@@ -1342,13 +1617,7 @@ PeerImp::onMessage (std::shared_ptr <protocol::TMValidation> const& m)
     {
         p_journal_.warning <<
             "Validation: Exception, " << e.what();
-        charge (Resource::feeInvalidRequest);
-    }
-    catch (...)
-    {
-        p_journal_.warning <<
-            "Validation: Unknown exception";
-        charge (Resource::feeInvalidRequest);
+        fee_ = Resource::feeInvalidRequest;
     }
 }
 
@@ -1360,11 +1629,21 @@ PeerImp::onMessage (std::shared_ptr <protocol::TMGetObjectByHash> const& m)
     if (packet.query ())
     {
         // this is a query
+        if (send_queue_.size() >= Tuning::dropSendQueue)
+        {
+            if (p_journal_.debug) p_journal_.debug <<
+                "GetObject: Large send queue";
+            return;
+        }
+
+
         if (packet.type () == protocol::TMGetObjectByHash::otFETCH_PACK)
         {
             doFetchPack (m);
             return;
         }
+
+        fee_ = Resource::feeMediumBurdenPeer;
 
         protocol::TMGetObjectByHash reply;
 
@@ -1389,8 +1668,8 @@ PeerImp::onMessage (std::shared_ptr <protocol::TMGetObjectByHash> const& m)
                 memcpy (hash.begin (), obj.hash ().data (), 256 / 8);
                 // VFALCO TODO Move this someplace more sensible so we dont
                 //             need to inject the NodeStore interfaces.
-                NodeObject::pointer hObj =
-                    getApp().getNodeStore ().fetch (hash);
+                std::shared_ptr<NodeObject> hObj =
+                    app_.getNodeStore ().fetch (hash);
 
                 if (hObj)
                 {
@@ -1435,7 +1714,7 @@ PeerImp::onMessage (std::shared_ptr <protocol::TMGetObjectByHash> const& m)
                                 "GetObj: Full fetch pack for " << pLSeq;
 
                         pLSeq = obj.ledgerseq ();
-                        pLDo = !getApp().getOPs ().haveLedger (pLSeq);
+                        pLDo = !app_.getLedgerMaster ().haveLedger (pLSeq);
 
                         if (!pLDo)
                                 p_journal_.debug <<
@@ -1454,7 +1733,7 @@ PeerImp::onMessage (std::shared_ptr <protocol::TMGetObjectByHash> const& m)
                         std::make_shared< Blob > (
                             obj.data ().begin (), obj.data ().end ()));
 
-                    getApp().getOPs ().addFetchPack (hash, data);
+                    app_.getLedgerMaster ().addFetchPack (hash, data);
                 }
             }
         }
@@ -1464,7 +1743,7 @@ PeerImp::onMessage (std::shared_ptr <protocol::TMGetObjectByHash> const& m)
             p_journal_.debug << "GetObj: Partial fetch pack for " << pLSeq;
 
         if (packet.type () == protocol::TMGetObjectByHash::otFETCH_PACK)
-            getApp().getOPs ().gotFetchPack (progress, pLSeq);
+            app_.getLedgerMaster ().gotFetchPack (progress, pLSeq);
     }
 }
 
@@ -1482,22 +1761,6 @@ PeerImp::sendGetPeers ()
         msg, protocol::mtGET_PEERS);
 
     send (packet);
-}
-
-bool
-PeerImp::sendHello()
-{
-    bool success;
-    std::tie(sharedValue_, success) = makeSharedValue(
-        stream_.native_handle(), journal_);
-    if (! success)
-        return false;
-
-    auto const hello = buildHello (sharedValue_, getApp());
-    auto const m = std::make_shared<Message> (
-        std::move(hello), protocol::mtHELLO);
-    send (m);
-    return true;
 }
 
 void
@@ -1518,29 +1781,14 @@ PeerImp::addLedger (uint256 const& hash)
 }
 
 void
-PeerImp::addTxSet (uint256 const& hash)
-{
-    std::lock_guard<std::mutex> sl(recentLock_);
-
-    if (std::find (recentTxSets_.begin (),
-        recentTxSets_.end (), hash) != recentTxSets_.end ())
-        return;
-
-    if (recentTxSets_.size () == 128)
-        recentTxSets_.pop_front ();
-
-    recentTxSets_.push_back (hash);
-}
-
-void
 PeerImp::doFetchPack (const std::shared_ptr<protocol::TMGetObjectByHash>& packet)
 {
     // VFALCO TODO Invert this dependency using an observer and shared state object.
     // Don't queue fetch pack jobs if we're under load or we already have
     // some queued.
-    if (getApp().getFeeTrack ().isLoadedLocal () ||
-        (getApp().getLedgerMaster().getValidatedLedgerAge() > 40) ||
-        (getApp().getJobQueue().getJobCount(jtPACK) > 10))
+    if (app_.getFeeTrack ().isLoadedLocal () ||
+        (app_.getLedgerMaster().getValidatedLedgerAge() > 40) ||
+        (app_.getJobQueue().getJobCount(jtPACK) > 10))
     {
         p_journal_.info << "Too busy to make fetch pack";
         return;
@@ -1549,22 +1797,29 @@ PeerImp::doFetchPack (const std::shared_ptr<protocol::TMGetObjectByHash>& packet
     if (packet->ledgerhash ().size () != 32)
     {
         p_journal_.warning << "FetchPack hash size malformed";
-        charge (Resource::feeInvalidRequest);
+        fee_ = Resource::feeInvalidRequest;
         return;
     }
+
+    fee_ = Resource::feeHighBurdenPeer;
 
     uint256 hash;
     memcpy (hash.begin (), packet->ledgerhash ().data (), 32);
 
-    getApp().getJobQueue ().addJob (jtPACK, "MakeFetchPack",
-        std::bind (&NetworkOPs::makeFetchPack, &getApp().getOPs (),
-            std::placeholders::_1, std::weak_ptr<PeerImp> (shared_from_this ()),
-                packet, hash, UptimeTimer::getInstance ().getElapsedSeconds ()));
+    std::weak_ptr<PeerImp> weak = shared_from_this();
+    auto elapsed = UptimeTimer::getInstance().getElapsedSeconds();
+    auto const pap = &app_;
+    app_.getJobQueue ().addJob (
+        jtPACK, "MakeFetchPack",
+        [pap, weak, packet, hash, elapsed] (Job&) {
+            pap->getLedgerMaster().makeFetchPack(
+                weak, packet, hash, elapsed);
+        });
 }
 
 void
-PeerImp::checkTransaction (Job&, int flags,
-    STTx::pointer stx)
+PeerImp::checkTransaction (int flags,
+    bool checkSignature, std::shared_ptr<STTx const> const& stx)
 {
     // VFALCO TODO Rewrite to not use exceptions
     try
@@ -1572,32 +1827,62 @@ PeerImp::checkTransaction (Job&, int flags,
         // Expired?
         if (stx->isFieldPresent(sfLastLedgerSequence) &&
             (stx->getFieldU32 (sfLastLedgerSequence) <
-            getApp().getLedgerMaster().getValidLedgerIndex()))
+            app_.getLedgerMaster().getValidLedgerIndex()))
         {
-            getApp().getHashRouter().setFlag(stx->getTransactionID(), SF_BAD);
-            return charge (Resource::feeUnwantedData);
+            app_.getHashRouter().setFlags(stx->getTransactionID(), SF_BAD);
+            charge (Resource::feeUnwantedData);
+            return;
         }
 
-        auto validate = (flags & SF_SIGGOOD) ? Validate::NO : Validate::YES;
-        auto tx = std::make_shared<Transaction> (stx, validate);
-
-        if (tx->getStatus () == INVALID)
+        if (checkSignature)
         {
-            getApp().getHashRouter ().setFlag (stx->getTransactionID (), SF_BAD);
-            return charge (Resource::feeInvalidSignature);
+            // Check the signature before handing off to the job queue.
+            auto valid = checkValidity(app_.getHashRouter(), *stx,
+                app_.getLedgerMaster().getValidatedRules(),
+                    app_.config());
+            if (valid.first != Validity::Valid)
+            {
+                if (!valid.second.empty())
+                {
+                    JLOG(p_journal_.trace) <<
+                        "Exception checking transaction: " <<
+                            valid.second;
+                }
+
+                // Probably not necessary to set SF_BAD, but doesn't hurt.
+                app_.getHashRouter().setFlags(stx->getTransactionID(), SF_BAD);
+                charge(Resource::feeInvalidSignature);
+                return;
+            }
         }
         else
         {
-            getApp().getHashRouter ().setFlag (stx->getTransactionID (), SF_SIGGOOD);
+            forceValidity(app_.getHashRouter(),
+                stx->getTransactionID(), Validity::Valid);
+        }
+
+        std::string reason;
+        auto tx = std::make_shared<Transaction> (
+            stx, reason, app_);
+
+        if (tx->getStatus () == INVALID)
+        {
+            if (! reason.empty ())
+                p_journal_.trace << "Exception checking transaction: " << reason;
+
+            app_.getHashRouter ().setFlags (stx->getTransactionID (), SF_BAD);
+            charge (Resource::feeInvalidSignature);
+            return;
         }
 
         bool const trusted (flags & SF_TRUSTED);
-        getApp().getOPs ().processTransaction (tx, trusted, false, false);
+        app_.getOPs ().processTransaction (
+            tx, trusted, false, NetworkOPs::FailHard::no);
     }
-    catch (...)
+    catch (std::exception const&)
     {
-        getApp().getHashRouter ().setFlag (stx->getTransactionID (), SF_BAD);
-        charge (Resource::feeInvalidRequest);
+        app_.getHashRouter ().setFlags (stx->getTransactionID (), SF_BAD);
+        charge (Resource::feeBadData);
     }
 }
 
@@ -1605,9 +1890,8 @@ PeerImp::checkTransaction (Job&, int flags,
 void
 PeerImp::checkPropose (Job& job,
     std::shared_ptr <protocol::TMProposeSet> const& packet,
-        LedgerProposal::pointer proposal, uint256 consensusLCL)
+        LedgerProposal::pointer proposal)
 {
-    bool sigGood = false;
     bool isTrusted = (job.getType () == jtPROPOSAL_t);
 
     p_journal_.trace <<
@@ -1616,70 +1900,44 @@ PeerImp::checkPropose (Job& job,
     assert (packet);
     protocol::TMProposeSet& set = *packet;
 
-    uint256 prevLedger;
-
-    if (set.has_previousledger ())
+    if (! cluster() && ! proposal->checkSign (set.signature ()))
     {
-        // proposal includes a previous ledger
-        p_journal_.trace <<
-            "proposal with previous ledger";
-        memcpy (prevLedger.begin (), set.previousledger ().data (), 256 / 8);
-
-        if (! cluster() && !proposal->checkSign (set.signature ()))
-        {
-            p_journal_.warning <<
-                "Proposal with previous ledger fails sig check";
-            charge (Resource::feeInvalidSignature);
-            return;
-        }
-        else
-            sigGood = true;
-    }
-    else
-    {
-        if (consensusLCL.isNonZero () && proposal->checkSign (set.signature ()))
-        {
-            prevLedger = consensusLCL;
-            sigGood = true;
-        }
-        else
-        {
-            // Could be mismatched prev ledger
-            p_journal_.warning <<
-                "Ledger proposal fails signature check";
-            proposal->setSignature (set.signature ());
-        }
+        p_journal_.warning <<
+            "Proposal fails sig check";
+        charge (Resource::feeInvalidSignature);
+        return;
     }
 
     if (isTrusted)
     {
-        getApp().getOPs ().processTrustedProposal (
-            proposal, packet, publicKey_, prevLedger, sigGood);
-    }
-    else if (sigGood && (prevLedger == consensusLCL))
-    {
-        // relay untrusted proposal
-        p_journal_.trace <<
-            "relaying UNTRUSTED proposal";
-        std::set<Peer::id_t> peers;
-
-        if (getApp().getHashRouter ().swapSet (
-            proposal->getSuppressionID (), peers, SF_RELAYED))
-        {
-            overlay_.foreach (send_if_not (
-                std::make_shared<Message> (set, protocol::mtPROPOSE_LEDGER),
-                peer_in_set(peers)));
-        }
+        app_.getOPs ().processTrustedProposal (
+            proposal, packet, publicKey_);
     }
     else
     {
-        p_journal_.debug <<
-            "Not relaying UNTRUSTED proposal";
+        uint256 consensusLCL;
+        {
+            std::lock_guard<Application::MutexType> lock (app_.getMasterMutex());
+            consensusLCL = app_.getOPs ().getConsensusLCL ();
+        }
+
+        if (consensusLCL == proposal->getPrevLedger())
+        {
+            // relay untrusted proposal
+            p_journal_.trace <<
+                "relaying UNTRUSTED proposal";
+            overlay_.relay(set, proposal->getSuppressionID());
+        }
+        else
+        {
+            p_journal_.debug <<
+                "Not relaying UNTRUSTED proposal";
+        }
     }
 }
 
 void
-PeerImp::checkValidation (Job&, STValidation::pointer val,
+PeerImp::checkValidation (STValidation::pointer val,
     bool isTrusted, std::shared_ptr<protocol::TMValidation> const& packet)
 {
     try
@@ -1694,21 +1952,11 @@ PeerImp::checkValidation (Job&, STValidation::pointer val,
             return;
         }
 
-    #if RIPPLE_HOOK_VALIDATORS
-        validatorsConnection_->onValidation(*val);
-    #endif
-
-        std::set<Peer::id_t> peers;
-        if (getApp().getOPs ().recvValidation (val, std::to_string(id())) &&
-                getApp().getHashRouter ().swapSet (
-                    signingHash, peers, SF_RELAYED))
-        {
-            overlay_.foreach (send_if_not (
-                std::make_shared<Message> (*packet, protocol::mtVALIDATION),
-                peer_in_set(peers)));
-        }
+        if (app_.getOPs ().recvValidation(
+                val, std::to_string(id())))
+            overlay_.relay(*packet, signingHash);
     }
-    catch (...)
+    catch (std::exception const&)
     {
         p_journal_.trace <<
             "Exception processing validation";
@@ -1716,14 +1964,71 @@ PeerImp::checkValidation (Job&, STValidation::pointer val,
     }
 }
 
+// Returns the set of peers that can help us get
+// the TX tree with the specified root hash.
+//
+static
+std::shared_ptr<PeerImp>
+getPeerWithTree (OverlayImpl& ov,
+    uint256 const& rootHash, PeerImp const* skip)
+{
+    std::shared_ptr<PeerImp> ret;
+    int retScore = 0;
+
+    ov.for_each([&](std::shared_ptr<PeerImp> const& p)
+    {
+        if (p->hasTxSet(rootHash) && p.get() != skip)
+        {
+            auto score = p->getScore (true);
+            if (! ret || (score > retScore))
+            {
+                ret = p;
+                retScore = score;
+            }
+        }
+    });
+
+    return ret;
+}
+
+// Returns the set of peers that claim
+// to have the specified ledger.
+//
+static
+std::shared_ptr<PeerImp>
+getPeerWithLedger (OverlayImpl& ov,
+    uint256 const& ledgerHash, LedgerIndex ledger,
+        PeerImp const* skip)
+{
+    std::shared_ptr<PeerImp> ret;
+    int retScore = 0;
+
+    ov.for_each([&](std::shared_ptr<PeerImp> const& p)
+    {
+        if (p->hasLedger(ledgerHash, ledger) &&
+                p.get() != skip)
+        {
+            auto score = p->getScore (true);
+            if (! ret || (score > retScore))
+            {
+                ret = p;
+                retScore = score;
+            }
+        }
+    });
+
+    return ret;
+}
+
 // VFALCO NOTE This function is way too big and cumbersome.
 void
 PeerImp::getLedger (std::shared_ptr<protocol::TMGetLedger> const& m)
 {
     protocol::TMGetLedger& packet = *m;
-    SHAMap::pointer map;
+    std::shared_ptr<SHAMap> shared;
+    SHAMap const* map = nullptr;
     protocol::TMLedgerData reply;
-    bool fatLeaves = true, fatRoot = false;
+    bool fatLeaves = true;
 
     if (packet.has_requestcookie ())
         reply.set_requestcookie (packet.requestcookie ());
@@ -1733,74 +2038,46 @@ PeerImp::getLedger (std::shared_ptr<protocol::TMGetLedger> const& m)
     if (packet.itype () == protocol::liTS_CANDIDATE)
     {
         // Request is for a transaction candidate set
-        p_journal_.trace <<
+        if (p_journal_.trace) p_journal_.trace <<
             "GetLedger: Tx candidate set";
 
         if ((!packet.has_ledgerhash () || packet.ledgerhash ().size () != 32))
         {
             charge (Resource::feeInvalidRequest);
-            p_journal_.warning << "GetLedger: Tx candidate set invalid";
+            if (p_journal_.warning) p_journal_.warning <<
+                "GetLedger: Tx candidate set invalid";
             return;
         }
 
         uint256 txHash;
         memcpy (txHash.begin (), packet.ledgerhash ().data (), 32);
 
-        {
-            Application::ScopedLockType lock (getApp ().getMasterLock ());
-            map = getApp().getOPs ().getTXMap (txHash);
-        }
+        shared = app_.getInboundTransactions().getSet (txHash, false);
+        map = shared.get();
 
-        if (!map)
+        if (! map)
         {
             if (packet.has_querytype () && !packet.has_requestcookie ())
             {
-                p_journal_.debug <<
+                if (p_journal_.debug) p_journal_.debug <<
                     "GetLedger: Routing Tx set request";
 
-                struct get_usable_peers
+                auto const v = getPeerWithTree(
+                    overlay_, txHash, this);
+                if (! v)
                 {
-                    typedef Overlay::PeerSequence return_type;
-
-                    Overlay::PeerSequence usablePeers;
-                    uint256 const& txHash;
-                    Peer const* skip;
-
-                    get_usable_peers(uint256 const& hash, Peer const* s)
-                        : txHash(hash), skip(s)
-                    { }
-
-                    void operator() (Peer::ptr const& peer)
-                    {
-                        if (peer->hasTxSet (txHash) && (peer.get () != skip))
-                            usablePeers.push_back (peer);
-                    }
-
-                    return_type operator() ()
-                    {
-                        return usablePeers;
-                    }
-                };
-
-                Overlay::PeerSequence usablePeers (overlay_.foreach (
-                    get_usable_peers (txHash, this)));
-
-                if (usablePeers.empty ())
-                {
-                    p_journal_.info <<
+                    if (p_journal_.info) p_journal_.info <<
                         "GetLedger: Route TX set failed";
                     return;
                 }
 
-                Peer::ptr const& selectedPeer = usablePeers [
-                    rand () % usablePeers.size ()];
                 packet.set_requestcookie (id ());
-                selectedPeer->send (std::make_shared<Message> (
+                v->send (std::make_shared<Message> (
                     packet, protocol::mtGET_LEDGER));
                 return;
             }
 
-            p_journal_.error <<
+            if (p_journal_.debug) p_journal_.debug <<
                 "GetLedger: Can't provide map ";
             charge (Resource::feeInvalidRequest);
             return;
@@ -1810,19 +2087,25 @@ PeerImp::getLedger (std::shared_ptr<protocol::TMGetLedger> const& m)
         reply.set_ledgerhash (txHash.begin (), txHash.size ());
         reply.set_type (protocol::liTS_CANDIDATE);
         fatLeaves = false; // We'll already have most transactions
-        fatRoot = true; // Save a pass
     }
     else
     {
-        if (getApp().getFeeTrack().isLoadedLocal() && ! cluster())
+        if (send_queue_.size() >= Tuning::dropSendQueue)
         {
-            p_journal_.debug <<
+            if (p_journal_.debug) p_journal_.debug <<
+                "GetLedger: Large send queue";
+            return;
+        }
+
+        if (app_.getFeeTrack().isLoadedLocal() && ! cluster())
+        {
+            if (p_journal_.debug) p_journal_.debug <<
                 "GetLedger: Too busy";
             return;
         }
 
         // Figure out what ledger they want
-        p_journal_.trace <<
+        if (p_journal_.trace) p_journal_.trace <<
             "GetLedger: Received";
         Ledger::pointer ledger;
 
@@ -1833,7 +2116,7 @@ PeerImp::getLedger (std::shared_ptr<protocol::TMGetLedger> const& m)
             if (packet.ledgerhash ().size () != 32)
             {
                 charge (Resource::feeInvalidRequest);
-                p_journal_.warning <<
+                if (p_journal_.warning) p_journal_.warning <<
                     "GetLedger: Invalid request";
                 return;
             }
@@ -1841,10 +2124,10 @@ PeerImp::getLedger (std::shared_ptr<protocol::TMGetLedger> const& m)
             memcpy (ledgerhash.begin (), packet.ledgerhash ().data (), 32);
             logMe += "LedgerHash:";
             logMe += to_string (ledgerhash);
-            ledger = getApp().getLedgerMaster ().getLedgerByHash (ledgerhash);
+            ledger = app_.getLedgerMaster ().getLedgerByHash (ledgerhash);
 
-            if (!ledger && p_journal_.trace)
-                p_journal_.trace <<
+            if (!ledger)
+                if (p_journal_.trace) p_journal_.trace <<
                     "GetLedger: Don't have " << ledgerhash;
 
             if (!ledger && (packet.has_querytype () &&
@@ -1855,27 +2138,19 @@ PeerImp::getLedger (std::shared_ptr<protocol::TMGetLedger> const& m)
                 if (packet.has_ledgerseq ())
                     seq = packet.ledgerseq ();
 
-                Overlay::PeerSequence peerList = overlay_.getActivePeers ();
-                Overlay::PeerSequence usablePeers;
-                for (auto const& peer : peerList)
+                auto const v = getPeerWithLedger(
+                    overlay_, ledgerhash, seq, this);
+                if (! v)
                 {
-                    if (peer->hasLedger (ledgerhash, seq) && (peer.get () != this))
-                        usablePeers.push_back (peer);
-                }
-
-                if (usablePeers.empty ())
-                {
-                    p_journal_.trace <<
+                    if (p_journal_.trace) p_journal_.trace <<
                         "GetLedger: Cannot route";
                     return;
                 }
 
-                Peer::ptr const& selectedPeer = usablePeers [
-                    rand () % usablePeers.size ()];
                 packet.set_requestcookie (id ());
-                selectedPeer->send (
-                    std::make_shared<Message> (packet, protocol::mtGET_LEDGER));
-                p_journal_.debug <<
+                v->send (std::make_shared<Message>(
+                    packet, protocol::mtGET_LEDGER));
+                if (p_journal_.debug) p_journal_.debug <<
                     "GetLedger: Request routed";
                 return;
             }
@@ -1883,98 +2158,92 @@ PeerImp::getLedger (std::shared_ptr<protocol::TMGetLedger> const& m)
         else if (packet.has_ledgerseq ())
         {
             if (packet.ledgerseq() <
-                    getApp().getLedgerMaster().getEarliestFetch())
+                    app_.getLedgerMaster().getEarliestFetch())
             {
-                p_journal_.debug <<
+                if (p_journal_.debug) p_journal_.debug <<
                     "GetLedger: Early ledger request";
                 return;
             }
-            ledger = getApp().getLedgerMaster ().getLedgerBySeq (
+            ledger = app_.getLedgerMaster ().getLedgerBySeq (
                 packet.ledgerseq ());
-            if (!ledger && p_journal_.debug)
-                p_journal_.debug <<
+            if (! ledger)
+                if (p_journal_.debug) p_journal_.debug <<
                     "GetLedger: Don't have " << packet.ledgerseq ();
-        }
-        else if (packet.has_ltype () && (packet.ltype () == protocol::ltCURRENT))
-        {
-            ledger = getApp().getLedgerMaster ().getCurrentLedger ();
         }
         else if (packet.has_ltype () && (packet.ltype () == protocol::ltCLOSED) )
         {
-            ledger = getApp().getLedgerMaster ().getClosedLedger ();
+            ledger = app_.getLedgerMaster ().getClosedLedger ();
 
-            if (ledger && !ledger->isClosed ())
-                ledger = getApp().getLedgerMaster ().getLedgerBySeq (
-                    ledger->getLedgerSeq () - 1);
+            if (ledger && ledger->info().open)
+                ledger = app_.getLedgerMaster ().getLedgerBySeq (
+                    ledger->info().seq - 1);
         }
         else
         {
             charge (Resource::feeInvalidRequest);
-            p_journal_.warning <<
+            if (p_journal_.warning) p_journal_.warning <<
                 "GetLedger: Unknown request";
             return;
         }
 
         if ((!ledger) || (packet.has_ledgerseq () && (
-            packet.ledgerseq () != ledger->getLedgerSeq ())))
+            packet.ledgerseq () != ledger->info().seq)))
         {
             charge (Resource::feeInvalidRequest);
 
-            if (p_journal_.warning && ledger)
-                p_journal_.warning <<
+            if (ledger)
+                if (p_journal_.warning) p_journal_.warning <<
                     "GetLedger: Invalid sequence";
 
             return;
         }
 
-            if (!packet.has_ledgerseq() && (ledger->getLedgerSeq() <
-                getApp().getLedgerMaster().getEarliestFetch()))
-            {
-                p_journal_.debug <<
-                    "GetLedger: Early ledger request";
-                return;
-            }
+        if (!packet.has_ledgerseq() && (ledger->info().seq <
+            app_.getLedgerMaster().getEarliestFetch()))
+        {
+            if (p_journal_.debug) p_journal_.debug <<
+                "GetLedger: Early ledger request";
+            return;
+        }
 
         // Fill out the reply
         uint256 lHash = ledger->getHash ();
         reply.set_ledgerhash (lHash.begin (), lHash.size ());
-        reply.set_ledgerseq (ledger->getLedgerSeq ());
+        reply.set_ledgerseq (ledger->info().seq);
         reply.set_type (packet.itype ());
 
         if (packet.itype () == protocol::liBASE)
         {
             // they want the ledger base data
-            p_journal_.trace <<
+            if (p_journal_.trace) p_journal_.trace <<
                 "GetLedger: Base data";
             Serializer nData (128);
             ledger->addRaw (nData);
             reply.add_nodes ()->set_nodedata (
                 nData.getDataPtr (), nData.getLength ());
 
-            SHAMap::pointer map = ledger->peekAccountStateMap ();
-
-            if (map && map->getHash ().isNonZero ())
+            auto const& stateMap = ledger->stateMap ();
+            if (stateMap.getHash() != zero)
             {
                 // return account state root node if possible
                 Serializer rootNode (768);
-
-                if (map->getRootNode (rootNode, snfWIRE))
+                if (stateMap.getRootNode(rootNode, snfWIRE))
                 {
                     reply.add_nodes ()->set_nodedata (
                         rootNode.getDataPtr (), rootNode.getLength ());
 
-                    if (ledger->getTransHash ().isNonZero ())
+                    if (ledger->info().txHash != zero)
                     {
-                        map = ledger->peekTransactionMap ();
+                        auto const& txMap = ledger->txMap ();
 
-                        if (map && map->getHash ().isNonZero ())
+                        if (txMap.getHash() != zero)
                         {
                             rootNode.erase ();
 
-                            if (map->getRootNode (rootNode, snfWIRE))
+                            if (txMap.getRootNode (rootNode, snfWIRE))
                                 reply.add_nodes ()->set_nodedata (
                                     rootNode.getDataPtr (),
-                                        rootNode.getLength ());
+                                    rootNode.getLength ());
                         }
                     }
                 }
@@ -1988,13 +2257,13 @@ PeerImp::getLedger (std::shared_ptr<protocol::TMGetLedger> const& m)
 
         if (packet.itype () == protocol::liTX_NODE)
         {
-            map = ledger->peekTransactionMap ();
+            map = &ledger->txMap ();
             logMe += " TX:";
             logMe += to_string (map->getHash ());
         }
         else if (packet.itype () == protocol::liAS_NODE)
         {
-            map = ledger->peekAccountStateMap ();
+            map = &ledger->stateMap ();
             logMe += " AS:";
             logMe += to_string (map->getHash ());
         }
@@ -2002,39 +2271,48 @@ PeerImp::getLedger (std::shared_ptr<protocol::TMGetLedger> const& m)
 
     if (!map || (packet.nodeids_size () == 0))
     {
-        p_journal_.warning <<
+        if (p_journal_.warning) p_journal_.warning <<
             "GetLedger: Can't find map or empty request";
         charge (Resource::feeInvalidRequest);
         return;
     }
 
-    p_journal_.trace <<
+    if (p_journal_.trace) p_journal_.trace <<
         "GetLeder: " << logMe;
 
-    for (int i = 0; i < packet.nodeids ().size (); ++i)
+    auto const depth =
+        packet.has_querydepth() ?
+            (std::min(packet.querydepth(), 3u)) :
+            (isHighLatency() ? 2 : 1);
+
+    for (int i = 0;
+            (i < packet.nodeids().size() &&
+            (reply.nodes().size() < Tuning::maxReplyNodes)); ++i)
     {
         SHAMapNodeID mn (packet.nodeids (i).data (), packet.nodeids (i).size ());
 
         if (!mn.isValid ())
         {
-            p_journal_.warning <<
+            if (p_journal_.warning) p_journal_.warning <<
                 "GetLedger: Invalid node " << logMe;
             charge (Resource::feeInvalidRequest);
             return;
         }
 
         std::vector<SHAMapNodeID> nodeIDs;
-        std::list< Blob > rawNodes;
+        std::vector< Blob > rawNodes;
 
         try
         {
-            if (map->getNodeFat (mn, nodeIDs, rawNodes, fatRoot, fatLeaves))
+            // We are guaranteed that map is non-null, but we need to check
+            // to keep the compiler happy.
+            if (map && map->getNodeFat (mn, nodeIDs, rawNodes, fatLeaves, depth))
             {
                 assert (nodeIDs.size () == rawNodes.size ());
-                p_journal_.trace <<
+                if (p_journal_.trace) p_journal_.trace <<
                     "GetLedger: getNodeFat got " << rawNodes.size () << " nodes";
                 std::vector<SHAMapNodeID>::iterator nodeIDIterator;
-                std::list< Blob >::iterator rawNodeIterator;
+                std::vector< Blob >::iterator rawNodeIterator;
 
                 for (nodeIDIterator = nodeIDs.begin (),
                         rawNodeIterator = rawNodes.begin ();
@@ -2069,54 +2347,73 @@ PeerImp::getLedger (std::shared_ptr<protocol::TMGetLedger> const& m)
             if (!packet.has_ledgerhash ())
                 info += ", no hash specified";
 
-            p_journal_.warning <<
+            if (p_journal_.warning) p_journal_.warning <<
                 "getNodeFat( " << mn << ") throws exception: " << info;
         }
     }
+
+    if (p_journal_.info) p_journal_.info <<
+        "Got request for " << packet.nodeids().size() << " nodes at depth " <<
+        depth << ", return " << reply.nodes().size() << " nodes";
 
     Message::pointer oPacket = std::make_shared<Message> (
         reply, protocol::mtLEDGER_DATA);
     send (oPacket);
 }
 
-// VFALCO TODO Make this non-static
 void
-PeerImp::peerTXData (Job&, uint256 const& hash,
+PeerImp::peerTXData (uint256 const& hash,
     std::shared_ptr <protocol::TMLedgerData> const& pPacket,
         beast::Journal journal)
 {
-    protocol::TMLedgerData& packet = *pPacket;
+    app_.getInboundTransactions().gotData (hash, shared_from_this(), pPacket);
+}
 
-    std::list<SHAMapNodeID> nodeIDs;
-    std::list< Blob > nodeData;
-    for (int i = 0; i < packet.nodes ().size (); ++i)
-    {
-        const protocol::TMLedgerNode& node = packet.nodes (i);
+int
+PeerImp::getScore (bool haveItem) const
+{
+   // Random component of score, used to break ties and avoid
+   // overloading the "best" peer
+   static const int spRandom   =   10000;
 
-        if (!node.has_nodeid () || !node.has_nodedata () || (
-            node.nodeid ().size () != 33))
-        {
-            journal.warning << "LedgerData request with invalid node ID";
-            charge (Resource::feeInvalidRequest);
-            return;
-        }
+   // Score for being very likely to have the thing we are
+   // look for
+   // Should be roughly spRandom
+   static const int spHaveItem =   10000;
 
-        nodeIDs.push_back (SHAMapNodeID {node.nodeid ().data (),
-                           static_cast<int>(node.nodeid ().size ())});
-        nodeData.push_back (Blob (node.nodedata ().begin (),
-            node.nodedata ().end ()));
-    }
+   // Score reduction for each millisecond of latency
+   // Should be roughly spRandom divided by
+   // the maximum reasonable latency
+   static const int spLatency  =      30;
 
-    SHAMapAddNode san;
-    {
-        Application::ScopedLockType lock (getApp ().getMasterLock ());
+   // Penalty for unknown latency
+   // Should be roughly spRandom
+   static const int spNoLatency =   8000;
 
-        san =  getApp().getOPs().gotTXData (shared_from_this(),
-            hash, nodeIDs, nodeData);
-    }
+   int score = rand() % spRandom;
 
-    if (san.isInvalid ())
-        charge (Resource::feeUnwantedData);
+   if (haveItem)
+       score += spHaveItem;
+
+   std::chrono::milliseconds latency;
+   {
+       std::lock_guard<std::mutex> sl (recentLock_);
+
+       latency = latency_;
+   }
+   if (latency != std::chrono::milliseconds (-1))
+       score -= latency.count() * spLatency;
+   else
+       score -= spNoLatency;
+
+   return score;
+}
+
+bool
+PeerImp::isHighLatency() const
+{
+    std::lock_guard<std::mutex> sl (recentLock_);
+    return latency_.count() >= Tuning::peerHighLatency;
 }
 
 } // ripple

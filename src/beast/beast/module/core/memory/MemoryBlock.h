@@ -21,11 +21,10 @@
 */
 //==============================================================================
 
-#ifndef BEAST_MEMORYBLOCK_H_INCLUDED
-#define BEAST_MEMORYBLOCK_H_INCLUDED
+#ifndef BEAST_MODULE_CORE_MEMORY_MEMORYBLOCK_H_INCLUDED
+#define BEAST_MODULE_CORE_MEMORY_MEMORYBLOCK_H_INCLUDED
 
 #include <beast/HeapBlock.h>
-#include <beast/utility/LeakChecked.h>
 #include <beast/strings/String.h>
 
 namespace beast {
@@ -35,7 +34,7 @@ namespace beast {
     A class to hold a resizable block of raw data.
 
 */
-class MemoryBlock : LeakChecked <MemoryBlock>
+class MemoryBlock
 {
 public:
     //==============================================================================
@@ -75,8 +74,8 @@ public:
    #endif
 
     // Standard container interface
-    typedef char* iterator;
-    typedef char const* const_iterator;
+    using iterator = char*;
+    using const_iterator = char const*;
     inline iterator begin () noexcept { return static_cast <iterator> (getData ()); }
     inline iterator end () noexcept { return addBytesToPointer (begin (), size); }
     inline const_iterator cbegin () const noexcept { return static_cast <const_iterator> (getConstData ()); }

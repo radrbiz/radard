@@ -21,6 +21,7 @@
 #define RIPPLE_PROTOCOL_SOTEMPLATE_H_INCLUDED
 
 #include <ripple/protocol/SField.h>
+#include <boost/range.hpp>
 #include <memory>
 
 namespace ripple {
@@ -41,10 +42,10 @@ enum SOE_Flags
 class SOElement
 {
 public:
-    SField::ref       e_field;
+    SField const&     e_field;
     SOE_Flags const   flags;
 
-    SOElement (SField::ref fieldName, SOE_Flags flags)
+    SOElement (SField const& fieldName, SOE_Flags flags)
         : e_field (fieldName)
         , flags (flags)
     {
@@ -60,29 +61,45 @@ public:
 class SOTemplate
 {
 public:
-    typedef std::unique_ptr <SOElement const> value_type;
-    typedef std::vector <value_type> list_type;
+    using list_type = std::vector <std::unique_ptr <SOElement const>>;
+    using iterator_range = boost::iterator_range<list_type::const_iterator>;
 
     /** Create an empty template.
         After creating the template, call @ref push_back with the
         desired fields.
         @see push_back
     */
-    SOTemplate ();
+    SOTemplate () = default;
 
-    // VFALCO NOTE Why do we even bother with the 'private' keyword if
-    //             this function is present?
-    //
-    list_type const& peek () const
+    SOTemplate(SOTemplate&& other)
+        : mTypes(std::move(other.mTypes))
+        , mIndex(std::move(other.mIndex))
     {
-        return mTypes;
+    }
+
+    /* Provide for the enumeration of fields */
+    iterator_range all () const
+    {
+        return boost::make_iterator_range(mTypes);
+    }
+
+    /** The number of entries in this template */
+    std::size_t size () const
+    {
+        return mTypes.size ();
     }
 
     /** Add an element to the template. */
     void push_back (SOElement const& r);
 
     /** Retrieve the position of a named field. */
-    int getIndex (SField::ref) const;
+    int getIndex (SField const&) const;
+
+    SOE_Flags
+    style(SField const& sf) const
+    {
+        return mTypes[mIndex[sf.getNum()]]->flags;
+    }
 
 private:
     list_type mTypes;

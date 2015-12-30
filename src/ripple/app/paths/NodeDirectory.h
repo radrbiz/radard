@@ -17,18 +17,20 @@
 */
 //==============================================================================
 
-#ifndef RIPPLED_RIPPLE_MODULE_APP_PATHS_NODEDIRECTORY_H
-#define RIPPLED_RIPPLE_MODULE_APP_PATHS_NODEDIRECTORY_H
+#ifndef RIPPLE_APP_PATHS_NODEDIRECTORY_H_INCLUDED
+#define RIPPLE_APP_PATHS_NODEDIRECTORY_H_INCLUDED
 
-#include <ripple/app/ledger/LedgerEntrySet.h>
 #include <ripple/protocol/Indexes.h>
+#include <ripple/protocol/STLedgerEntry.h>
+#include <ripple/ledger/ApplyView.h>
 
 namespace ripple {
 
 // VFALCO TODO de-inline these function definitions
 
-class NodeDirectory {
-  public:
+class NodeDirectory
+{
+public:
     // Current directory - the last 64 bits of this are the quality.
     uint256 current;
 
@@ -52,7 +54,7 @@ class NodeDirectory {
             restartNeeded  = true;   // Restart at same quality.
     }
 
-    bool initialize (Book const& book, LedgerEntrySet& les)
+    bool initialize (Book const& book, ApplyView& view)
     {
         if (current != zero)
             return false;
@@ -63,19 +65,28 @@ class NodeDirectory {
         // TODO(tom): it seems impossible that any actual offers with
         // quality == 0 could occur - we should disallow them, and clear
         // directory.ledgerEntry without the database call in the next line.
-        ledgerEntry = les.entryCache (ltDIR_NODE, current);
+        ledgerEntry = view.peek (keylet::page(current));
 
         // Advance, if didn't find it. Normal not to be unable to lookup
         // firstdirectory. Maybe even skip this lookup.
-        advanceNeeded  = !ledgerEntry;
+        advanceNeeded  = ! ledgerEntry;
         restartNeeded  = false;
 
         // Associated vars are dirty, if found it.
         return bool(ledgerEntry);
     }
 
-    enum Advance {NO_ADVANCE, NEW_QUALITY, END_ADVANCE};
-    Advance advance(LedgerEntrySet& les)
+    enum Advance
+    {
+        NO_ADVANCE,
+        NEW_QUALITY,
+        END_ADVANCE
+    };
+
+    /** Advance to the next quality directory in the order book. */
+    // VFALCO Consider renaming this to `nextQuality` or something
+    Advance
+    advance (ApplyView& view)
     {
         if (!(advanceNeeded || restartNeeded))
             return NO_ADVANCE;
@@ -84,15 +95,18 @@ class NodeDirectory {
         // The Merkel radix tree is ordered by key so we can go to the next
         // quality in O(1).
         if (advanceNeeded)
-            current = les.getNextLedgerIndex (current, next);
-
+        {
+            auto const opt =
+                view.succ (current, next);
+            current = opt ? *opt : uint256{};
+        }
         advanceNeeded  = false;
         restartNeeded  = false;
 
         if (current == zero)
             return END_ADVANCE;
 
-        ledgerEntry = les.entryCache (ltDIR_NODE, current);
+        ledgerEntry = view.peek (keylet::page(current));
         return NEW_QUALITY;
     }
 };

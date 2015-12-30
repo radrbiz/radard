@@ -18,6 +18,7 @@
 //==============================================================================
 
 #include <BeastConfig.h>
+#include <ripple/basics/chrono.h>
 #include <ripple/basics/TaggedCache.h>
 #include <beast/unit_test/suite.h>
 #include <beast/chrono/manual_clock.h>
@@ -41,12 +42,12 @@ public:
     {
         beast::Journal const j;
 
-        beast::manual_clock <std::chrono::steady_clock> clock;
+        TestStopwatch clock;
         clock.set (0);
 
-        typedef int Key;
-        typedef std::string Value;
-        typedef TaggedCache <Key, Value> Cache;
+        using Key = int;
+        using Value = std::string;
+        using Cache = TaggedCache <Key, Value>;
 
         Cache c ("test", 1, 1, clock, j);
 

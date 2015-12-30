@@ -23,6 +23,7 @@
 #include <ripple/app/paths/Pathfinder.h>
 #include <ripple/app/paths/RippleCalc.h>
 #include <ripple/app/paths/RippleLineCache.h>
+#include <ripple/ledger/PaymentSandbox.h>
 #include <ripple/app/ledger/OrderBookDB.h>
 #include <ripple/basics/Log.h>
 #include <ripple/json/to_string.h>
@@ -65,36 +66,10 @@ namespace ripple {
 
 namespace {
 
-// We sort possible paths by:
-//    cost of path
-//    length of path
-//    width of path
-
-// Compare two PathRanks.  A better PathRank is lower, so the best are sorted to
-// the beginning.
-bool comparePathRank (
-    Pathfinder::PathRank const& a, Pathfinder::PathRank const& b)
-{
-    // 1) Higher quality (lower cost) is better
-    if (a.quality != b.quality)
-        return a.quality < b.quality;
-
-    // 2) More liquidity (higher volume) is better
-    if (a.liquidity != b.liquidity)
-        return a.liquidity > b.liquidity;
-
-    // 3) Shorter paths are better
-    if (a.length != b.length)
-        return a.length < b.length;
-
-    // 4) Tie breaker
-    return a.index > b.index;
-}
-
 struct AccountCandidate
 {
     int priority;
-    Account account;
+    AccountID account;
 
     static const int highPriority = 10000;
 };
@@ -112,7 +87,7 @@ bool compareAccountCandidate (
     return (first.priority ^ seq) < (second.priority ^ seq);
 }
 
-typedef std::vector<AccountCandidate> AccountCandidates;
+using AccountCandidates = std::vector<AccountCandidate>;
 
 struct CostedPath
 {
@@ -120,15 +95,15 @@ struct CostedPath
     Pathfinder::PathType type;
 };
 
-typedef std::vector<CostedPath> CostedPathList;
+using CostedPathList = std::vector<CostedPath>;
 
-typedef std::map<Pathfinder::PaymentType, CostedPathList> PathTable;
+using PathTable = std::map<Pathfinder::PaymentType, CostedPathList>;
 
 struct PathCost {
     int cost;
     char const* path;
 };
-typedef std::vector<PathCost> PathCostList;
+using PathCostList = std::vector<PathCost>;
 
 static PathTable mPathTable;
 
@@ -168,42 +143,31 @@ std::string pathTypeToString (Pathfinder::PathType const& type)
 
 Pathfinder::Pathfinder (
     RippleLineCache::ref cache,
-    Account const& uSrcAccount,
-    Account const& uDstAccount,
+    AccountID const& uSrcAccount,
+    AccountID const& uDstAccount,
     Currency const& uSrcCurrency,
-    Account const& uSrcIssuer,
-    STAmount const& saDstAmount)
+    boost::optional<AccountID> const& uSrcIssuer,
+    STAmount const& saDstAmount,
+    boost::optional<STAmount> const& srcAmount,
+    Application& app)
     :   mSrcAccount (uSrcAccount),
         mDstAccount (uDstAccount),
+        mEffectiveDst (isNative(saDstAmount.getIssuer ()) ?
+            uDstAccount : saDstAmount.getIssuer ()),
         mDstAmount (saDstAmount),
         mSrcCurrency (uSrcCurrency),
         mSrcIssuer (uSrcIssuer),
-        mSrcAmount ({uSrcCurrency, uSrcIssuer}, 1u, 0, true),
+        mSrcAmount (srcAmount.value_or(STAmount({uSrcCurrency,
+            uSrcIssuer.value_or(isXRP(uSrcCurrency) ?
+                xrpAccount() : (isVBC(uSrcCurrency) ? vbcAccount(): uSrcAccount))}, 1u, 0, true))),
+        convert_all_ (mDstAmount ==
+            STAmount(mDstAmount.issue(), STAmount::cMaxValue, STAmount::cMaxOffset)),
         mLedger (cache->getLedger ()),
-        mRLCache (cache)
+        mRLCache (cache),
+        app_ (app),
+        j_ (app.journal ("Pathfinder"))
 {
-    assert (isXRP(uSrcCurrency) == isXRP(uSrcIssuer));
-    assert (isVBC(uSrcCurrency) == isVBC(uSrcIssuer));
-}
-
-Pathfinder::Pathfinder (
-    RippleLineCache::ref cache,
-    Account const& uSrcAccount,
-    Account const& uDstAccount,
-    Currency const& uSrcCurrency,
-    STAmount const& saDstAmount)
-    :   mSrcAccount (uSrcAccount),
-        mDstAccount (uDstAccount),
-        mDstAmount (saDstAmount),
-        mSrcCurrency (uSrcCurrency),
-        mSrcAmount (
-        {
-            uSrcCurrency,
-            isXRP (uSrcCurrency) ? xrpAccount () : (isVBC(uSrcCurrency) ? vbcAccount() : uSrcAccount)
-        }, 1u, 0, true),
-        mLedger (cache->getLedger ()),
-        mRLCache (cache)
-{
+    assert (! uSrcIssuer || isXRP(uSrcCurrency) == isXRP(uSrcIssuer.get()) || isVBC(uSrcCurrency) == isVBC(uSrcIssuer.get()));
 }
 
 Pathfinder::~Pathfinder()
@@ -215,7 +179,7 @@ bool Pathfinder::findPaths (int searchLevel)
     if (mDstAmount == zero)
     {
         // No need to send zero money.
-        WriteLog (lsDEBUG, Pathfinder) << "Destination amount was zero.";
+        JLOG (j_.debug) << "Destination amount was zero.";
         mLedger.reset ();
         return false;
 
@@ -224,15 +188,23 @@ bool Pathfinder::findPaths (int searchLevel)
     }
 
     if (mSrcAccount == mDstAccount &&
+        mDstAccount == mEffectiveDst &&
         mSrcCurrency == mDstAmount.getCurrency ())
     {
         // No need to send to same account with same currency.
-        WriteLog (lsDEBUG, Pathfinder) << "Tried to send to same issuer";
+        JLOG (j_.debug) << "Tried to send to same issuer";
         mLedger.reset ();
         return false;
     }
 
-    m_loadEvent = getApp ().getJobQueue ().getLoadEvent (
+    if (mSrcAccount == mEffectiveDst &&
+        mSrcCurrency == mDstAmount.getCurrency())
+    {
+        // Default path might work, but any path would loop
+        return true;
+    }
+
+    m_loadEvent = app_.getJobQueue ().getLoadEvent (
         jtPATH_FIND, "FindPath");
     auto currencyIsXRP = isXRP (mSrcCurrency);
     auto currencyIsVBC = isVBC (mSrcCurrency);
@@ -240,11 +212,11 @@ bool Pathfinder::findPaths (int searchLevel)
     bool useIssuerAccount
             = mSrcIssuer && !currencyIsXRP && !isXRP (*mSrcIssuer) && !currencyIsVBC && !isVBC (*mSrcIssuer);
     auto& account = useIssuerAccount ? *mSrcIssuer : mSrcAccount;
-    auto issuer = currencyIsXRP ? Account() : ( currencyIsVBC ? vbcAccount() : account );
+    auto issuer = currencyIsXRP ? AccountID() : ( currencyIsVBC ? vbcAccount() : account );
     mSource = STPathElement (account, mSrcCurrency, issuer);
     auto issuerString = mSrcIssuer
             ? to_string (*mSrcIssuer) : std::string ("none");
-    WriteLog (lsTRACE, Pathfinder)
+    JLOG (j_.trace)
             << "findPaths>"
             << " mSrcAccount=" << mSrcAccount
             << " mDstAccount=" << mDstAccount
@@ -254,35 +226,46 @@ bool Pathfinder::findPaths (int searchLevel)
 
     if (!mLedger)
     {
-        WriteLog (lsDEBUG, Pathfinder) << "findPaths< no ledger";
+        JLOG (j_.debug) << "findPaths< no ledger";
         return false;
     }
 
     bool bSrcXrp = isXRP (mSrcCurrency);
     bool bDstXrp = isXRP (mDstAmount.getCurrency());
 
-    if (!mLedger->getSLEi (getAccountRootIndex (mSrcAccount)))
+    bool bSrcVbc = isVBC (mSrcCurrency);
+    bool bDstVbc = isVBC (mDstAmount.getCurrency());
+
+    if (! mLedger->exists (keylet::account(mSrcAccount)))
     {
         // We can't even start without a source account.
-        WriteLog (lsDEBUG, Pathfinder) << "invalid source account";
+        JLOG (j_.debug) << "invalid source account";
         return false;
     }
 
-    if (!mLedger->getSLEi (getAccountRootIndex (mDstAccount)))
+    if ((mEffectiveDst != mDstAccount) &&
+        ! mLedger->exists (keylet::account(mEffectiveDst)))
+    {
+        JLOG (j_.debug)
+            << "Non-existent gateway";
+        return false;
+    }
+
+    if (! mLedger->exists (keylet::account (mDstAccount)))
     {
         // Can't find the destination account - we must be funding a new
         // account.
         if (!bDstXrp)
         {
-            WriteLog (lsDEBUG, Pathfinder)
+            JLOG (j_.debug)
                     << "New account not being funded in XRP ";
             return false;
         }
 
-        auto reserve = mLedger->getReserve (0);
+        auto const reserve = STAmount (mLedger->fees().accountReserve (0));
         if (mDstAmount < reserve)
         {
-            WriteLog (lsDEBUG, Pathfinder)
+            JLOG (j_.debug)
                     << "New account not getting enough funding: "
                     << mDstAmount << " < " << reserve;
             return false;
@@ -292,34 +275,58 @@ bool Pathfinder::findPaths (int searchLevel)
     // Now compute the payment type from the types of the source and destination
     // currencies.
     PaymentType paymentType;
-    if (bSrcXrp && bDstXrp)
+    if ((bSrcXrp && bDstXrp) || (bSrcVbc && bDstVbc))
     {
         // XRP -> XRP
-        WriteLog (lsDEBUG, Pathfinder) << "XRP to XRP payment";
+        JLOG (j_.debug) << "XRP to XRP payment";
         paymentType = pt_XRP_to_XRP;
+    }
+    else if (bSrcXrp && bDstVbc)
+    {
+        // XRP -> VBC
+        JLOG (j_.debug) << "XRP to VBC payment";
+        paymentType = pt_XRP_to_VBC;
     }
     else if (bSrcXrp)
     {
         // XRP -> non-XRP
-        WriteLog (lsDEBUG, Pathfinder) << "XRP to non-XRP payment";
+        JLOG (j_.debug) << "XRP to non-XRP payment";
         paymentType = pt_XRP_to_nonXRP;
+    }
+    else if (bDstXrp && bSrcVbc)
+    {
+        // VBC -> XRP
+        JLOG (j_.debug) << "VBC to XRP payment";
+        paymentType = pt_VBC_to_XRP;
     }
     else if (bDstXrp)
     {
         // non-XRP -> XRP
-        WriteLog (lsDEBUG, Pathfinder) << "non-XRP to XRP payment";
+        JLOG (j_.debug) << "non-XRP to XRP payment";
         paymentType = pt_nonXRP_to_XRP;
+    }
+    else if (bSrcVbc)
+    {
+        // VBC -> non-XRP
+        JLOG (j_.debug) << "VBC to non-XRP payment";
+        paymentType = pt_VBC_to_nonXRP;
+    }
+    else if (bDstVbc)
+    {
+        // non-XRP -> VBC
+        JLOG (j_.debug) << "non-XRP to VBC payment";
+        paymentType = pt_nonXRP_to_VBC;
     }
     else if (mSrcCurrency == mDstAmount.getCurrency ())
     {
         // non-XRP -> non-XRP - Same currency
-        WriteLog (lsDEBUG, Pathfinder) << "non-XRP to non-XRP - same currency";
+        JLOG (j_.debug) << "non-XRP to non-XRP - same currency";
         paymentType = pt_nonXRP_to_same;
     }
     else
     {
         // non-XRP to non-XRP - Different currency
-        WriteLog (lsDEBUG, Pathfinder) << "non-XRP to non-XRP - cross currency";
+        JLOG (j_.debug) << "non-XRP to non-XRP - cross currency";
         paymentType = pt_nonXRP_to_nonXRP;
     }
 
@@ -338,7 +345,7 @@ bool Pathfinder::findPaths (int searchLevel)
         }
     }
 
-    WriteLog (lsDEBUG, Pathfinder)
+    JLOG (j_.debug)
             << mCompletePaths.size () << " complete paths found";
 
     // Even if we find no paths, default paths may work, and we don't check them
@@ -359,20 +366,23 @@ TER Pathfinder::getPathLiquidity (
     path::RippleCalc::Input rcInput;
     rcInput.defaultPathsAllowed = false;
 
-    LedgerEntrySet lesSandbox (mLedger, tapNONE);
+    PaymentSandbox sandbox (&*mLedger, tapNONE);
 
     try
     {
         // Compute a path that provides at least the minimum liquidity.
+        if (convert_all_)
+            rcInput.partialPaymentAllowed = true;
+
         auto rc = path::RippleCalc::rippleCalculate (
-            lesSandbox,
+            sandbox,
             mSrcAmount,
             minDstAmount,
             mDstAccount,
             mSrcAccount,
             pathSet,
+            app_.logs(),
             &rcInput);
-
         // If we can't get even the minimum liquidity requested, we're done.
         if (rc.result () != tesSUCCESS)
             return rc.result ();
@@ -380,26 +390,30 @@ TER Pathfinder::getPathLiquidity (
         qualityOut = getRate (rc.actualAmountOut, rc.actualAmountIn);
         amountOut = rc.actualAmountOut;
 
-        // Now try to compute the remaining liquidity.
-        rcInput.partialPaymentAllowed = true;
-        rc = path::RippleCalc::rippleCalculate (
-            lesSandbox,
-            mSrcAmount,
-            mDstAmount - amountOut,
-            mDstAccount,
-            mSrcAccount,
-            pathSet,
-            &rcInput);
+        if (! convert_all_)
+        {
+            // Now try to compute the remaining liquidity.
+            rcInput.partialPaymentAllowed = true;
+            rc = path::RippleCalc::rippleCalculate (
+                sandbox,
+                mSrcAmount,
+                mDstAmount - amountOut,
+                mDstAccount,
+                mSrcAccount,
+                pathSet,
+                app_.logs (),
+                &rcInput);
 
-        // If we found further liquidity, add it into the result.
-        if (rc.result () == tesSUCCESS)
-            amountOut += rc.actualAmountOut;
+            // If we found further liquidity, add it into the result.
+            if (rc.result () == tesSUCCESS)
+                amountOut += rc.actualAmountOut;
+        }
 
         return tesSUCCESS;
     }
     catch (std::exception const& e)
     {
-        WriteLog (lsINFO, Pathfinder) <<
+        JLOG (j_.info) <<
             "checkpath: exception (" << e.what() << ") " <<
             path.getJson (0);
         return tefEXCEPTION;
@@ -412,46 +426,50 @@ namespace {
 // total number of paths we have to evaluate.
 STAmount smallestUsefulAmount (STAmount const& amount, int maxPaths)
 {
-    return divide (amount, STAmount (maxPaths + 2), amount);
+    return divide (amount, STAmount (maxPaths + 2), amount.issue ());
 }
 
 } // namespace
 
 void Pathfinder::computePathRanks (int maxPaths)
 {
-    mRemainingAmount = mDstAmount;
+    mRemainingAmount = convert_all_ ?
+        STAmount(mDstAmount.issue(), STAmount::cMaxValue,
+            STAmount::cMaxOffset)
+        : mDstAmount;
 
     // Must subtract liquidity in default path from remaining amount.
     try
     {
-        LedgerEntrySet lesSandbox (mLedger, tapNONE);
+        PaymentSandbox sandbox (&*mLedger, tapNONE);
 
         path::RippleCalc::Input rcInput;
         rcInput.partialPaymentAllowed = true;
         auto rc = path::RippleCalc::rippleCalculate (
-            lesSandbox,
+            sandbox,
             mSrcAmount,
-            mDstAmount,
+            mRemainingAmount,
             mDstAccount,
             mSrcAccount,
             STPathSet(),
+            app_.logs (),
             &rcInput);
 
         if (rc.result () == tesSUCCESS)
         {
-            WriteLog (lsDEBUG, Pathfinder)
+            JLOG (j_.debug)
                     << "Default path contributes: " << rc.actualAmountIn;
             mRemainingAmount -= rc.actualAmountOut;
         }
         else
         {
-            WriteLog (lsDEBUG, Pathfinder)
+            JLOG (j_.debug)
                 << "Default path fails: " << transToken (rc.result ());
         }
     }
-    catch (...)
+    catch (std::exception const&)
     {
-        WriteLog (lsDEBUG, Pathfinder) << "Default path causes exception";
+        JLOG (j_.debug) << "Default path causes exception";
     }
 
     rankPaths (maxPaths, mCompletePaths, mPathRanks);
@@ -495,60 +513,92 @@ void Pathfinder::rankPaths (
     STPathSet const& paths,
     std::vector <PathRank>& rankedPaths)
 {
-
     rankedPaths.clear ();
     rankedPaths.reserve (paths.size());
 
-    // Ignore paths that move only very small amounts.
-    auto saMinDstAmount = smallestUsefulAmount (mDstAmount, maxPaths);
+    STAmount saMinDstAmount;
+    if (convert_all_)
+    {
+        // On convert_all_ partialPaymentAllowed will be set to true
+        // and requiring a huge amount will find the highest liquidity.
+        saMinDstAmount = STAmount(mDstAmount.issue(),
+            STAmount::cMaxValue, STAmount::cMaxOffset);
+    }
+    else
+    {
+        // Ignore paths that move only very small amounts.
+        saMinDstAmount = smallestUsefulAmount(mDstAmount, maxPaths);
+    }
 
     for (int i = 0; i < paths.size (); ++i)
     {
         auto const& currentPath = paths[i];
-        STAmount liquidity;
-        uint64_t uQuality;
-
-        if (currentPath.empty ())
-            continue;
-
-        auto const resultCode = getPathLiquidity (
-            currentPath, saMinDstAmount, liquidity, uQuality);
-
-        if (resultCode != tesSUCCESS)
+        if (! currentPath.empty())
         {
-            WriteLog (lsDEBUG, Pathfinder) <<
-                "findPaths: dropping : " << transToken (resultCode) <<
-                ": " << currentPath.getJson (0);
-        }
-        else
-        {
-            WriteLog (lsDEBUG, Pathfinder) <<
-                "findPaths: quality: " << uQuality <<
-                ": " << currentPath.getJson (0);
+            STAmount liquidity;
+            uint64_t uQuality;
+            auto const resultCode = getPathLiquidity (
+                currentPath, saMinDstAmount, liquidity, uQuality);
+            if (resultCode != tesSUCCESS)
+            {
+                JLOG (j_.debug) <<
+                    "findPaths: dropping : " <<
+                    transToken (resultCode) <<
+                    ": " << currentPath.getJson (0);
+            }
+            else
+            {
+                JLOG (j_.debug) <<
+                    "findPaths: quality: " << uQuality <<
+                    ": " << currentPath.getJson (0);
 
-            rankedPaths.push_back ({uQuality, currentPath.size (), liquidity, i});
+                rankedPaths.push_back ({uQuality,
+                    currentPath.size (), liquidity, i});
+            }
         }
     }
-    std::sort (rankedPaths.begin (), rankedPaths.end (), comparePathRank);
+
+    // Sort paths by:
+    //    cost of path (when considering quality)
+    //    width of path
+    //    length of path
+    // A better PathRank is lower, best are sorted to the beginning.
+    std::sort(rankedPaths.begin(), rankedPaths.end(),
+        [&](Pathfinder::PathRank const& a, Pathfinder::PathRank const& b)
+    {
+        // 1) Higher quality (lower cost) is better
+        if (! convert_all_ && a.quality != b.quality)
+            return a.quality < b.quality;
+
+        // 2) More liquidity (higher volume) is better
+        if (a.liquidity != b.liquidity)
+            return a.liquidity > b.liquidity;
+
+        // 3) Shorter paths are better
+        if (a.length != b.length)
+            return a.length < b.length;
+
+        // 4) Tie breaker
+        return a.index > b.index;
+    });
 }
 
-STPathSet Pathfinder::getBestPaths (
+STPathSet
+Pathfinder::getBestPaths (
     int maxPaths,
     STPath& fullLiquidityPath,
-    STPathSet& extraPaths,
-    Account const& srcIssuer)
+    STPathSet const& extraPaths,
+    AccountID const& srcIssuer)
 {
-    WriteLog (lsDEBUG, Pathfinder) << "findPaths: " <<
+    JLOG (j_.debug) << "findPaths: " <<
         mCompletePaths.size() << " paths and " <<
         extraPaths.size () << " extras";
 
+    if (mCompletePaths.empty() && extraPaths.empty())
+        return mCompletePaths;
+
     assert (fullLiquidityPath.empty ());
     const bool issuerIsSender = isXRP (mSrcCurrency) || isVBC (mSrcCurrency) || (srcIssuer == mSrcAccount);
-
-    if (issuerIsSender &&
-            (mCompletePaths.size () <= maxPaths) &&
-            (extraPaths.size() == 0))
-        return mCompletePaths;
 
     std::vector <PathRank> extraPathRanks;
     rankPaths (maxPaths, extraPaths, extraPathRanks);
@@ -570,7 +620,7 @@ STPathSet Pathfinder::getBestPaths (
         bool useExtraPath = false;
 
         if (pathsIterator == mPathRanks.end())
-	    useExtraPath = true;
+            useExtraPath = true;
         else if (extraPathsIterator == extraPathRanks.end())
             usePath = true;
         else if (extraPathsIterator->quality < pathsIterator->quality)
@@ -590,7 +640,7 @@ STPathSet Pathfinder::getBestPaths (
 
         auto& pathRank = usePath ? *pathsIterator : *extraPathsIterator;
 
-        auto& path = usePath ? mCompletePaths[pathRank.index] :
+        auto const& path = usePath ? mCompletePaths[pathRank.index] :
             extraPaths[pathRank.index];
 
         if (useExtraPath)
@@ -614,13 +664,12 @@ STPathSet Pathfinder::getBestPaths (
         if (! issuerIsSender && usePath)
         {
             // Need to make sure path matches issuer constraints
-
-            if (path.front ().getAccountID() != srcIssuer)
-                continue;
-            if (isDefaultPath (path))
+            if (isDefaultPath(path) ||
+                path.front().getAccountID() != srcIssuer)
             {
                 continue;
             }
+
             startsWithIssuer = true;
         }
 
@@ -638,12 +687,12 @@ STPathSet Pathfinder::getBestPaths (
         {
             // We found an extra path that can move the whole amount.
             fullLiquidityPath = (startsWithIssuer ? removeIssuer (path) : path);
-            WriteLog (lsDEBUG, Pathfinder) <<
+            JLOG (j_.debug) <<
                 "Found extra full path: " << fullLiquidityPath.getJson (0);
         }
         else
         {
-            WriteLog (lsDEBUG, Pathfinder) <<
+            JLOG (j_.debug) <<
                 "Skipping a non-filling path: " << path.getJson (0);
         }
     }
@@ -651,12 +700,12 @@ STPathSet Pathfinder::getBestPaths (
     if (remaining > zero)
     {
         assert (fullLiquidityPath.empty ());
-        WriteLog (lsINFO, Pathfinder) <<
+        JLOG (j_.info) <<
             "Paths could not send " << remaining << " of " << mDstAmount;
     }
     else
     {
-        WriteLog (lsDEBUG, Pathfinder) <<
+        JLOG (j_.debug) <<
             "findPaths: RESULTS: " << bestPaths.getJson (0);
     }
     return bestPaths;
@@ -675,9 +724,9 @@ bool Pathfinder::issueMatchesOrigin (Issue const& issue)
 
 int Pathfinder::getPathsOut (
     Currency const& currency,
-    Account const& account,
+    AccountID const& account,
     bool isDstCurrency,
-    Account const& dstAccount)
+    AccountID const& dstAccount)
 {
     Issue const issue (currency, account);
 
@@ -687,21 +736,20 @@ int Pathfinder::getPathsOut (
     if (!it.second)
         return it.first->second;
 
-    auto sleAccount = mLedger->getSLEi (getAccountRootIndex (account));
+    auto sleAccount = mLedger->read(keylet::account (account));
 
     if (!sleAccount)
         return 0;
 
     int aFlags = sleAccount->getFieldU32 (sfFlags);
     bool const bAuthRequired = (aFlags & lsfRequireAuth) != 0;
-    bool const bFrozen = ((aFlags & lsfGlobalFreeze) != 0)
-        && mLedger->enforceFreeze ();
+    bool const bFrozen = ((aFlags & lsfGlobalFreeze) != 0);
 
     int count = 0;
 
     if (!bFrozen)
     {
-        count = getApp ().getOrderBookDB ().getBookSize (issue);
+        count = app_.getOrderBookDB ().getBookSize (issue);
 
         for (auto const& item : mRLCache->getRippleLines (account))
         {
@@ -725,7 +773,7 @@ int Pathfinder::getPathsOut (
             {
                 // This probably isn't a useful path out
             }
-            else if (rspEntry->getFreezePeer () && mLedger->enforceFreeze ())
+            else if (rspEntry->getFreezePeer ())
             {
                 // Not a useful path out
             }
@@ -744,7 +792,7 @@ void Pathfinder::addLinks (
     STPathSet& incompletePaths,     // The set of partial paths we add to
     int addFlags)
 {
-    WriteLog (lsDEBUG, Pathfinder)
+    JLOG (j_.debug)
         << "addLink< on " << currentPaths.size ()
         << " source(s), flags=" << addFlags;
     for (auto const& path: currentPaths)
@@ -770,7 +818,7 @@ STPathSet& Pathfinder::addPathsForType (PathType const& pathType)
     STPathSet const& parentPaths = addPathsForType (parentPathType);
     STPathSet& pathsOut = mPaths[pathType];
 
-    WriteLog (lsDEBUG, Pathfinder)
+    JLOG (j_.debug)
         << "getPaths< adding onto '"
         << pathTypeToString (parentPathType) << "' to get '"
         << pathTypeToString (pathType) << "'";
@@ -814,18 +862,18 @@ STPathSet& Pathfinder::addPathsForType (PathType const& pathType)
     CondLog (mCompletePaths.size () != initialSize, lsDEBUG, Pathfinder)
         << (mCompletePaths.size () - initialSize)
         << " complete paths added";
-    WriteLog (lsDEBUG, Pathfinder)
+    JLOG (j_.debug)
         << "getPaths> " << pathsOut.size () << " partial paths found";
     return pathsOut;
 }
 
 bool Pathfinder::isNoRipple (
-    Account const& fromAccount,
-    Account const& toAccount,
+    AccountID const& fromAccount,
+    AccountID const& toAccount,
     Currency const& currency)
 {
-    auto sleRipple = mLedger->getSLEi (
-        getRippleStateIndex (toAccount, fromAccount, currency));
+    auto sleRipple = mLedger->read(keylet::line(
+        toAccount, fromAccount, currency));
 
     auto const flag ((toAccount > fromAccount)
                      ? lsfHighNoRipple : lsfLowNoRipple);
@@ -880,18 +928,23 @@ void Pathfinder::addLink (
     bool const bOnXRP = uEndCurrency.isZero ();
 	bool const bOnVBC = isVBC(uEndCurrency);
 
-    WriteLog (lsTRACE, Pathfinder) << "addLink< flags="
+    // Does pathfinding really need to get this to
+    // a gateway (the issuer of the destination amount)
+    // rather than the ultimate destination?
+    bool const hasEffectiveDestination = mEffectiveDst != mDstAccount;
+
+    JLOG (j_.trace) << "addLink< flags="
                                    << addFlags << " onXRP=" << bOnXRP;
-    WriteLog (lsTRACE, Pathfinder) << currentPath.getJson (0);
+    JLOG (j_.trace) << currentPath.getJson (0);
 
     if (addFlags & afADD_ACCOUNTS)
     {
         // add accounts
         if (bOnXRP || bOnVBC)
         {
-            if (mDstAmount.isNative () && !currentPath.empty ())
+            if (mDstAmount.native () && !currentPath.empty ())
             { // non-default path to XRP destination
-                WriteLog (lsTRACE, Pathfinder)
+                JLOG (j_.trace)
                     << "complete path found ax: " << currentPath.getJson(0);
                 addUniquePath (mCompletePaths, currentPath);
             }
@@ -903,7 +956,7 @@ void Pathfinder::addLink (
         else
         {
             // search for accounts to add
-            auto sleEnd = mLedger->getSLEi(getAccountRootIndex (uEndAccount));
+            auto const sleEnd = mLedger->read(keylet::account(uEndAccount));
 
             if (sleEnd)
             {
@@ -926,12 +979,19 @@ void Pathfinder::addLink (
                     auto* rs = dynamic_cast<RippleState const *> (item.get ());
                     if (!rs)
                     {
-                        WriteLog (lsERROR, Pathfinder)
+                        JLOG (j_.error)
                                 << "Couldn't decipher RippleState";
                         continue;
                     }
                     auto const& acct = rs->getAccountIDPeer ();
-                    bool const bToDestination = acct == mDstAccount;
+
+                    if (hasEffectiveDestination && (acct == mDstAccount))
+                    {
+                        // We skipped the gateway
+                        continue;
+                    }
+
+                    bool bToDestination = acct == mEffectiveDst;
 
                     if (bDestOnly && !bToDestination)
                     {
@@ -961,7 +1021,7 @@ void Pathfinder::addLink (
                                 // this is a complete path
                                 if (!currentPath.empty ())
                                 {
-                                    WriteLog (lsTRACE, Pathfinder)
+                                    JLOG (j_.trace)
                                             << "complete path found ae: "
                                             << currentPath.getJson (0);
                                     addUniquePath
@@ -986,7 +1046,7 @@ void Pathfinder::addLink (
                                 uEndCurrency,
                                 acct,
                                 bIsEndCurrency,
-                                mDstAccount);
+                                mEffectiveDst);
                             if (out)
                                 candidates.push_back ({out, acct});
                         }
@@ -997,7 +1057,7 @@ void Pathfinder::addLink (
                 {
                     std::sort (candidates.begin (), candidates.end (),
                         std::bind(compareAccountCandidate,
-                                  mLedger->getLedgerSeq (),
+                                  mLedger->seq(),
                                   std::placeholders::_1,
                                   std::placeholders::_2));
 
@@ -1025,7 +1085,7 @@ void Pathfinder::addLink (
             }
             else
             {
-                WriteLog (lsWARNING, Pathfinder)
+                JLOG (j_.warning)
                     << "Path ends on non-existent issuer";
             }
         }
@@ -1036,7 +1096,7 @@ void Pathfinder::addLink (
         if (addFlags & afOB_XRP)
         {
             // to XRP only
-            if (!bOnXRP && getApp ().getOrderBookDB ().isBookToXRP (
+            if (!bOnXRP && app_.getOrderBookDB ().isBookToXRP (
                     {uEndCurrency, uEndIssuer}))
             {
                 STPathElement pathElement(
@@ -1050,9 +1110,9 @@ void Pathfinder::addLink (
         else
         {
             bool bDestOnly = (addFlags & afOB_LAST) != 0;
-            auto books = getApp ().getOrderBookDB ().getBooksByTakerPays(
+            auto books = app_.getOrderBookDB ().getBooksByTakerPays(
                 {uEndCurrency, uEndIssuer});
-            WriteLog (lsTRACE, Pathfinder)
+            JLOG (j_.trace)
                 << books.size () << " books found from this currency/issuer";
 
             for (auto const& book : books)
@@ -1086,7 +1146,7 @@ void Pathfinder::addLink (
                         {
                             // destination is XRP, add account and path is
                             // complete
-                            WriteLog (lsTRACE, Pathfinder)
+                            JLOG (j_.trace)
                                 << "complete path found bx: "
                                 << currentPath.getJson(0);
                             addUniquePath (mCompletePaths, newPath);
@@ -1098,21 +1158,38 @@ void Pathfinder::addLink (
                         book->getIssuerOut (),
                         book->getCurrencyOut (),
                         book->getIssuerOut ()))
-                    { // Don't want the book if we've already seen the issuer
-                        // add the order book itself
-                        newPath.emplace_back (
-                            STPathElement::typeCurrency |
-                            STPathElement::typeIssuer,
-                            xrpAccount (),
-                            book->getCurrencyOut (),
-                            book->getIssuerOut ());
-
-                        if (book->getIssuerOut () == mDstAccount &&
-                            book->getCurrencyOut () == mDstAmount.getCurrency())
+                    {
+                        // Don't want the book if we've already seen the issuer
+                        // book -> account -> book
+                        if ((newPath.size() >= 2) &&
+                            (newPath.back().isAccount ()) &&
+                            (newPath[newPath.size() - 2].isOffer ()))
                         {
-                            // with the destination account, this path is
-                            // complete
-                            WriteLog (lsTRACE, Pathfinder)
+                            // replace the redundant account with the order book
+                            newPath[newPath.size() - 1] = STPathElement (
+                                STPathElement::typeCurrency | STPathElement::typeIssuer,
+                                xrpAccount(), book->getCurrencyOut(),
+                                book->getIssuerOut());
+                        }
+                        else
+                        {
+                            // add the order book
+                            newPath.emplace_back(
+                                STPathElement::typeCurrency | STPathElement::typeIssuer,
+                                xrpAccount(), book->getCurrencyOut(),
+                                book->getIssuerOut());
+                        }
+
+                        if (hasEffectiveDestination &&
+                            book->getIssuerOut() == mDstAccount &&
+                            book->getCurrencyOut() == mDstAmount.getCurrency())
+                        {
+                            // We skipped a required issuer
+                        }
+                        else if (book->getIssuerOut() == mEffectiveDst &&
+                            book->getCurrencyOut() == mDstAmount.getCurrency())
+                        { // with the destination account, this path is complete
+                            JLOG (j_.trace)
                                 << "complete path found ba: "
                                 << currentPath.getJson(0);
                             addUniquePath (mCompletePaths, newPath);
@@ -1213,6 +1290,14 @@ void Pathfinder::initPathTable ()
         });
 
     fillPaths(
+        pt_XRP_to_VBC, {
+            {5, "sbfd"},  // source -> book -> book -> destination
+            {8, "sbafd"}, // source -> book -> account -> book -> destination
+            {9, "sbfad"}, // source -> book -> book -> account -> destination
+            {10, "sbafad"}
+        });
+
+    fillPaths(
         pt_nonXRP_to_XRP, {
             {1, "sxd"},       // gateway buys XRP
             {2, "saxd"},      // source -> gateway -> book(XRP) -> dest
@@ -1220,6 +1305,25 @@ void Pathfinder::initPathTable ()
             {7, "sbxd"},
             {8, "sabxd"},
             {9, "sabaxd"}
+        });
+
+    fillPaths(
+        pt_VBC_to_XRP, {
+            {5, "sbxd"},
+            {8, "sabxd"},
+            {9, "sabaxd"}
+        });
+
+    fillPaths(
+        pt_VBC_to_nonXRP,  {
+            {3, "sfad"},
+            {5, "sbfd"},
+        });
+
+    fillPaths(
+        pt_nonXRP_to_VBC,  {
+            {3, "safd"},    // source -> gateway -> book -> destination
+            {5, "sbfd"},
         });
 
     // non-XRP to non-XRP (same currency)

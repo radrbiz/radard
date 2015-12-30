@@ -28,20 +28,22 @@
 
 namespace ripple {
 
+template<>
+STInteger<unsigned char>::STInteger(SerialIter& sit, SField const& name)
+    : STInteger(name, sit.get8())
+{
+}
+
 template <>
-SerializedTypeID STUInt8::getSType () const
+SerializedTypeID
+STUInt8::getSType () const
 {
     return STI_UINT8;
 }
 
 template <>
-STUInt8* STUInt8::construct (SerializerIterator& u, SField::ref name)
-{
-    return new STUInt8 (name, u.get8 ());
-}
-
-template <>
-std::string STUInt8::getText () const
+std::string
+STUInt8::getText () const
 {
     if (getFName () == sfTransactionResult)
     {
@@ -55,7 +57,8 @@ std::string STUInt8::getText () const
 }
 
 template <>
-Json::Value STUInt8::getJson (int) const
+Json::Value
+STUInt8::getJson (int) const
 {
     if (getFName () == sfTransactionResult)
     {
@@ -73,20 +76,22 @@ Json::Value STUInt8::getJson (int) const
 
 //------------------------------------------------------------------------------
 
+template<>
+STInteger<std::uint16_t>::STInteger(SerialIter& sit, SField const& name)
+    : STInteger(name, sit.get16())
+{
+}
+
 template <>
-SerializedTypeID STUInt16::getSType () const
+SerializedTypeID
+STUInt16::getSType () const
 {
     return STI_UINT16;
 }
 
 template <>
-STUInt16* STUInt16::construct (SerializerIterator& u, SField::ref name)
-{
-    return new STUInt16 (name, u.get16 ());
-}
-
-template <>
-std::string STUInt16::getText () const
+std::string
+STUInt16::getText () const
 {
     if (getFName () == sfLedgerEntryType)
     {
@@ -99,8 +104,8 @@ std::string STUInt16::getText () const
 
     if (getFName () == sfTransactionType)
     {
-        TxFormats::Item const* const item =
-            TxFormats::getInstance().findByType (static_cast <TxType> (value_));
+        auto item =TxFormats::getInstance().findByType (
+            static_cast <TxType> (value_));
 
         if (item != nullptr)
             return item->getName ();
@@ -110,12 +115,13 @@ std::string STUInt16::getText () const
 }
 
 template <>
-Json::Value STUInt16::getJson (int) const
+Json::Value
+STUInt16::getJson (int) const
 {
     if (getFName () == sfLedgerEntryType)
     {
-        LedgerFormats::Item const* const item =
-            LedgerFormats::getInstance ().findByType (static_cast <LedgerEntryType> (value_));
+        auto item = LedgerFormats::getInstance ().findByType (
+            static_cast <LedgerEntryType> (value_));
 
         if (item != nullptr)
             return item->getName ();
@@ -123,8 +129,8 @@ Json::Value STUInt16::getJson (int) const
 
     if (getFName () == sfTransactionType)
     {
-        TxFormats::Item const* const item =
-            TxFormats::getInstance().findByType (static_cast <TxType> (value_));
+        auto item = TxFormats::getInstance().findByType (
+            static_cast <TxType> (value_));
 
         if (item != nullptr)
             return item->getName ();
@@ -135,50 +141,58 @@ Json::Value STUInt16::getJson (int) const
 
 //------------------------------------------------------------------------------
 
+template<>
+STInteger<std::uint32_t>::STInteger(SerialIter& sit, SField const& name)
+    : STInteger(name, sit.get32())
+{
+}
+
 template <>
-SerializedTypeID STUInt32::getSType () const
+SerializedTypeID
+STUInt32::getSType () const
 {
     return STI_UINT32;
 }
 
 template <>
-STUInt32* STUInt32::construct (SerializerIterator& u, SField::ref name)
-{
-    return new STUInt32 (name, u.get32 ());
-}
-
-template <>
-std::string STUInt32::getText () const
+std::string
+STUInt32::getText () const
 {
     return beast::lexicalCastThrow <std::string> (value_);
 }
 
 template <>
-Json::Value STUInt32::getJson (int) const
+Json::Value
+STUInt32::getJson (int) const
 {
     return value_;
 }
 
+//------------------------------------------------------------------------------
+
+template<>
+STInteger<std::uint64_t>::STInteger(SerialIter& sit, SField const& name)
+    : STInteger(name, sit.get64())
+{
+}
+
 template <>
-SerializedTypeID STUInt64::getSType () const
+SerializedTypeID
+STUInt64::getSType () const
 {
     return STI_UINT64;
 }
 
 template <>
-STUInt64* STUInt64::construct (SerializerIterator& u, SField::ref name)
-{
-    return new STUInt64 (name, u.get64 ());
-}
-
-template <>
-std::string STUInt64::getText () const
+std::string
+STUInt64::getText () const
 {
     return beast::lexicalCastThrow <std::string> (value_);
 }
 
 template <>
-Json::Value STUInt64::getJson (int) const
+Json::Value
+STUInt64::getJson (int) const
 {
     return strHex (value_);
 }

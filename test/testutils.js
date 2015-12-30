@@ -4,7 +4,10 @@ var extend      = require('extend');
 var Amount      = require('ripple-lib').Amount;
 var Remote      = require('ripple-lib').Remote;
 var Transaction = require('ripple-lib').Transaction;
+var UInt160     = require('ripple-lib').UInt160;
+
 var Server      = require('./server').Server;
+var path        = require("path");
 var server      = { };
 
 function get_config() {
@@ -23,12 +26,39 @@ function init_config() {
   return require('ripple-lib').config.load(get_config());
 };
 
-exports.get_server_config =
-get_server_config =
+var get_server_config = exports.get_server_config =
 function(config, host) {
   config = config || init_config();
   host = host || config.server_default;
-  return extend({}, config.default_server_config, config.servers[host]);
+  // Override the config with the command line if provided.
+  var override = {};
+  // --noserver -> no_server
+  if (process.env["npm_config_noserver"]) {
+    override["no_server"] = true;
+  } else {
+    override["no_server"] = process.argv.indexOf("--noserver") > -1;
+  }
+  // --rippled -> rippled_path
+  var index = -1;
+  if (process.env["npm_config_rippled"]) {
+    override["rippled_path"] = path.resolve(process.cwd(),
+        process.env["npm_config_rippled"]);
+  } else if ((index = process.argv.indexOf("--rippled")) > -1) {
+    if (index < process.argv.length) {
+      override["rippled_path"] = path.resolve(process.cwd(),
+        process.argv[index + 1]);
+    }
+  } else {
+    for (var i = process.argv.length-1; i >= 0; --i) {
+      var arg = process.argv[i].split("=", 2);
+      if (arg.length === 2 && arg[0] === "--rippled") {
+        override["rippled_path"] = path.resolve(process.cwd(), arg[1]);
+        break;
+      }
+    }
+  }
+  return extend({}, config.default_server_config, config.servers[host],
+      override);
 }
 
 function prepare_tests(tests, fn) {
@@ -38,6 +68,33 @@ function prepare_tests(tests, fn) {
     result.push(fn(tests[i], i));
   }
   return result;
+};
+
+exports.definer_matching = function(matchers, def) {
+  return function (name, func)
+  {
+    var definer = def;
+    var skip_if_not_match = matchers.skip_if_not_match || [];
+    var skip_if_match = matchers.skip_if_match || [];
+
+    for (var i = 0; i < skip_if_not_match.length; i++) {
+      var regex = skip_if_not_match[i];
+      if (!~name.search(regex)) {
+        definer = definer.skip;
+        break;
+      }
+    }
+
+    for (var i = 0; i < skip_if_match.length; i++) {
+      var regex = skip_if_match[i];
+      if (~name.search(regex)) {
+        definer = definer.skip;
+        break;
+      }
+    }
+
+    definer(name, func);
+  };
 };
 
 /**
@@ -72,7 +129,7 @@ function build_setup(opts, host) {
   if (opts.verbose) {
     opts.verbose_ws     = true;
     opts.verbose_server = true;
-  };
+  }
 
   function setup(done) {
     var self = this;
@@ -84,7 +141,7 @@ function build_setup(opts, host) {
 
     self.amount_for = function(options) {
       var reserve = self.remote.reserve(options.ledger_entries || 0);
-      var fees = self.compute_fees_amount_for_txs(options.default_transactions || 0)
+      var fees = self.compute_fees_amount_for_txs(options.default_transactions || 0);
       return reserve.add(fees).add(options.extra || 0);
     };
 
@@ -107,7 +164,7 @@ function build_setup(opts, host) {
         // Setting undefined is a noop here
         if (data.opts.ledger_file != null) {
           data.server.set_ledger_file(data.opts.ledger_file);
-        };
+        }
 
         data.server.once('started', function() {
           callback();
@@ -130,8 +187,6 @@ function build_setup(opts, host) {
 
       function connect_websocket(callback) {
         self.remote = data.remote = Remote.from_config(host, !!opts.verbose_ws);
-
-        // TODO:
         self.remote.once('connected', function() {
         // self.remote.once('ledger_closed', function() {
           callback();
@@ -167,7 +222,7 @@ function build_teardown(host) {
         data.remote.once('error', function (m) {
           //console.log('server error: ', m);
         })
-        data.remote.connect(false);
+        data.remote.disconnect();
       },
 
       function stop_server(callback) {
@@ -213,10 +268,24 @@ function account_dump(remote, account, callback) {
   // get closed ledger hash
   // get account root
   // construct a json result
-};
+}
 
+function set_account_flag(remote, account, options, callback) {
+  if (typeof options === 'number') {
+    options = { set_flag: options };
+  }
+
+  var tx = remote.createTransaction('AccountSet', extend({
+    account: account
+  }, options));
+
+  // submit_transaction(tx, callback);
+  tx.submit();
+  tx.once('proposed', function(){callback();});
+}
+
+var fund_account =
 exports.fund_account =
-fund_account =
 function(remote, src, account, amount, callback) {
     // Cache the seq as 1.
     // Otherwise, when other operations attempt to opperate async against the account they may get confused.
@@ -228,7 +297,7 @@ function(remote, src, account, amount, callback) {
 
     tx.once('proposed', function (result) {
       //console.log('proposed: %s', JSON.stringify(result));
-      callback(result.engine_result === 'tesSUCCESS' ? null : new Error());
+      callback(result.engine_result === 'tesSUCCESS' ? null : result);
     });
 
     tx.once('error', function (result) {
@@ -239,13 +308,19 @@ function(remote, src, account, amount, callback) {
     tx.submit();
 }
 
+var create_account =
 exports.create_account =
-create_account =
-function(remote, src, account, amount, callback) {
+function(remote, src, account, amount, options, callback) {
+  if (typeof options === 'function') {
+    callback = options;
+    options = {};
+  }
+
+
   // Before creating the account, check if it exists in the ledger.
   // If it does, regardless of the balance, fail the test, because
   // the ledger is not in the expected state.
-  var info = remote.requestAccountInfo(account);
+  var info = remote.requestAccountInfo({account: account});
 
   info.once('success', function(result) {
     // The account exists. Fail by returning an error to callback.
@@ -253,27 +328,48 @@ function(remote, src, account, amount, callback) {
   });
 
   info.once('error', function(result) {
-    if (result.error === "remoteError" && result.remote.error === "actNotFound") {
-      // rippled indicated the account does not exist. Create it by funding it.
-      fund_account(remote, src, account, amount, callback);
-    } else {
-      // Some other error occurred. Pass it up to the callback.
-      callback(result);
+    var isNotFoundError = result.error === 'remoteError' && 
+                          result.remote.error === 'actNotFound';
+
+    if (!isNotFoundError) {
+      return callback(result);
     }
+
+    // rippled indicated the account does not exist. Create it by funding it.
+    fund_account(remote, src, account, amount, callback);
   });
 
   info.request();
-}
+};
 
-function create_accounts(remote, src, amount, accounts, callback) {
-  assert.strictEqual(arguments.length, 5);
+function create_accounts(remote, src, amount, accounts, options, callback) {
+  if (typeof options === 'function') {
+    callback = options;
+    options = {};
+  }
 
   remote.set_account_seq(src, 1);
 
   async.forEach(accounts, function (account, callback) {
-    create_account(remote, src, account, amount, callback);
-  }, callback);
-};
+    create_account(remote, src, account, amount, options, callback);
+  }, function(){
+    options = extend({default_rippling: true}, options);
+    // If we don't want to set default rippling, then bail, otherwise
+    if (!options.default_rippling) {
+      return callback();
+    }
+
+    // close the ledger, so all the accounts always exist, then
+    remote.ledger_accept(function(){
+      // set the default rippling flag, on all the accounts
+      async.forEach(accounts, function(account, callback){
+        set_account_flag(remote, account, 8, callback);
+      }, function(){
+        remote.ledger_accept(function(){callback();});
+      });
+    });
+  });
+}
 
 function credit_limit(remote, src, amount, callback) {
   assert.strictEqual(arguments.length, 4);
@@ -289,9 +385,15 @@ function credit_limit(remote, src, amount, callback) {
   var account_limit = _m[1];
   var quality_in    = _m[2];
   var quality_out   = _m[3];
+  
+  if (quality_in) {
+    quality_in = Number(quality_in);
+  }
+  if (quality_out) {
+    quality_out = Number(quality_out);
+  }
 
   var tx = remote.transaction()
-
   tx.ripple_line_set(src, account_limit, quality_in, quality_out)
 
   tx.once('proposed', function (m) {
@@ -328,7 +430,7 @@ function verify_limit(remote, src, amount, callback) {
     account:   src,
     issuer:    limit.issuer().to_json(),
     currency:  limit.currency().to_json(),
-    ledger:    'CURRENT'
+    ledger:    'current'
   };
 
   remote.request_ripple_balance(options, function(err, m) {
@@ -436,9 +538,11 @@ function verify_balance(remote, src, amount_json, callback) {
   assert.strictEqual(arguments.length, 4);
 
   var amount_req  = Amount.from_json(amount_json);
+  src = UInt160.json_rewrite(src);
 
   if (amount_req.is_native()) {
-    remote.request_account_balance(src, 'CURRENT', function(err, amount_act) {
+    var options = {account: src, ledger: 'current'};
+    remote.request_account_balance(options, function(err, amount_act) {
       if (err) {
         return callback(err);
       }
@@ -453,7 +557,14 @@ function verify_balance(remote, src, amount_json, callback) {
   } else {
     var issuer = amount_req.issuer().to_json();
     var currency = amount_req.currency().to_json();
-    remote.request_ripple_balance(src, issuer, currency, 'CURRENT', function(err, m) {
+    var options = {
+      account: src,
+      issuer: issuer,
+      currency: currency,
+      ledger: 'current'
+    };
+    
+    remote.request_ripple_balance(options, function(err, m) {
       if (err) {
         return callback(err);
       }
@@ -543,7 +654,7 @@ function verify_offer_not_found(remote, owner, seq, callback) {
 
 function verify_owner_count(remote, account, count, callback) {
   assert(arguments.length === 4);
-  var options = { account: account, ledger: 'CURRENT' };
+  var options = { account: account, ledger: 'current' };
   remote.request_owner_count(options, function(err, owner_count) {
     //console.log('owner_count: %s/%d', owner_count, value);
     callback(owner_count === count ? null : new Error());
@@ -562,18 +673,23 @@ function verify_owner_counts(remote, counts, callback) {
   async.every(tests, iterator, callback);
 };
 
-var isTravis = Boolean(process.env.TRAVIS);
+var isCI = Boolean(process.env.CI);
 
 function ledger_wait(remote, tx) {
   ;(function nextLedger() {
     remote.once('ledger_closed', function() {
       if (!tx.finalized) {
-        setTimeout(nextLedger, isTravis ? 400 : 100);
+        setTimeout(nextLedger, isCI ? 400 : 100);
       }
     });
     remote.ledger_accept();
   })();
 };
+
+function submit_transaction(tx, callback) {
+  tx.submit(callback);
+  ledger_wait(tx.remote, tx);
+}
 
 exports.account_dump           = account_dump;
 exports.build_setup            = build_setup;
@@ -595,8 +711,10 @@ exports.verify_offer_not_found = verify_offer_not_found;
 exports.verify_owner_count     = verify_owner_count;
 exports.verify_owner_counts    = verify_owner_counts;
 exports.ledger_wait            = ledger_wait;
+exports.submit_transaction     = submit_transaction;
 
-process.on('uncaughtException', function() {
+// Close up all unclosed servers on exit.
+process.on('exit', function() {
   Object.keys(server).forEach(function(host) {
     server[host].stop();
   });

@@ -18,6 +18,7 @@
 //==============================================================================
 
 #include <BeastConfig.h>
+#include <ripple/basics/contract.h>
 #include <ripple/basics/StringUtilities.h>
 #include <ripple/basics/ToString.h>
 #include <beast/module/core/text/LexicalCast.h>
@@ -89,14 +90,14 @@ uint64_t uintFromHex (std::string const& strSrc)
     uint64_t uValue (0);
 
     if (strSrc.size () > 16)
-        throw std::invalid_argument("overlong 64-bit value");
+        Throw<std::invalid_argument> ("overlong 64-bit value");
 
     for (auto c : strSrc)
     {
         int ret = charUnHex (c);
 
         if (ret == -1)
-            throw std::invalid_argument("invalid hex digit");
+            Throw<std::invalid_argument> ("invalid hex digit");
 
         uValue = (uValue << 4) | ret;
     }
@@ -129,39 +130,6 @@ std::string strCopy (Blob const& vucSrc)
 
     return strDst;
 
-}
-
-extern std::string urlEncode (std::string const& strSrc)
-{
-    std::string strDst;
-    int         iOutput = 0;
-    int         iSize   = strSrc.length ();
-
-    strDst.resize (iSize * 3);
-
-    for (int iInput = 0; iInput < iSize; iInput++)
-    {
-        unsigned char c = strSrc[iInput];
-
-        if (c == ' ')
-        {
-            strDst[iOutput++]   = '+';
-        }
-        else if (isalnum (c))
-        {
-            strDst[iOutput++]   = c;
-        }
-        else
-        {
-            strDst[iOutput++]   = '%';
-            strDst[iOutput++]   = charHex (c >> 4);
-            strDst[iOutput++]   = charHex (c & 15);
-        }
-    }
-
-    strDst.resize (iOutput);
-
-    return strDst;
 }
 
 //
@@ -221,45 +189,4 @@ bool parseUrl (std::string const& strUrl, std::string& strScheme, std::string& s
 
     return bMatch;
 }
-
-beast::StringPairArray parseDelimitedKeyValueString (beast::String parameters,
-                                                   beast::beast_wchar delimiter)
-{
-    beast::StringPairArray keyValues;
-
-    while (parameters.isNotEmpty ())
-    {
-        beast::String pair;
-
-        {
-            int const delimiterPos = parameters.indexOfChar (delimiter);
-
-            if (delimiterPos != -1)
-            {
-                pair = parameters.substring (0, delimiterPos);
-
-                parameters = parameters.substring (delimiterPos + 1);
-            }
-            else
-            {
-                pair = parameters;
-
-                parameters = beast::String::empty;
-            }
-        }
-
-        int const equalPos = pair.indexOfChar ('=');
-
-        if (equalPos != -1)
-        {
-            beast::String const key = pair.substring (0, equalPos);
-            beast::String const value = pair.substring (equalPos + 1, pair.length ());
-
-            keyValues.set (key, value);
-        }
-    }
-
-    return keyValues;
-}
-
 } // ripple

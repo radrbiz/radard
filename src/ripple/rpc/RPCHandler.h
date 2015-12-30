@@ -17,28 +17,26 @@
 */
 //==============================================================================
 
-#ifndef RIPPLE_APP_RPC_HANDLER
-#define RIPPLE_APP_RPC_HANDLER
+#ifndef RIPPLE_RPC_RPCHANDLER_H_INCLUDED
+#define RIPPLE_RPC_RPCHANDLER_H_INCLUDED
 
 #include <ripple/core/Config.h>
 #include <ripple/net/InfoSub.h>
+#include <ripple/rpc/Context.h>
 #include <ripple/rpc/Status.h>
-#include <ripple/rpc/impl/Context.h>
 
 namespace ripple {
 namespace RPC {
 
 struct Context;
-struct YieldStrategy;
 
 /** Execute an RPC command and store the results in a Json::Value. */
-Status doCommand (RPC::Context&, Json::Value&, YieldStrategy const& s = {});
+Status doCommand (RPC::Context&, Json::Value&);
 
 /** Execute an RPC command and store the results in an std::string. */
-void executeRPC (RPC::Context&, std::string&, YieldStrategy const& s = {});
+void executeRPC (RPC::Context&, std::string&);
 
-/** Temporary flag to enable RPCs. */
-auto const streamingRPC = false;
+Role roleRequired (std::string const& method );
 
 } // RPC
 } // ripple

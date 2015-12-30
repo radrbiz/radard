@@ -30,15 +30,15 @@ namespace ripple {
 // Validation flags
 const std::uint32_t vfFullyCanonicalSig    = 0x80000000; // signature is fully canonical
 
-class STValidation
+class STValidation final
     : public STObject
     , public CountedObject <STValidation>
 {
 public:
     static char const* getCountedObjectName () { return "STValidation"; }
 
-    typedef std::shared_ptr<STValidation>         pointer;
-    typedef const std::shared_ptr<STValidation>&  ref;
+    using pointer = std::shared_ptr<STValidation>;
+    using ref     = const std::shared_ptr<STValidation>&;
 
     enum
     {
@@ -46,14 +46,27 @@ public:
     };
 
     // These throw if the object is not valid
-    STValidation (SerializerIterator & sit, bool checkSignature = true);
+    STValidation (SerialIter & sit, bool checkSignature = true);
 
     // Does not sign the validation
     STValidation (uint256 const& ledgerHash, std::uint32_t signTime,
                           const RippleAddress & raPub, bool isFull);
 
+    STBase*
+    copy (std::size_t n, void* buf) const override
+    {
+        return emplace(n, buf, *this);
+    }
+
+    STBase*
+    move (std::size_t n, void* buf) override
+    {
+        return emplace(n, buf, std::move(*this));
+    }
+
     uint256         getLedgerHash ()     const;
     std::uint32_t   getSignTime ()       const;
+    std::uint32_t   getSeenTime ()       const;
     std::uint32_t   getFlags ()          const;
     RippleAddress   getSignerPublic ()   const;
     NodeID          getNodeID ()         const
@@ -69,14 +82,19 @@ public:
     uint256         getSigningHash ()    const;
     bool            isValid (uint256 const& ) const;
 
-    void                        setTrusted ()
+    void            setTrusted ()
     {
         mTrusted = true;
     }
+    void            setSeen (std::uint32_t s)
+    {
+        mSeen = s;
+    }
     Blob    getSigned ()                 const;
     Blob    getSignature ()              const;
-    void sign (uint256 & signingHash, const RippleAddress & raPrivate);
-    void sign (const RippleAddress & raPrivate);
+
+    // Signs the validation and returns the signing hash
+    uint256 sign (const RippleAddress & raPrivate);
 
     // The validation this replaced
     uint256 const& getPreviousHash ()
@@ -99,7 +117,8 @@ private:
 
     uint256 mPreviousHash;
     NodeID mNodeID;
-    bool mTrusted;
+    bool mTrusted = false;
+    std::uint32_t mSeen = 0;
 };
 
 } // ripple

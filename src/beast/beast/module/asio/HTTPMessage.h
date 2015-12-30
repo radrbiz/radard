@@ -17,8 +17,8 @@
 */
 //==============================================================================
 
-#ifndef BEAST_ASIO_HTTPMESSAGE_H_INCLUDED
-#define BEAST_ASIO_HTTPMESSAGE_H_INCLUDED
+#ifndef BEAST_MODULE_ASIO_HTTPMESSAGE_H_INCLUDED
+#define BEAST_MODULE_ASIO_HTTPMESSAGE_H_INCLUDED
 
 #include <beast/module/asio/HTTPHeaders.h>
 #include <beast/module/asio/HTTPVersion.h>
@@ -62,7 +62,7 @@ public:
 
     /** Outputs all the HTTPMessage data excluding the body into a string. */
     String toString () const;
-        
+
 private:
     HTTPVersion m_version;
     HTTPHeaders m_headers;

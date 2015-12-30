@@ -21,20 +21,24 @@
 #define RIPPLE_CORE_CONFIG_H_INCLUDED
 
 #include <ripple/basics/BasicConfig.h>
-#include <ripple/protocol/SystemParameters.h>
-#include <ripple/protocol/RippleAddress.h>
+#include <ripple/basics/base_uint.h>
+#include <ripple/protocol/SystemParameters.h> // VFALCO Breaks levelization
+#include <ripple/protocol/RippleAddress.h> // VFALCO Breaks levelization
 #include <ripple/json/json_value.h>
 #include <beast/http/URL.h>
 #include <beast/net/IPEndpoint.h>
 #include <beast/module/core/files/File.h>
-#include <beast/module/core/text/StringPairArray.h>
 #include <beast/utility/ci_char_traits.h>
-#include <boost/filesystem.hpp>
+#include <beast/utility/Journal.h>
+#include <boost/asio/ip/tcp.hpp> // VFALCO FIX: This include should not be here
+#include <boost/filesystem.hpp> // VFALCO FIX: This include should not be here
 #include <boost/lexical_cast.hpp>
+#include <boost/optional.hpp>
 #include <cstdint>
 #include <map>
 #include <string>
 #include <type_traits>
+#include <unordered_set>
 #include <vector>
 
 namespace ripple {
@@ -44,7 +48,7 @@ parseIniFile (std::string const& strInput, const bool bTrim);
 
 bool
 getSingleSection (IniFileSections& secSource,
-    std::string const& strSection, std::string& strValue);
+    std::string const& strSection, std::string& strValue, beast::Journal j);
 
 int
 countSectionEntries (IniFileSections& secSource, std::string const& strSection);
@@ -52,21 +56,13 @@ countSectionEntries (IniFileSections& secSource, std::string const& strSection);
 IniFileSections::mapped_type*
 getIniFileSection (IniFileSections& secSource, std::string const& strSection);
 
-/** Parse a section of lines as a key/value array.
-    Each line is in the form <key>=<value>.
-    Spaces are considered part of the key and value.
-*/
-// DEPRECATED
-beast::StringPairArray
-parseKeyValueSection (IniFileSections& secSource, std::string const& strSection);
+class Rules;
 
 //------------------------------------------------------------------------------
 
 enum SizedItemName
 {
     siSweepInterval,
-    siValidationsSize,
-    siValidationsAge,
     siNodeCacheSize,
     siNodeCacheAge,
     siTreeCacheSize,
@@ -87,10 +83,10 @@ struct SizedItem
     int             sizes[5];
 };
 
-// VFALCO NOTE This entire derived class is deprecated
-//             For new config information use the style implied
-//             in the base class. For existing config information
-//             try to refactor code to use the new style.
+//  This entire derived class is deprecated.
+//  For new config information use the style implied
+//  in the base class. For existing config information
+//  try to refactor code to use the new style.
 //
 class Config : public BasicConfig
 {
@@ -121,20 +117,21 @@ public:
     /** Returns the directory from which the configuration file was loaded. */
     beast::File getConfigDir () const;
 
-    /** Returns the directory in which the current database files are located. */
-    beast::File getDatabaseDir () const;
-
     /** Returns the full path and filename of the debug log file. */
     boost::filesystem::path getDebugLogFile () const;
 
-    // LEGACY FIELDS, REMOVE ASAP
+    /** Returns the full path and filename of the entropy seed file. */
+    boost::filesystem::path getEntropyFile () const;
+
+    // DEPRECATED
     boost::filesystem::path CONFIG_FILE; // used by UniqueNodeList
 private:
     boost::filesystem::path CONFIG_DIR;
     boost::filesystem::path DEBUG_LOGFILE;
+
+    void load ();
+    beast::Journal j_;
 public:
-    // VFALCO TODO Make this private and fix callers to go through getDatabaseDir()
-    boost::filesystem::path DATA_DIR;
 
     //--------------------------------------------------------------------------
 
@@ -152,10 +149,6 @@ public:
     /** List of Validators entries from rippled.cfg */
     std::vector <std::string> validators;
 
-private:
-    /** The folder where new module databases should be located */
-    beast::File m_moduleDbPath;
-
 public:
     //--------------------------------------------------------------------------
     /** Returns the location were databases should be located
@@ -164,63 +157,11 @@ public:
         stored in a file named after the module (e.g. "peerfinder.sqlite") that
         is inside that directory.
     */
-    beast::File const& getModuleDatabasePath ();
+    beast::File getModuleDatabasePath () const;
 
-    //--------------------------------------------------------------------------
-
-    /** Parameters for the insight collection module */
-    beast::StringPairArray insightSettings;
-
-    /** Parameters for the main NodeStore database.
-
-        This is 1 or more strings of the form <key>=<value>
-        The 'type' and 'path' keys are required, see rippled-example.cfg
-
-        @see Database
-    */
-    beast::StringPairArray nodeDatabase;
-
-    /** Parameters for the ephemeral NodeStore database.
-
-        This is an auxiliary database for the NodeStore, usually placed
-        on a separate faster volume. However, the volume data may not persist
-        between launches. Use of the ephemeral database is optional.
-
-        The format is the same as that for @ref nodeDatabase
-
-        @see Database
-    */
-    beast::StringPairArray ephemeralNodeDatabase;
-
-    /** Parameters for importing an old database in to the current node database.
-        If this is not empty, then it specifies the key/value parameters for
-        another node database from which to import all data into the current
-        node database specified by @ref nodeDatabase.
-        The format of this string is in the form:
-            <key>'='<value>['|'<key>'='value]
-        @see parseDelimitedKeyValueString
-    */
-    bool doImport;
-    beast::StringPairArray importNodeDatabase;
-    
-    /** Parameters for the transaction database.
-     
-     This is 1 or more strings of the form <key>=<value>
-     The 'type' and 'path' keys are required, see rippled-example.cfg
-     
-     @see Database
-     */
-    beast::StringPairArray transactionDatabase;
-
-
-    //
-    //
-    //--------------------------------------------------------------------------
-public:
-    // Configuration parameters
-    bool                        QUIET;
-
-    bool                        ELB_SUPPORT;            // Support Amazon ELB
+    bool doImport = false;
+    bool                        QUIET = false;
+    bool                        ELB_SUPPORT = false;
 
     std::string                 VALIDATORS_SITE;        // Where to find validators.txt on the Internet.
     std::string                 VALIDATORS_URI;         // URI of validators.txt.
@@ -238,17 +179,14 @@ public:
         REPLAY,
         NETWORK
     };
-    StartUpType                 START_UP;
+    StartUpType                 START_UP = NORMAL;
 
-
+    bool                        START_VALID = false;
 
     std::string                 START_LEDGER;
 
-    // Database
-    std::string                 DATABASE_PATH;
-    
     // Network parameters
-    int                         TRANSACTION_FEE_BASE;   // The number of fee units a reference transaction costs
+    int                         TRANSACTION_FEE_BASE = 1000;   // The number of fee units a reference transaction costs
 
     /** Operate in stand-alone mode.
 
@@ -259,27 +197,27 @@ public:
         - If no ledger is loaded, the default ledger with the root
           account is created.
     */
-    bool                        RUN_STANDALONE;
+    bool                        RUN_STANDALONE = false;
 
     // Note: The following parameters do not relate to the UNL or trust at all
-    std::size_t                 NETWORK_QUORUM;         // Minimum number of nodes to consider the network present
-    int                         VALIDATION_QUORUM;      // Minimum validations to consider ledger authoritative
+    std::size_t                 NETWORK_QUORUM = 0;         // Minimum number of nodes to consider the network present
+    int                         VALIDATION_QUORUM = 1;      // Minimum validations to consider ledger authoritative
+    bool                        LOCK_QUORUM = false;        // Do not raise the quorum
 
     // Peer networking parameters
-    bool                        PEER_PRIVATE;           // True to ask peers not to relay current IP.
-    unsigned int                PEERS_MAX;
+    bool                        PEER_PRIVATE = false;           // True to ask peers not to relay current IP.
+    int                         PEERS_MAX = 0;
 
-    int                         WEBSOCKET_PING_FREQ;
+    int                         WEBSOCKET_PING_FREQ = 5 * 60;
 
     // RPC parameters
-    std::vector<beast::IP::Endpoint>   RPC_ADMIN_ALLOW;
     Json::Value                     RPC_STARTUP;
 
     // Path searching
-    int                         PATH_SEARCH_OLD;
-    int                         PATH_SEARCH;
-    int                         PATH_SEARCH_FAST;
-    int                         PATH_SEARCH_MAX;
+    int                         PATH_SEARCH_OLD = 7;
+    int                         PATH_SEARCH = 7;
+    int                         PATH_SEARCH_FAST = 2;
+    int                         PATH_SEARCH_MAX = 10;
 
     // Validation
     RippleAddress               VALIDATION_SEED;
@@ -292,51 +230,48 @@ public:
     RippleAddress               NODE_PUB;
     RippleAddress               NODE_PRIV;
 
-    // Fee schedule (All below values are in fee units)
-    std::uint64_t                      FEE_DEFAULT;            // Default fee.
-    std::uint64_t                      FEE_ACCOUNT_RESERVE;    // Amount of units not allowed to send.
-    std::uint64_t                      FEE_OWNER_RESERVE;      // Amount of units not allowed to send per owner entry.
-    std::uint64_t                      FEE_OFFER;              // Rate per day.
-    int                                FEE_CONTRACT_OPERATION; // fee for each contract operation
-    
-    std::uint64_t                      FEE_DEFAULT_CREATE;     // fee for create account
-    std::uint64_t                      FEE_DEFAULT_NONE_NATIVE;// fee for nonnative payment
-    double                             FEE_DEFAULT_RATE_NATIVE;// fee rate for native(VBC/VRP) payment
-    std::uint64_t                      FEE_DEFAULT_MIN_NATIVE; // Minimal fee for native transaction
+    std::uint64_t                      FEE_DEFAULT = 1000;
+    std::uint64_t                      FEE_ACCOUNT_RESERVE = 0;
+    std::uint64_t                      FEE_OWNER_RESERVE = 0;
+    std::uint64_t                      FEE_OFFER = 1000;
 
-    int                                ASSET_TX_MIN;           // Minimal amount for asset TXs.
-    std::uint64_t                       ASSET_LIMIT_DEFAULT;    // default limit for asset.
-    int                                 ASSET_INTERVAL_MIN;     // Minimal interval for asset release schedule.
+    std::uint64_t                      FEE_DEFAULT_CREATE = 10000;     // fee for create account
+    std::uint64_t                      FEE_DEFAULT_NONE_NATIVE = 1000; // fee for nonnative payment
+    double                             FEE_DEFAULT_RATE_NATIVE = 1000000; // fee rate for native(VBC/VRP) payment 0.001*10e9
+    std::uint64_t                      FEE_DEFAULT_MIN_NATIVE = 1000;  // Minimal fee for native transaction
+
+    int                                ASSET_TX_MIN = 5;               // Minimal amount for asset TXs.
+    std::uint64_t                      ASSET_LIMIT_DEFAULT = 10000000; // default limit for asset.
+    int                                ASSET_INTERVAL_MIN = 86400;     // Minimal interval for asset release schedule.
 
     // Node storage configuration
-    std::uint32_t                      LEDGER_HISTORY;
-    std::uint32_t                      LEDGER_HISTORY_INDEX;
-    std::uint32_t                      FETCH_DEPTH;
-    int                         NODE_SIZE;
+    std::uint32_t                      LEDGER_HISTORY = 256;
+    std::uint32_t                      FETCH_DEPTH = 1000000000;
+    int                         NODE_SIZE = 0;
 
-    // Client behavior
-    int                         ACCOUNT_PROBE_MAX;      // How far to scan for accounts.
-
-    bool                        SSL_VERIFY;
+    bool                        SSL_VERIFY = true;
     std::string                 SSL_VERIFY_FILE;
     std::string                 SSL_VERIFY_DIR;
 
-    std::string                 SMS_FROM;
-    std::string                 SMS_KEY;
-    std::string                 SMS_SECRET;
-    std::string                 SMS_TO;
-    std::string                 SMS_URL;
+    // These override the command line client settings
+    boost::optional<boost::asio::ip::address_v4> rpc_ip;
+    boost::optional<std::uint16_t> rpc_port;
+
+    std::unordered_set<uint256, beast::uhash<>> features;
 
 public:
-    Config ();
+    Config() = default;
 
     int getSize (SizedItemName) const;
     void setup (std::string const& strConf, bool bQuiet);
-    void load ();
-};
 
-// VFALCO DEPRECATED
-extern Config& getConfig();
+    /**
+     *  Load the conig from the contents of the sting.
+     *
+     *  @param fileContents String representing the config contents.
+     */
+    void loadFromString (std::string const& fileContents);
+};
 
 } // ripple
 

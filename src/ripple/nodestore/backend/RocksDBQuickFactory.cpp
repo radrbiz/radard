@@ -23,6 +23,7 @@
 
 #if RIPPLE_ROCKSDB_AVAILABLE
 
+#include <ripple/basics/contract.h>
 #include <ripple/core/Config.h> // VFALCO Bad dependency
 #include <ripple/nodestore/Factory.h>
 #include <ripple/nodestore/Manager.h>
@@ -30,7 +31,7 @@
 #include <ripple/nodestore/impl/EncodedBlob.h>
 #include <beast/threads/Thread.h>
 #include <atomic>
-#include <beast/cxx14/memory.h> // <memory>
+#include <memory>
 
 namespace ripple {
 namespace NodeStore {
@@ -95,29 +96,25 @@ public:
     std::string m_name;
     std::unique_ptr <rocksdb::DB> m_db;
 
-    RocksDBQuickBackend (int keyBytes, Parameters const& keyValues,
+    RocksDBQuickBackend (int keyBytes, Section const& keyValues,
         Scheduler& scheduler, beast::Journal journal, RocksDBQuickEnv* env)
         : m_deletePath (false)
         , m_journal (journal)
         , m_keyBytes (keyBytes)
-        , m_name (keyValues ["path"].toStdString ())
+        , m_name (get<std::string>(keyValues, "path"))
     {
         if (m_name.empty())
-            throw std::runtime_error ("Missing path in RocksDBQuickFactory backend");
+            Throw<std::runtime_error> (
+                "Missing path in RocksDBQuickFactory backend");
 
         // Defaults
         std::uint64_t budget = 512 * 1024 * 1024;  // 512MB
         std::string style("level");
         std::uint64_t threads=4;
 
-        if (!keyValues["budget"].isEmpty())
-            budget = keyValues["budget"].getIntValue();
-
-        if (!keyValues["style"].isEmpty())
-            style = keyValues["style"].toStdString();
-
-        if (!keyValues["threads"].isEmpty())
-            threads = keyValues["threads"].getIntValue();
+        get_if_exists (keyValues, "budget", budget);
+        get_if_exists (keyValues, "style", style);
+        get_if_exists (keyValues, "threads", threads);
 
 
         // Set options
@@ -141,7 +138,7 @@ public:
 
         // overrride OptimizeLevelStyleCompaction
         options.min_write_buffer_number_to_merge = 1;
-        
+
         rocksdb::BlockBasedTableOptions table_options;
         // Use hash index
         table_options.index_type =
@@ -150,7 +147,7 @@ public:
             rocksdb::NewBloomFilterPolicy(10));
         options.table_factory.reset(
             NewBlockBasedTableFactory(table_options));
-        
+
         // Higher values make reads slower
         // table_options.block_size = 4096;
 
@@ -163,24 +160,19 @@ public:
         // options.memtable_factory.reset(
         //     rocksdb::NewHashCuckooRepFactory(options.write_buffer_size));
 
-        if (! keyValues["open_files"].isEmpty())
-        {
-            options.max_open_files = keyValues["open_files"].getIntValue();
-        }
- 
-        if (! keyValues["compression"].isEmpty ())  
-        {
-            if (keyValues["compression"].getIntValue () == 0)
-            {
-                options.compression = rocksdb::kNoCompression;
-            }
-        }
+        get_if_exists (keyValues, "open_files", options.max_open_files);
+
+        if (keyValues.exists ("compression") &&
+            (get<int>(keyValues, "compression") == 0))
+            options.compression = rocksdb::kNoCompression;
 
         rocksdb::DB* db = nullptr;
 
         rocksdb::Status status = rocksdb::DB::Open (options, m_name, &db);
-        if (!status.ok () || !db)
-            throw std::runtime_error (std::string("Unable to open/create RocksDBQuick: ") + status.ToString());
+        if (! status.ok () || ! db)
+            Throw<std::runtime_error> (
+                std::string("Unable to open/create RocksDBQuick: ") +
+                    status.ToString());
 
         m_db.reset (db);
     }
@@ -191,7 +183,7 @@ public:
     }
 
     std::string
-    getName()
+    getName() override
     {
         return m_name;
     }
@@ -213,7 +205,7 @@ public:
     //--------------------------------------------------------------------------
 
     Status
-    fetch (void const* key, NodeObject::Ptr* pObject)
+    fetch (void const* key, std::shared_ptr<NodeObject>* pObject) override
     {
         pObject->reset ();
 
@@ -262,17 +254,30 @@ public:
         return status;
     }
 
+    bool
+    canFetchBatch() override
+    {
+        return false;
+    }
+
     void
-    store (NodeObject::ref object)
+    store (std::shared_ptr<NodeObject> const& object) override
     {
         storeBatch(Batch{object});
     }
 
+    std::vector<std::shared_ptr<NodeObject>>
+    fetchBatch (std::size_t n, void const* const* keys) override
+    {
+        Throw<std::runtime_error> ("pure virtual called");
+        return {};
+    }
+
     void
-    storeBatch (Batch const& batch)
+    storeBatch (Batch const& batch) override
     {
         rocksdb::WriteBatch wb;
- 
+
         EncodedBlob encoded;
 
         for (auto const& e : batch)
@@ -290,15 +295,15 @@ public:
 
         // Crucial to ensure good write speed and non-blocking writes to memtable
         options.disableWAL = true;
-        
+
         auto ret = m_db->Write (options, &wb);
 
-        if (!ret.ok ())
-            throw std::runtime_error ("storeBatch failed: " + ret.ToString());
+        if (! ret.ok ())
+            Throw<std::runtime_error> ("storeBatch failed: " + ret.ToString());
     }
 
     void
-    for_each (std::function <void(NodeObject::Ptr)> f)
+    for_each (std::function <void(std::shared_ptr<NodeObject>)> f) override
     {
         rocksdb::ReadOptions const options;
 
@@ -320,7 +325,8 @@ public:
                 {
                     // Uh oh, corrupted data!
                     if (m_journal.fatal) m_journal.fatal <<
-                        "Corrupt NodeObject #" << uint256 (it->key ().data ());
+                        "Corrupt NodeObject #" <<
+                        from_hex_text<uint256>(it->key ().data ());
                 }
             }
             else
@@ -334,7 +340,7 @@ public:
     }
 
     int
-    getWriteLoad ()
+    getWriteLoad () override
     {
         return 0;
     }
@@ -385,7 +391,7 @@ public:
     std::unique_ptr <Backend>
     createInstance (
         size_t keyBytes,
-        Parameters const& keyValues,
+        Section const& keyValues,
         Scheduler& scheduler,
         beast::Journal journal)
     {

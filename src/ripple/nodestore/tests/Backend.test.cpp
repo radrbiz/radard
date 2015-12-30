@@ -38,10 +38,10 @@ public:
 
         testcase ("Backend type=" + type);
 
-        beast::StringPairArray params;
+        Section params;
         beast::UnitTestUtilities::TempDirectory path ("node_db");
         params.set ("type", type);
-        params.set ("path", path.getFullPathName ());
+        params.set ("path", path.getFullPathName ().toStdString ());
 
         // Create a batch
         Batch batch;
@@ -82,8 +82,8 @@ public:
             Batch copy;
             fetchCopyOfBatch (*backend, &copy, batch);
             // Canonicalize the source and destination batches
-            std::sort (batch.begin (), batch.end (), NodeObject::LessThan ());
-            std::sort (copy.begin (), copy.end (), NodeObject::LessThan ());
+            std::sort (batch.begin (), batch.end (), LessThan{});
+            std::sort (copy.begin (), copy.end (), LessThan{});
             expect (areBatchesEqual (batch, copy), "Should be equal");
         }
     }
@@ -95,12 +95,6 @@ public:
         int const seedValue = 50;
 
         testBackend ("nudb", seedValue);
-
-        testBackend ("leveldb", seedValue);
-
-    #if RIPPLE_HYPERLEVELDB_AVAILABLE
-        testBackend ("hyperleveldb", seedValue);
-    #endif
 
     #if RIPPLE_ROCKSDB_AVAILABLE
         testBackend ("rocksdb", seedValue);

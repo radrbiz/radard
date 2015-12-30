@@ -18,77 +18,84 @@
 //==============================================================================
 
 #include <BeastConfig.h>
+#include <ripple/app/main/Application.h>
+#include <ripple/app/misc/NetworkOPs.h>
+#include <ripple/app/ledger/LedgerMaster.h>
+#include <ripple/basics/Log.h>
+#include <ripple/ledger/ReadView.h>
+#include <ripple/net/RPCErr.h>
 #include <ripple/net/RPCSub.h>
+#include <ripple/protocol/ErrorCodes.h>
+#include <ripple/protocol/JsonFields.h>
+#include <ripple/resource/Fees.h>
 #include <ripple/rpc/impl/ParseAccountIds.h>
+#include <ripple/rpc/Context.h>
 #include <ripple/server/Role.h>
 
 namespace ripple {
 
 Json::Value doSubscribe (RPC::Context& context)
 {
-    auto lock = getApp().masterLock();
-
-    // FIXME: This needs to release the master lock immediately
-    // Subscriptions need to be protected by their own lock
-
     InfoSub::pointer ispSub;
     Json::Value jvResult (Json::objectValue);
-    std::uint32_t uLedgerIndex = context.params.isMember (jss::ledger_index)
-            && context.params[jss::ledger_index].isNumeric ()
-            ? context.params[jss::ledger_index].asUInt ()
-            : 0;
 
-    if (!context.infoSub && !context.params.isMember ("url"))
+    if (!context.infoSub && !context.params.isMember (jss::url))
     {
         // Must be a JSON-RPC call.
-        WriteLog (lsINFO, RPCHandler)
+        JLOG (context.j.info)
             << "doSubscribe: RPC subscribe requires a url";
 
         return rpcError (rpcINVALID_PARAMS);
     }
 
-    if (context.params.isMember ("url"))
+    if (context.params.isMember (jss::url))
     {
         if (context.role != Role::ADMIN)
             return rpcError (rpcNO_PERMISSION);
 
-        std::string strUrl      = context.params["url"].asString ();
-        std::string strUsername = context.params.isMember ("url_username") ?
-                context.params["url_username"].asString () : "";
-        std::string strPassword = context.params.isMember ("url_password") ?
-                context.params["url_password"].asString () : "";
+        std::string strUrl      = context.params[jss::url].asString ();
+        std::string strUsername = context.params.isMember (jss::url_username) ?
+                context.params[jss::url_username].asString () : "";
+        std::string strPassword = context.params.isMember (jss::url_password) ?
+                context.params[jss::url_password].asString () : "";
 
         // DEPRECATED
-        if (context.params.isMember ("username"))
-            strUsername = context.params["username"].asString ();
+        if (context.params.isMember (jss::username))
+            strUsername = context.params[jss::username].asString ();
 
         // DEPRECATED
-        if (context.params.isMember ("password"))
-            strPassword = context.params["password"].asString ();
+        if (context.params.isMember (jss::password))
+            strPassword = context.params[jss::password].asString ();
 
         ispSub  = context.netOps.findRpcSub (strUrl);
 
         if (!ispSub)
         {
-            WriteLog (lsDEBUG, RPCHandler)
+            JLOG (context.j.debug)
                 << "doSubscribe: building: " << strUrl;
 
-            RPCSub::pointer rspSub = RPCSub::New (getApp ().getOPs (),
-                getApp ().getIOService (), getApp ().getJobQueue (),
-                    strUrl, strUsername, strPassword);
+            auto rspSub = make_RPCSub (context.app.getOPs (),
+                context.app.getIOService (), context.app.getJobQueue (),
+                    strUrl, strUsername, strPassword, context.app.logs ());
             ispSub  = context.netOps.addRpcSub (
                 strUrl, std::dynamic_pointer_cast<InfoSub> (rspSub));
         }
         else
         {
-            WriteLog (lsTRACE, RPCHandler)
+            JLOG (context.j.trace)
                 << "doSubscribe: reusing: " << strUrl;
 
-            if (context.params.isMember ("username"))
-                dynamic_cast<RPCSub*> (&*ispSub)->setUsername (strUsername);
+            if (auto rpcSub = std::dynamic_pointer_cast<RPCSub> (ispSub))
+            {
+                // Why do we need to check isMember against jss::username and
+                // jss::password here instead of just setting the username and
+                // the password? What about url_username and url_password?
+                if (context.params.isMember (jss::username))
+                    rpcSub->setUsername (strUsername);
 
-            if (context.params.isMember ("password"))
-                dynamic_cast<RPCSub*> (&*ispSub)->setPassword (strPassword);
+                if (context.params.isMember (jss::password))
+                    rpcSub->setPassword (strPassword);
+            }
         }
     }
     else
@@ -96,19 +103,19 @@ Json::Value doSubscribe (RPC::Context& context)
         ispSub  = context.infoSub;
     }
 
-    if (!context.params.isMember ("streams"))
+    if (!context.params.isMember (jss::streams))
     {
     }
-    else if (!context.params["streams"].isArray ())
+    else if (!context.params[jss::streams].isArray ())
     {
-        WriteLog (lsINFO, RPCHandler)
+        JLOG (context.j.info)
             << "doSubscribe: streams requires an array.";
 
         return rpcError (rpcINVALID_PARAMS);
     }
     else
     {
-        for (auto& it: context.params["streams"])
+        for (auto& it: context.params[jss::streams])
         {
             if (it.isString ())
             {
@@ -132,6 +139,17 @@ Json::Value doSubscribe (RPC::Context& context)
                 {
                     context.netOps.subRTTransactions (ispSub);
                 }
+                else if (streamName == "validations")
+                {
+                    context.netOps.subValidations (ispSub);
+                }
+                else if (streamName == "peer_status")
+                {
+                    if (context.role != Role::ADMIN)
+                        jvResult[jss::error] = "noPermission";
+                    else
+                        context.netOps.subPeerStatus (ispSub);
+                }
                 else
                 {
                     jvResult[jss::error]   = "unknownStream";
@@ -144,9 +162,9 @@ Json::Value doSubscribe (RPC::Context& context)
         }
     }
 
-    std::string strAccountsProposed =
-               context.params.isMember ("accounts_proposed")
-               ? "accounts_proposed" : "rt_accounts";  // DEPRECATED
+    auto strAccountsProposed =
+               context.params.isMember (jss::accounts_proposed)
+               ? jss::accounts_proposed : jss::rt_accounts;  // DEPRECATED
 
     if (!context.params.isMember (strAccountsProposed))
     {
@@ -162,19 +180,19 @@ Json::Value doSubscribe (RPC::Context& context)
         if (ids.empty ())
             jvResult[jss::error] = "malformedAccount";
         else
-            context.netOps.subAccount (ispSub, ids, uLedgerIndex, true);
+            context.netOps.subAccount (ispSub, ids, true);
     }
 
-    if (!context.params.isMember ("accounts"))
+    if (!context.params.isMember (jss::accounts))
     {
     }
-    else if (!context.params["accounts"].isArray ())
+    else if (!context.params[jss::accounts].isArray ())
     {
         return rpcError (rpcINVALID_PARAMS);
     }
     else
     {
-        auto ids  = RPC::parseAccountIds (context.params["accounts"]);
+        auto ids  = RPC::parseAccountIds (context.params[jss::accounts]);
 
         if (ids.empty ())
         {
@@ -182,23 +200,22 @@ Json::Value doSubscribe (RPC::Context& context)
         }
         else
         {
-            context.netOps.subAccount (ispSub, ids, uLedgerIndex, false);
-            WriteLog (lsDEBUG, RPCHandler)
+            context.netOps.subAccount (ispSub, ids, false);
+            JLOG (context.j.debug)
                 << "doSubscribe: accounts: " << ids.size ();
         }
     }
 
-    bool bHaveMasterLock = true;
-    if (!context.params.isMember ("books"))
+    if (!context.params.isMember (jss::books))
     {
     }
-    else if (!context.params["books"].isArray ())
+    else if (!context.params[jss::books].isArray ())
     {
         return rpcError (rpcINVALID_PARAMS);
     }
     else
     {
-        for (auto& j: context.params["books"])
+        for (auto& j: context.params[jss::books])
         {
             if (!j.isObject ()
                     || !j.isMember (jss::taker_pays)
@@ -209,11 +226,11 @@ Json::Value doSubscribe (RPC::Context& context)
 
             Book book;
             bool bBoth =
-                    (j.isMember ("both") && j["both"].asBool ()) ||
-                    (j.isMember ("both_sides") && j["both_sides"].asBool ());
+                    (j.isMember (jss::both) && j[jss::both].asBool ()) ||
+                    (j.isMember (jss::both_sides) && j[jss::both_sides].asBool ());
             bool bSnapshot =
-                    (j.isMember ("snapshot") && j["snapshot"].asBool ()) ||
-                    (j.isMember ("state_now") && j["state_now"].asBool ());
+                    (j.isMember (jss::snapshot) && j[jss::snapshot].asBool ()) ||
+                    (j.isMember (jss::state_now) && j[jss::state_now].asBool ());
             // TODO(tom): both_sides and state_now are apparently deprecated...
             // where is this documented?
 
@@ -225,7 +242,7 @@ Json::Value doSubscribe (RPC::Context& context)
                     || !to_currency (book.in.currency,
                                      taker_pays[jss::currency].asString ()))
             {
-                WriteLog (lsINFO, RPCHandler) << "Bad taker_pays currency.";
+                JLOG (context.j.info) << "Bad taker_pays currency.";
 
                 return rpcError (rpcSRC_CUR_MALFORMED);
             }
@@ -238,7 +255,7 @@ Json::Value doSubscribe (RPC::Context& context)
                      || (!book.in.currency != !book.in.account)
                      || noAccount() == book.in.account)
             {
-                WriteLog (lsINFO, RPCHandler) << "Bad taker_pays issuer.";
+                JLOG (context.j.info) << "Bad taker_pays issuer.";
 
                 return rpcError (rpcSRC_ISR_MALFORMED);
             }
@@ -248,7 +265,7 @@ Json::Value doSubscribe (RPC::Context& context)
                     || !to_currency (book.out.currency,
                                      taker_gets[jss::currency].asString ()))
             {
-                WriteLog (lsINFO, RPCHandler) << "Bad taker_pays currency.";
+                JLOG (context.j.info) << "Bad taker_pays currency.";
 
                 return rpcError (rpcSRC_CUR_MALFORMED);
             }
@@ -261,7 +278,7 @@ Json::Value doSubscribe (RPC::Context& context)
                      || (!book.out.currency != !book.out.account)
                      || noAccount() == book.out.account)
             {
-                WriteLog (lsINFO, RPCHandler) << "Bad taker_gets issuer.";
+                JLOG (context.j.info) << "Bad taker_gets issuer.";
 
                 return rpcError (rpcDST_ISR_MALFORMED);
             }
@@ -269,21 +286,24 @@ Json::Value doSubscribe (RPC::Context& context)
             if (book.in.currency == book.out.currency
                     && book.in.account == book.out.account)
             {
-                WriteLog (lsINFO, RPCHandler)
+                JLOG (context.j.info)
                     << "taker_gets same as taker_pays.";
                 return rpcError (rpcBAD_MARKET);
             }
 
-            RippleAddress   raTakerID;
+            boost::optional<AccountID> takerID;
 
-            if (!j.isMember ("taker"))
-                raTakerID.setAccountID (noAccount());
-            else if (!raTakerID.setAccountID (j["taker"].asString ()))
-                return rpcError (rpcBAD_ISSUER);
+            if (j.isMember (jss::taker))
+            {
+                takerID = parseBase58<AccountID>(
+                    j[jss::taker].asString());
+                if (! takerID)
+                    return rpcError (rpcBAD_ISSUER);
+            }
 
             if (!isConsistent (book))
             {
-                WriteLog (lsWARNING, RPCHandler) << "Bad market: " << book;
+                JLOG (context.j.warning) << "Bad market: " << book;
                 return rpcError (rpcBAD_MARKET);
             }
 
@@ -294,15 +314,9 @@ Json::Value doSubscribe (RPC::Context& context)
 
             if (bSnapshot)
             {
-                if (bHaveMasterLock)
-                {
-                    lock->unlock ();
-                    bHaveMasterLock = false;
-                }
-
                 context.loadType = Resource::feeMediumBurdenRPC;
-                auto lpLedger = getApp().getLedgerMaster ().
-                        getPublishedLedger ();
+                std::shared_ptr<ReadView const> lpLedger
+                        = context.app.getLedgerMaster().getPublishedLedger();
                 if (lpLedger)
                 {
                     const Json::Value jvMarker = Json::Value (Json::nullValue);
@@ -310,9 +324,9 @@ Json::Value doSubscribe (RPC::Context& context)
 
                     auto add = [&](Json::StaticString field)
                     {
-                        context.netOps.getBookPage (context.role == Role::ADMIN,
+                        context.netOps.getBookPage (isUnlimited (context.role),
                             lpLedger, field == jss::asks ? reversed (book) : book,
-                            raTakerID.getAccountID(), false, 0, jvMarker,
+                            takerID ? *takerID : noAccount(), false, 0, jvMarker,
                             jvOffers);
 
                         if (jvResult.isMember (field))

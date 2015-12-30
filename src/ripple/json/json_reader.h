@@ -17,11 +17,11 @@
 */
 //==============================================================================
 
-#ifndef CPPTL_JSON_READER_H_INCLUDED
+#ifndef RIPPLE_JSON_JSON_READER_H_INCLUDED
+#define RIPPLE_JSON_JSON_READER_H_INCLUDED
+
 # define CPPTL_JSON_READER_H_INCLUDED
 
-#include <ripple/json/json_config.h>
-#include <ripple/json/json_features.h>
 #include <ripple/json/json_forwards.h>
 #include <ripple/json/json_value.h>
 
@@ -33,55 +33,36 @@ namespace Json
 /** \brief Unserialize a <a HREF="http://www.json.org">JSON</a> document into a Value.
  *
  */
-class JSON_API Reader
+class Reader
 {
 public:
-    typedef char Char;
-    typedef const Char* Location;
+    using Char = char;
+    using Location = const Char*;
 
     /** \brief Constructs a Reader allowing all features
      * for parsing.
      */
     Reader ();
 
-    /** \brief Constructs a Reader allowing the specified feature set
-     * for parsing.
+    /** \brief Read a Value from a <a HREF="http://www.json.org">JSON</a> document.
+     * \param document UTF-8 encoded string containing the document to read.
+     * \param root [out] Contains the root value of the document if it was
+     *             successfully parsed.
+     * \return \c true if the document was successfully parsed, \c false if an error occurred.
      */
-    Reader ( const Features& features );
+    bool parse ( std::string const& document, Value& root);
 
     /** \brief Read a Value from a <a HREF="http://www.json.org">JSON</a> document.
      * \param document UTF-8 encoded string containing the document to read.
      * \param root [out] Contains the root value of the document if it was
      *             successfully parsed.
-     * \param collectComments \c true to collect comment and allow writing them back during
-     *                        serialization, \c false to discard comments.
-     *                        This parameter is ignored if Features::allowComments_
-     *                        is \c false.
      * \return \c true if the document was successfully parsed, \c false if an error occurred.
      */
-    bool parse ( std::string const& document,
-                 Value& root,
-                 bool collectComments = true );
-
-    /** \brief Read a Value from a <a HREF="http://www.json.org">JSON</a> document.
-     * \param document UTF-8 encoded string containing the document to read.
-     * \param root [out] Contains the root value of the document if it was
-     *             successfully parsed.
-     * \param collectComments \c true to collect comment and allow writing them back during
-     *                        serialization, \c false to discard comments.
-     *                        This parameter is ignored if Features::allowComments_
-     *                        is \c false.
-     * \return \c true if the document was successfully parsed, \c false if an error occurred.
-     */
-    bool parse ( const char* beginDoc, const char* endDoc,
-                 Value& root,
-                 bool collectComments = true );
+    bool parse ( const char* beginDoc, const char* endDoc, Value& root);
 
     /// \brief Parse from input stream.
     /// \see Json::operator>>(std::istream&, Json::Value&).
-    bool parse ( std::istream& is,
-                 Value& root,
-                 bool collectComments = true );
+    bool parse ( std::istream& is, Value& root);
 
     /** \brief Returns a user friendly string that list errors in the parsed document.
      * \return Formatted error message with the list of errors with their location in
@@ -99,7 +80,8 @@ private:
         tokenArrayBegin,
         tokenArrayEnd,
         tokenString,
-        tokenNumber,
+        tokenInteger,
+        tokenDouble,
         tokenTrue,
         tokenFalse,
         tokenNull,
@@ -125,7 +107,7 @@ private:
         Location extra_;
     };
 
-    typedef std::deque<ErrorInfo> Errors;
+    using Errors = std::deque<ErrorInfo>;
 
     bool expectToken ( TokenType type, Token& token, const char* message );
     bool readToken ( Token& token );
@@ -136,7 +118,7 @@ private:
     bool readCStyleComment ();
     bool readCppStyleComment ();
     bool readString ();
-    void readNumber ();
+    Reader::TokenType readNumber ();
     bool readValue ();
     bool readObject ( Token& token );
     bool readArray ( Token& token );
@@ -166,12 +148,9 @@ private:
                                     int& line,
                                     int& column ) const;
     std::string getLocationLineAndColumn ( Location location ) const;
-    void addComment ( Location begin,
-                      Location end,
-                      CommentPlacement placement );
     void skipCommentTokens ( Token& token );
 
-    typedef std::stack<Value*> Nodes;
+    using Nodes = std::stack<Value*>;
     Nodes nodes_;
     Errors errors_;
     std::string document_;
@@ -180,9 +159,6 @@ private:
     Location current_;
     Location lastValueEnd_;
     Value* lastValue_;
-    std::string commentsBefore_;
-    Features features_;
-    bool collectComments_;
 };
 
 /** \brief Read from 'sin' into 'root'.

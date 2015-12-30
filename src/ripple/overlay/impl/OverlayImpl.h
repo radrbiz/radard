@@ -20,14 +20,18 @@
 #ifndef RIPPLE_OVERLAY_OVERLAYIMPL_H_INCLUDED
 #define RIPPLE_OVERLAY_OVERLAYIMPL_H_INCLUDED
 
+#include <ripple/app/main/Application.h>
+#include <ripple/core/Job.h>
 #include <ripple/overlay/Overlay.h>
+#include <ripple/overlay/impl/Manifest.h>
+#include <ripple/overlay/impl/TrafficCount.h>
 #include <ripple/server/Handoff.h>
 #include <ripple/server/ServerHandler.h>
 #include <ripple/basics/Resolver.h>
-#include <ripple/basics/seconds_clock.h>
+#include <ripple/basics/chrono.h>
 #include <ripple/basics/UnorderedContainers.h>
-#include <ripple/peerfinder/Manager.h>
-#include <ripple/resource/Manager.h>
+#include <ripple/peerfinder/PeerfinderManager.h>
+#include <ripple/resource/ResourceManager.h>
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/asio/ssl/context.hpp>
 #include <boost/asio/strand.hpp>
@@ -37,13 +41,19 @@
 #include <cassert>
 #include <chrono>
 #include <condition_variable>
-#include <beast/cxx14/memory.h> // <memory>
+#include <memory>
 #include <mutex>
 #include <unordered_map>
 
 namespace ripple {
 
 class PeerImp;
+class BasicConfig;
+
+enum
+{
+    maxTTL = 2
+};
 
 class OverlayImpl : public Overlay
 {
@@ -88,42 +98,37 @@ private:
         on_timer (error_code ec);
     };
 
+    Application& app_;
     boost::asio::io_service& io_service_;
     boost::optional<boost::asio::io_service::work> work_;
     boost::asio::io_service::strand strand_;
-
     std::recursive_mutex mutex_; // VFALCO use std::mutex
     std::condition_variable_any cond_;
     std::weak_ptr<Timer> timer_;
     boost::container::flat_map<
         Child*, std::weak_ptr<Child>> list_;
-
     Setup setup_;
     beast::Journal journal_;
     ServerHandler& serverHandler_;
-
     Resource::Manager& m_resourceManager;
-
     std::unique_ptr <PeerFinder::Manager> m_peerFinder;
-
+    TrafficCount m_traffic;
     hash_map <PeerFinder::Slot::ptr,
         std::weak_ptr <PeerImp>> m_peers;
-
     hash_map<RippleAddress, std::weak_ptr<PeerImp>> m_publicKeyMap;
-
     hash_map<Peer::id_t, std::weak_ptr<PeerImp>> m_shortIdMap;
-
     Resolver& m_resolver;
-
     std::atomic <Peer::id_t> next_id_;
+    ManifestCache manifestCache_;
+    int timer_count_;
 
     //--------------------------------------------------------------------------
 
 public:
-    OverlayImpl (Setup const& setup, Stoppable& parent,
+    OverlayImpl (Application& app, Setup const& setup, Stoppable& parent,
         ServerHandler& serverHandler, Resource::Manager& resourceManager,
-            beast::File const& pathToDbFileOrDirectory,
-                Resolver& resolver, boost::asio::io_service& io_service);
+        Resolver& resolver, boost::asio::io_service& io_service,
+        BasicConfig const& config);
 
     ~OverlayImpl();
 
@@ -148,16 +153,17 @@ public:
         return serverHandler_;
     }
 
+    ManifestCache const&
+    manifestCache() const
+    {
+        return manifestCache_;
+    }
+
     Setup const&
     setup() const
     {
         return setup_;
     }
-
-    void
-    onLegacyPeerHello (std::unique_ptr<beast::asio::ssl_bundle>&& ssl_bundle,
-        boost::asio::const_buffer buffer,
-            endpoint_type remote_endpoint) override;
 
     Handoff
     onHandoff (std::unique_ptr <beast::asio::ssl_bundle>&& bundle,
@@ -167,8 +173,42 @@ public:
     PeerSequence
     getActivePeers() override;
 
+    void
+    check () override;
+
+    void
+    checkSanity (std::uint32_t) override;
+
     Peer::ptr
     findPeerByShortID (Peer::id_t const& id) override;
+
+    void
+    send (protocol::TMProposeSet& m) override;
+
+    void
+    send (protocol::TMValidation& m) override;
+
+    void
+    relay (protocol::TMProposeSet& m,
+        uint256 const& uid) override;
+
+    void
+    relay (protocol::TMValidation& m,
+        uint256 const& uid) override;
+
+    virtual
+    void
+    setupValidatorKeyManifests (BasicConfig const& config,
+                                DatabaseCon& db) override;
+
+    virtual
+    void
+    saveValidatorKeyManifests (DatabaseCon& db) const override;
+
+    //--------------------------------------------------------------------------
+    //
+    // OverlayImpl
+    //
 
     void
     add_active (std::shared_ptr<PeerImp> const& peer);
@@ -184,9 +224,42 @@ public:
     void
     activate (std::shared_ptr<PeerImp> const& peer);
 
-    /** Called when an active peer is destroyed. */
+    // Called when an active peer is destroyed.
     void
     onPeerDeactivate (Peer::id_t id, RippleAddress const& publicKey);
+
+    // UnaryFunc will be called as
+    //  void(std::shared_ptr<PeerImp>&&)
+    //
+    template <class UnaryFunc>
+    void
+    for_each_unlocked (UnaryFunc&& f)
+    {
+        for (auto const& e : m_publicKeyMap)
+        {
+            auto sp = e.second.lock();
+            if (sp)
+                f(std::move(sp));
+        }
+    }
+
+    template <class UnaryFunc>
+    void
+    for_each (UnaryFunc&& f)
+    {
+        std::lock_guard <decltype(mutex_)> lock (mutex_);
+        for_each_unlocked(f);
+    }
+
+    std::size_t
+    selectPeers (PeerSet& set, std::size_t limit, std::function<
+        bool(std::shared_ptr<Peer> const&)> score) override;
+
+    // Called when TMManifests is received from a peer
+    void
+    onManifests (
+        std::shared_ptr<protocol::TMManifests> const& m,
+            std::shared_ptr<PeerImp> const& from);
 
     static
     bool
@@ -196,6 +269,12 @@ public:
     std::string
     makePrefix (std::uint32_t id);
 
+    void
+    reportTraffic (
+        TrafficCount::category cat,
+        bool isInbound,
+        int bytes);
+
 private:
     std::shared_ptr<HTTP::Writer>
     makeRedirectResponse (PeerFinder::Slot::ptr const& slot,
@@ -204,6 +283,11 @@ private:
     void
     connect (beast::IP::Endpoint const& remote_endpoint) override;
 
+    /*  The number of active peers on the network
+        Active peers are only those peers that have completed the handshake
+        and are running the Ripple protocol.
+    */
+    // VFALCO Why private?
     std::size_t
     size() override;
 
@@ -243,7 +327,7 @@ private:
     //
 
     void
-    onWrite (beast::PropertyStream::Map& stream);
+    onWrite (beast::PropertyStream::Map& stream) override;
 
     //--------------------------------------------------------------------------
 

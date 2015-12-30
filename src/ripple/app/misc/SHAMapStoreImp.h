@@ -17,19 +17,19 @@
 */
 //==============================================================================
 
-#ifndef RIPPLE_APP_SHAMAPSTOREIMP_H_INCLUDED
-#define RIPPLE_APP_SHAMAPSTOREIMP_H_INCLUDED
+#ifndef RIPPLE_APP_MISC_SHAMAPSTOREIMP_H_INCLUDED
+#define RIPPLE_APP_MISC_SHAMAPSTOREIMP_H_INCLUDED
 
-#include <ripple/app/data/DatabaseCon.h>
+#include <ripple/core/DatabaseCon.h>
 #include <ripple/app/misc/SHAMapStore.h>
+#include <ripple/app/misc/NetworkOPs.h>
+#include <ripple/core/SociDB.h>
 #include <ripple/nodestore/impl/Tuning.h>
 #include <ripple/nodestore/DatabaseRotating.h>
-#include <beast/module/sqdb/sqdb.h>
-
 #include <iostream>
 #include <condition_variable>
+#include <thread>
 
-#include "NetworkOPs.h"
 
 namespace ripple {
 
@@ -53,7 +53,7 @@ private:
     class SavedStateDB
     {
     public:
-        beast::sqdb::session session_;
+        soci::session session_;
         std::mutex mutex_;
         beast::Journal journal_;
 
@@ -61,19 +61,20 @@ private:
         // configured
         SavedStateDB() = default;
 
-        // opens SQLite database and, if necessary, creates & initializes its tables.
-        void init (std::string const& databasePath, std::string const& dbName);
+        // opens database and, if necessary, creates & initializes its tables.
+        void init (BasicConfig const& config, std::string const& dbName);
         // get/set the ledger index that we can delete up to and including
         LedgerIndex getCanDelete();
         LedgerIndex setCanDelete (LedgerIndex canDelete);
         SavedState getState();
         void setState (SavedState const& state);
         void setLastRotated (LedgerIndex seq);
-        void checkError (beast::Error const& error);
     };
 
-    // name of sqlite state database
-    std::string const dbName_ = "state.db";
+    Application& app_;
+
+    // name of state database
+    std::string const dbName_ = "state";
     // prefix of on-disk nodestore backend instances
     std::string const dbPrefix_ = "rippledb";
     // check health/stop status as records are copied
@@ -85,7 +86,7 @@ private:
     NodeStore::Scheduler& scheduler_;
     beast::Journal journal_;
     beast::Journal nodeStoreJournal_;
-    NodeStore::DatabaseRotating* database_;
+    NodeStore::DatabaseRotating* database_ = nullptr;
     SavedStateDB state_db_;
     std::thread thread_;
     bool stop_ = false;
@@ -95,6 +96,7 @@ private:
     Ledger::pointer newLedger_;
     Ledger::pointer validatedLedger_;
     TransactionMaster& transactionMaster_;
+    std::atomic <LedgerIndex> canDelete_;
     // these do not exist upon SHAMapStore creation, but do exist
     // as of onPrepare() or before
     NetworkOPs* netOPs_ = nullptr;
@@ -105,12 +107,14 @@ private:
     DatabaseCon* ledgerDb_ = nullptr;
 
 public:
-    SHAMapStoreImp (Setup const& setup,
+    SHAMapStoreImp (Application& app,
+            Setup const& setup,
             Stoppable& parent,
             NodeStore::Scheduler& scheduler,
             beast::Journal journal,
             beast::Journal nodeStoreJournal,
-            TransactionMaster& transactionMaster);
+            TransactionMaster& transactionMaster,
+            BasicConfig const& config);
 
     ~SHAMapStoreImp()
     {
@@ -131,6 +135,8 @@ public:
     LedgerIndex
     setCanDelete (LedgerIndex seq) override
     {
+        if (setup_.advisoryDelete)
+            canDelete_ = seq;
         return state_db_.setCanDelete (seq);
     }
 
@@ -149,14 +155,14 @@ public:
     LedgerIndex
     getCanDelete() override
     {
-        return state_db_.getCanDelete();
+        return canDelete_;
     }
 
     void onLedgerClosed (Ledger::pointer validatedLedger) override;
 
 private:
     // callback for visitNodes
-    bool copyNode (std::uint64_t& nodeCount, SHAMapTreeNode const &node);
+    bool copyNode (std::uint64_t& nodeCount, SHAMapAbstractNode const &node);
     void run();
     void dbPaths();
     std::shared_ptr <NodeStore::Backend> makeBackendRotating (
@@ -184,9 +190,9 @@ private:
     {
         std::uint64_t check = 0;
 
-        for (uint256 it: cache.getKeys())
+        for (uint256 const& key: cache.getKeys())
         {
-            database_->fetchNode (it);
+            database_->fetchNode (key);
             if (! (++check % checkHealthInterval_) && health())
                 return true;
         }
@@ -199,7 +205,7 @@ private:
      *  call with mutex object unlocked
      */
     void clearSql (DatabaseCon& database, LedgerIndex lastRotated,
-            std::string const& minQuery, std::string const& deleteQuery);
+                   std::string const& minQuery, std::string const& deleteQuery);
     void clearCaches (LedgerIndex validatedSeq);
     void freshenCaches();
     void clearPrior (LedgerIndex lastRotated);

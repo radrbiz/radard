@@ -17,8 +17,8 @@
 */
 //==============================================================================
 
-#ifndef BEAST_UTILITY_WRAPPED_SINK_H_INCLUDED
-#define BEAST_UTILITY_WRAPPED_SINK_H_INCLUDED
+#ifndef BEAST_UTILITY_WRAPPEDSINK_H_INCLUDED
+#define BEAST_UTILITY_WRAPPEDSINK_H_INCLUDED
 
 #include <beast/utility/Journal.h>
 
@@ -69,17 +69,17 @@ public:
     }
 
     beast::Journal::Severity
-    severity() const
+    severity() const override
     {
         return sink_.severity();
     }
 
-    void severity (beast::Journal::Severity level)
+    void severity (beast::Journal::Severity level) override
     {
         sink_.severity (level);
     }
 
-    void write (beast::Journal::Severity level, std::string const& text)
+    void write (beast::Journal::Severity level, std::string const& text) override
     {
         using beast::Journal;
         sink_.write (level, prefix_ + text);

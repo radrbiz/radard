@@ -19,11 +19,22 @@
 
 #include <BeastConfig.h>
 
+#include <ripple/app/main/Application.h>
+#include <ripple/json/json_value.h>
+#include <ripple/ledger/ReadView.h>
+#include <ripple/protocol/ErrorCodes.h>
+#include <ripple/protocol/Indexes.h>
+#include <ripple/protocol/JsonFields.h>
+#include <ripple/protocol/types.h>
+#include <ripple/rpc/impl/Utilities.h>
+#include <ripple/rpc/Context.h>
+#include <ripple/rpc/impl/AccountFromString.h>
+#include <ripple/rpc/impl/LookupLedger.h>
+
 namespace ripple {
 
 // {
 //   account: <indent>,
-//   account_index : <index> // optional
 //   strict: <bool>
 //           if true, only allow public keys and addresses. false, default.
 //   ledger_hash : <ledger>
@@ -35,41 +46,64 @@ Json::Value doAccountInfo (RPC::Context& context)
 {
     auto& params = context.params;
 
-    Ledger::pointer ledger;
-    Json::Value result = RPC::lookupLedger (params, ledger, context.netOps);
+    std::shared_ptr<ReadView const> ledger;
+    auto result = RPC::lookupLedger (ledger, context);
 
     if (!ledger)
         return result;
 
-    if (!params.isMember ("account") && !params.isMember ("ident"))
-        return RPC::missing_field_error ("account");
+    if (!params.isMember (jss::account) && !params.isMember (jss::ident))
+        return RPC::missing_field_error (jss::account);
 
-    std::string strIdent = params.isMember ("account")
-            ? params["account"].asString () : params["ident"].asString ();
-    bool bIndex;
-    int iIndex = params.isMember ("account_index")
-            ? params["account_index"].asUInt () : 0;
-    bool bStrict = params.isMember ("strict") && params["strict"].asBool ();
-    RippleAddress naAccount;
+    std::string strIdent = params.isMember (jss::account)
+            ? params[jss::account].asString () : params[jss::ident].asString ();
+    bool bStrict = params.isMember (jss::strict) && params[jss::strict].asBool ();
+    AccountID accountID;
 
     // Get info on account.
 
-    Json::Value jvAccepted = RPC::accountFromString (
-        ledger, naAccount, bIndex, strIdent, iIndex, bStrict, context.netOps);
+    auto jvAccepted = RPC::accountFromString (accountID, strIdent, bStrict);
 
-    if (!jvAccepted.empty ())
+    if (jvAccepted)
         return jvAccepted;
 
-    auto asAccepted = context.netOps.getAccountState (ledger, naAccount);
-
-    if (asAccepted)
+    auto const sleAccepted = ledger->read(keylet::account(accountID));
+    if (sleAccepted)
     {
-        asAccepted->addJson (jvAccepted);
-        result["account_data"]    = jvAccepted;
+        RPC::injectSLE(jvAccepted, *sleAccepted);
+
+        // See if there's a References for this account.
+        auto const referList = ledger->read (keylet::refer(accountID));
+
+        if (referList)
+        {
+            // Return multi-signing information if there are multi-signers.
+            static const Json::StaticString referencesName("References");
+            jvAccepted[referencesName] = referList->getJson (0)["References"];
+        }
+
+        // See if there's a SignerEntries for this account.
+        auto const signerList = ledger->read (keylet::signers(accountID));
+
+        if (signerList)
+        {
+            // Return multi-signing information if there are multi-signers.
+            static const Json::StaticString multiSignersName("multisigners");
+            jvAccepted[multiSignersName] = signerList->getJson (0);
+            Json::Value& multiSignerJson = jvAccepted[multiSignersName];
+
+            // Remove unwanted fields.
+            multiSignerJson.removeMember (sfFlags.getName ());
+            multiSignerJson.removeMember (sfLedgerEntryType.getName ());
+            multiSignerJson.removeMember (sfOwnerNode.getName ());
+            multiSignerJson.removeMember ("index");
+        }
+
+        result[jss::account_data] = jvAccepted;
     }
     else
     {
-        result["account"] = naAccount.humanAccountID ();
+        result[jss::account] = context.app.accountIDCache().toBase58 (accountID);
         RPC::inject_error (rpcACT_NOT_FOUND, result);
     }
 

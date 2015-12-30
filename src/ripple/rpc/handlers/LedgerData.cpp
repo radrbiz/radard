@@ -18,6 +18,13 @@
 //==============================================================================
 
 #include <BeastConfig.h>
+#include <ripple/app/ledger/LedgerToJson.h>
+#include <ripple/ledger/ReadView.h>
+#include <ripple/protocol/ErrorCodes.h>
+#include <ripple/protocol/JsonFields.h>
+#include <ripple/rpc/impl/LookupLedger.h>
+#include <ripple/rpc/impl/Tuning.h>
+#include <ripple/rpc/Context.h>
 #include <ripple/server/Role.h>
 
 namespace ripple {
@@ -34,76 +41,65 @@ namespace ripple {
 //     marker:       resume point, if any
 Json::Value doLedgerData (RPC::Context& context)
 {
-    int const BINARY_PAGE_LENGTH = 2048;
-    int const JSON_PAGE_LENGTH = 256;
-
-    Ledger::pointer lpLedger;
+    std::shared_ptr<ReadView const> lpLedger;
     auto const& params = context.params;
 
-    Json::Value jvResult = RPC::lookupLedger (params, lpLedger, context.netOps);
+    auto jvResult = RPC::lookupLedger(lpLedger, context);
     if (!lpLedger)
         return jvResult;
 
-    uint256 resumePoint;
-    if (params.isMember ("marker"))
+    boost::optional<ReadView::key_type> key = ReadView::key_type();
+    if (params.isMember (jss::marker))
     {
-        Json::Value const& jMarker = params["marker"];
-        if (!jMarker.isString ())
-            return RPC::expected_field_error ("marker", "valid");
-        if (!resumePoint.SetHex (jMarker.asString ()))
-            return RPC::expected_field_error ("marker", "valid");
+        Json::Value const& jMarker = params[jss::marker];
+        if (! (jMarker.isString () && key->SetHex (jMarker.asString ())))
+            return RPC::expected_field_error (jss::marker, "valid");
     }
 
-    bool isBinary = params["binary"].asBool();
+    bool isBinary = params[jss::binary].asBool();
 
     int limit = -1;
-    int maxLimit = isBinary ? BINARY_PAGE_LENGTH : JSON_PAGE_LENGTH;
-
-    if (params.isMember ("limit"))
+    if (params.isMember (jss::limit))
     {
-        Json::Value const& jLimit = params["limit"];
+        Json::Value const& jLimit = params[jss::limit];
         if (!jLimit.isIntegral ())
-            return RPC::expected_field_error ("limit", "integer");
+            return RPC::expected_field_error (jss::limit, "integer");
 
         limit = jLimit.asInt ();
     }
 
-    if ((limit < 0) || ((limit > maxLimit) && (context.role != Role::ADMIN)))
+    auto maxLimit = RPC::Tuning::pageLength(isBinary);
+    if ((limit < 0) || ((limit > maxLimit) && (! isUnlimited (context.role))))
         limit = maxLimit;
 
-    jvResult["ledger_hash"] = to_string (lpLedger->getHash());
-    jvResult["ledger_index"] = std::to_string( lpLedger->getLedgerSeq ());
+    jvResult[jss::ledger_hash] = to_string (lpLedger->info().hash);
+    jvResult[jss::ledger_index] = lpLedger->info().seq;
 
-    Json::Value& nodes = (jvResult["state"] = Json::arrayValue);
-    SHAMap& map = *(lpLedger->peekAccountStateMap ());
+    Json::Value& nodes = jvResult[jss::state];
 
-    for (;;)
+    auto e = lpLedger->sles.end();
+    for (auto i = lpLedger->sles.upper_bound(*key); i != e; ++i)
     {
-       SHAMapItem::pointer item = map.peekNextItem (resumePoint);
-       if (!item)
-           break;
-       resumePoint = item->getTag();
+        auto sle = lpLedger->read(keylet::unchecked((*i)->key()));
+        if (limit-- <= 0)
+        {
+            // Stop processing before the current key.
+            auto k = sle->key();
+            jvResult[jss::marker] = to_string(--k);
+            break;
+        }
 
-       if (limit-- <= 0)
-       {
-           --resumePoint;
-           jvResult["marker"] = to_string (resumePoint);
-           break;
-       }
-
-       if (isBinary)
-       {
-           Json::Value& entry = nodes.append (Json::objectValue);
-           entry["data"] = strHex (
-               item->peekData().begin(), item->peekData().size());
-           entry["index"] = to_string (item->getTag ());
-       }
-       else
-       {
-           SLE sle (item->peekSerializer(), item->getTag ());
-           Json::Value& entry = nodes.append (sle.getJson (0));
-           entry["index"] = to_string (item->getTag ());
-       }
+        if (isBinary)
+        {
+            Json::Value& entry = nodes.append (Json::objectValue);
+            entry[jss::data] = serializeHex(*sle);
+            entry[jss::index] = to_string(sle->key());
+        }
+        else
+        {
+            Json::Value& entry = nodes.append (sle->getJson (0));
+            entry[jss::index] = to_string(sle->key());
+        }
     }
 
     return jvResult;

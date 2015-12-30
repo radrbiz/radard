@@ -17,120 +17,141 @@
 */
 //==============================================================================
 
-#ifndef RIPPLE_PROTOCOL_STBITS_H_INCLUDED
-#define RIPPLE_PROTOCOL_STBITS_H_INCLUDED
+#ifndef RIPPLE_PROTOCOL_STBITSTRING_H_INCLUDED
+#define RIPPLE_PROTOCOL_STBITSTRING_H_INCLUDED
 
 #include <ripple/protocol/STBase.h>
 
 namespace ripple {
 
 template <std::size_t Bits>
-class STBitString : public STBase
+class STBitString final
+    : public STBase
 {
 public:
-    typedef base_uint<Bits> BitString;
+    using value_type = base_uint<Bits>;
 
-    STBitString ()                                    {}
-    STBitString (SField::ref n) : STBase (n)  {}
-    STBitString (const BitString& v) : bitString_ (v) {}
+    STBitString () = default;
 
-    STBitString (SField::ref n, const BitString& v)
-            : STBase (n), bitString_ (v)
+    STBitString (SField const& n)
+        : STBase (n)
+    { }
+
+    STBitString (const value_type& v)
+        : value_ (v)
+    { }
+
+    STBitString (SField const& n, const value_type& v)
+        : STBase (n), value_ (v)
+    { }
+
+    STBitString (SField const& n, const char* v)
+        : STBase (n)
+    {
+        value_.SetHex (v);
+    }
+
+    STBitString (SField const& n, std::string const& v)
+        : STBase (n)
+    {
+        value_.SetHex (v);
+    }
+
+    STBitString (SerialIter& sit, SField const& name)
+        : STBitString(name, sit.getBitString<Bits>())
     {
     }
 
-    STBitString (SField::ref n, const char* v) : STBase (n)
+    STBase*
+    copy (std::size_t n, void* buf) const override
     {
-        bitString_.SetHex (v);
+        return emplace(n, buf, *this);
     }
 
-    STBitString (SField::ref n, std::string const& v) : STBase (n)
+    STBase*
+    move (std::size_t n, void* buf) override
     {
-        bitString_.SetHex (v);
+        return emplace(n, buf, std::move(*this));
     }
 
-    static std::unique_ptr<STBase> deserialize (
-        SerializerIterator& sit, SField::ref name)
+    SerializedTypeID
+    getSType () const override;
+
+    std::string
+    getText () const override
     {
-        return std::unique_ptr<STBase> (construct (sit, name));
+        return to_string (value_);
     }
 
-    SerializedTypeID getSType () const;
-
-    std::string getText () const
-    {
-        return to_string (bitString_);
-    }
-
-    bool isEquivalent (const STBase& t) const
+    bool
+    isEquivalent (const STBase& t) const override
     {
         const STBitString* v = dynamic_cast<const STBitString*> (&t);
-        return v && (bitString_ == v->bitString_);
+        return v && (value_ == v->value_);
     }
 
-    void add (Serializer& s) const
+    void
+    add (Serializer& s) const override
     {
         assert (fName->isBinary ());
         assert (fName->fieldType == getSType());
-        s.addBitString<Bits> (bitString_);
-    }
-
-    const BitString& getValue () const
-    {
-        return bitString_;
+        s.addBitString<Bits> (value_);
     }
 
     template <typename Tag>
     void setValue (base_uint<Bits, Tag> const& v)
     {
-        bitString_.copyFrom(v);
+        value_.copyFrom(v);
     }
 
-    operator BitString () const
+    value_type const&
+    value() const
     {
-        return bitString_;
+        return value_;
     }
 
-    virtual bool isDefault () const
+    operator value_type () const
     {
-        return bitString_ == zero;
+        return value_;
+    }
+
+    bool
+    isDefault () const override
+    {
+        return value_ == zero;
     }
 
 private:
-    BitString bitString_;
-
-    STBitString* duplicate () const
-    {
-        return new STBitString (*this);
-    }
-
-    static STBitString* construct (SerializerIterator& u, SField::ref name)
-    {
-        return new STBitString (name, u.getBitString<Bits> ());
-    }
+    value_type value_;
 };
 
+using STHash128 = STBitString<128>;
+using STHash160 = STBitString<160>;
+using STHash256 = STBitString<256>;
+
 template <>
-inline SerializedTypeID STBitString<128>::getSType () const
+inline
+SerializedTypeID
+STHash128::getSType () const
 {
     return STI_HASH128;
 }
 
 template <>
-inline SerializedTypeID STBitString<160>::getSType () const
+inline
+SerializedTypeID
+STHash160::getSType () const
 {
     return STI_HASH160;
 }
 
 template <>
-inline SerializedTypeID STBitString<256>::getSType () const
+inline
+SerializedTypeID
+STHash256::getSType () const
 {
     return STI_HASH256;
 }
-
-using STHash128 = STBitString<128>;
-using STHash160 = STBitString<160>;
-using STHash256 = STBitString<256>;
 
 } // ripple
 

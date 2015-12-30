@@ -18,15 +18,20 @@
 //==============================================================================
 
 #include <BeastConfig.h>
+#include <ripple/app/main/Application.h>
+#include <ripple/app/misc/UniqueNodeList.h>
+#include <ripple/protocol/JsonFields.h>
+#include <ripple/rpc/Context.h>
+#include <beast/utility/make_lock.h>
 
 namespace ripple {
 
 Json::Value doUnlList (RPC::Context& context)
 {
-    auto lock = getApp().masterLock();
+    auto lock = beast::make_lock(context.app.getMasterMutex());
     Json::Value obj (Json::objectValue);
 
-    obj["unl"] = getApp().getUNL ().getUnlJson ();
+    obj[jss::unl] = context.app.getUNL ().getUnlJson ();
 
     return obj;
 }

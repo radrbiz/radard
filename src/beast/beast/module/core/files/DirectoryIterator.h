@@ -21,8 +21,8 @@
 */
 //==============================================================================
 
-#ifndef BEAST_DIRECTORYITERATOR_H_INCLUDED
-#define BEAST_DIRECTORYITERATOR_H_INCLUDED
+#ifndef BEAST_MODULE_CORE_FILES_DIRECTORYITERATOR_H_INCLUDED
+#define BEAST_MODULE_CORE_FILES_DIRECTORYITERATOR_H_INCLUDED
 
 #include <memory>
 
@@ -41,7 +41,7 @@ namespace beast {
 
     It can also guess how far it's got using a wildly inaccurate algorithm.
 */
-class DirectoryIterator : LeakChecked <DirectoryIterator>
+class DirectoryIterator
 {
 public:
     //==============================================================================
@@ -119,7 +119,7 @@ public:
 
 private:
     //==============================================================================
-    class NativeIterator : LeakChecked <NativeIterator>
+    class NativeIterator
     {
     public:
         NativeIterator (const File& directory, const String& wildCard);

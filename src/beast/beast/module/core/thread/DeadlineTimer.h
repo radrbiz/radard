@@ -17,10 +17,8 @@
 */
 //==============================================================================
 
-#ifndef BEAST_DEADLINETIMER_H_INCLUDED
-#define BEAST_DEADLINETIMER_H_INCLUDED
-
-#include <beast/module/core/memory/SharedSingleton.h>
+#ifndef BEAST_MODULE_CORE_THREAD_DEADLINETIMER_H_INCLUDED
+#define BEAST_MODULE_CORE_THREAD_DEADLINETIMER_H_INCLUDED
 
 namespace beast {
 
@@ -51,7 +49,7 @@ public:
 
     DeadlineTimer (DeadlineTimer const&) = delete;
     DeadlineTimer& operator= (DeadlineTimer const&) = delete;
-    
+
     ~DeadlineTimer ();
 
     /** Cancel all notifications.
@@ -108,7 +106,6 @@ private:
     class Manager;
 
     Listener* const m_listener;
-    SharedPtr <SharedSingleton <Manager> > m_manager;
     bool m_isActive;
     RelativeTime m_notificationTime;
     double m_secondsRecurring; // non zero if recurring

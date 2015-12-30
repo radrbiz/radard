@@ -18,12 +18,13 @@
 //==============================================================================
 
 #include <BeastConfig.h>
+#include <ripple/basics/contract.h>
 #include <ripple/nodestore/impl/ManagerImp.h>
 #include <ripple/nodestore/impl/DatabaseImp.h>
 #include <ripple/nodestore/impl/DatabaseRotatingImp.h>
 #include <ripple/basics/StringUtilities.h>
 #include <beast/utility/ci_char_traits.h>
-#include <beast/cxx14/memory.h> // <memory>
+#include <memory>
 #include <stdexcept>
 
 namespace ripple {
@@ -32,16 +33,16 @@ namespace NodeStore {
 ManagerImp&
 ManagerImp::instance()
 {
-    static beast::static_initializer<ManagerImp> _;
-    return _.get();
+    static ManagerImp _;
+    return _;
 }
 
 void
 ManagerImp::missing_backend()
 {
-    throw std::runtime_error (
-        "Your rippled.cfg is missing a [node_db] entry, "
-        "please see the rippled-example.cfg file!"
+    Throw<std::runtime_error> (
+        "Your radard.cfg is missing a [node_db] entry, "
+        "please see the radard-example.cfg file!"
         );
 }
 
@@ -55,13 +56,13 @@ ManagerImp::~ManagerImp()
 
 std::unique_ptr <Backend>
 ManagerImp::make_Backend (
-    Parameters const& parameters,
+    Section const& parameters,
     Scheduler& scheduler,
     beast::Journal journal)
 {
     std::unique_ptr <Backend> backend;
 
-    std::string const type (parameters ["type"].toStdString ());
+    std::string const type (get<std::string>(parameters, "type"));
 
     if (! type.empty ())
     {
@@ -91,19 +92,17 @@ ManagerImp::make_Database (
     Scheduler& scheduler,
     beast::Journal journal,
     int readThreads,
-    Parameters const& backendParameters,
-    Parameters fastBackendParameters)
+    Section const& backendParameters)
 {
-    std::unique_ptr <Backend> backend (make_Backend (
-        backendParameters, scheduler, journal));
-
-    std::unique_ptr <Backend> fastBackend (
-        (fastBackendParameters.size () > 0)
-            ? make_Backend (fastBackendParameters, scheduler, journal)
-            : nullptr);
-
-    return std::make_unique <DatabaseImp> (name, scheduler, readThreads,
-        std::move (backend), std::move (fastBackend), journal);
+    return std::make_unique <DatabaseImp> (
+        name,
+        scheduler,
+        readThreads,
+        make_Backend (
+            backendParameters,
+            scheduler,
+            journal),
+        journal);
 }
 
 std::unique_ptr <DatabaseRotating>
@@ -113,12 +112,15 @@ ManagerImp::make_DatabaseRotating (
         std::int32_t readThreads,
         std::shared_ptr <Backend> writableBackend,
         std::shared_ptr <Backend> archiveBackend,
-        std::unique_ptr <Backend> fastBackend,
         beast::Journal journal)
 {
-    return std::make_unique <DatabaseRotatingImp> (name, scheduler,
-            readThreads, writableBackend, archiveBackend,
-            std::move (fastBackend), journal);
+    return std::make_unique <DatabaseRotatingImp> (
+        name,
+        scheduler,
+        readThreads,
+        writableBackend,
+        archiveBackend,
+        journal);
 }
 
 Factory*
@@ -167,11 +169,8 @@ std::unique_ptr <Backend>
 make_Backend (Section const& config,
     Scheduler& scheduler, beast::Journal journal)
 {
-    beast::StringPairArray v;
-    for (auto const& _ : config)
-        v.set (_.first, _.second);
     return Manager::instance().make_Backend (
-        v, scheduler, journal);
+        config, scheduler, journal);
 }
 
 }

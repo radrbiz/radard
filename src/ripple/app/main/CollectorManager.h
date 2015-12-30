@@ -17,10 +17,10 @@
 */
 //==============================================================================
 
-#ifndef RIPPLE_RIPPLECOLLECTOR_H_INCLUDED
-#define RIPPLE_RIPPLECOLLECTOR_H_INCLUDED
+#ifndef RIPPLE_APP_MAIN_COLLECTORMANAGER_H_INCLUDED
+#define RIPPLE_APP_MAIN_COLLECTORMANAGER_H_INCLUDED
 
-#include <beast/module/core/text/StringPairArray.h>
+#include <ripple/basics/BasicConfig.h>
 #include <beast/Insight.h>
 
 namespace ripple {
@@ -29,11 +29,13 @@ namespace ripple {
 class CollectorManager
 {
 public:
-    static CollectorManager* New (beast::StringPairArray const& params,
-        beast::Journal journal);
+    static std::unique_ptr<CollectorManager> New (
+        Section const& params, beast::Journal journal);
+
     virtual ~CollectorManager () = 0;
     virtual beast::insight::Collector::ptr const& collector () = 0;
-    virtual beast::insight::Group::ptr const& group (std::string const& name) = 0;
+    virtual beast::insight::Group::ptr const& group (
+        std::string const& name) = 0;
 };
 
 }

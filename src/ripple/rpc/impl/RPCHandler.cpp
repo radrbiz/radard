@@ -18,23 +18,25 @@
 //==============================================================================
 
 #include <BeastConfig.h>
+#include <ripple/app/main/Application.h>
 #include <ripple/rpc/RPCHandler.h>
-#include <ripple/rpc/Yield.h>
 #include <ripple/rpc/impl/Tuning.h>
-#include <ripple/rpc/impl/Context.h>
 #include <ripple/rpc/impl/Handler.h>
-#include <ripple/rpc/impl/WriteJson.h>
+#include <ripple/app/main/Application.h>
 #include <ripple/app/ledger/LedgerMaster.h>
 #include <ripple/app/misc/NetworkOPs.h>
+#include <ripple/basics/contract.h>
 #include <ripple/basics/Log.h>
 #include <ripple/core/Config.h>
 #include <ripple/core/JobQueue.h>
+#include <ripple/json/Object.h>
 #include <ripple/json/to_string.h>
 #include <ripple/net/InfoSub.h>
 #include <ripple/net/RPCErr.h>
 #include <ripple/protocol/JsonFields.h>
-#include <ripple/rpc/impl/Context.h>
+#include <ripple/resource/Fees.h>
 #include <ripple/server/Role.h>
+#include <ripple/resource/Fees.h>
 
 namespace ripple {
 namespace RPC {
@@ -110,14 +112,14 @@ namespace {
 error_code_i fillHandler (Context& context,
                           boost::optional<Handler const&>& result)
 {
-    if (context.role != Role::ADMIN)
+    if (! isUnlimited (context.role))
     {
         // VFALCO NOTE Should we also add up the jtRPC jobs?
         //
-        int jc = getApp().getJobQueue ().getJobCountGE (jtCLIENT);
+        int jc = context.app.getJobQueue ().getJobCountGE (jtCLIENT);
         if (jc > Tuning::maxJobQueueClients)
         {
-            WriteLog (lsDEBUG, RPCHandler) << "Too busy for command: " << jc;
+            JLOG (context.j.debug) << "Too busy for command: " << jc;
             return rpcTOO_BUSY;
         }
     }
@@ -127,8 +129,8 @@ error_code_i fillHandler (Context& context,
 
     std::string strCommand  = context.params[jss::command].asString ();
 
-    WriteLog (lsTRACE, RPCHandler) << "COMMAND:" << strCommand;
-    WriteLog (lsTRACE, RPCHandler) << "REQUEST:" << context.params;
+    JLOG (context.j.trace) << "COMMAND:" << strCommand;
+    JLOG (context.j.trace) << "REQUEST:" << context.params;
 
     auto handler = getHandler(strCommand);
 
@@ -141,23 +143,35 @@ error_code_i fillHandler (Context& context,
     if ((handler->condition_ & NEEDS_NETWORK_CONNECTION) &&
         (context.netOps.getOperatingMode () < NetworkOPs::omSYNCING))
     {
-        WriteLog (lsINFO, RPCHandler)
+        JLOG (context.j.info)
             << "Insufficient network mode for RPC: "
             << context.netOps.strOperatingMode ();
 
         return rpcNO_NETWORK;
     }
 
-    if (!getConfig ().RUN_STANDALONE
-        && (handler->condition_ & NEEDS_CURRENT_LEDGER)
-        && (getApp().getLedgerMaster().getValidatedLedgerAge() >
-            Tuning::maxValidatedLedgerAge))
+    if (!context.app.config().RUN_STANDALONE &&
+        handler->condition_ & NEEDS_CURRENT_LEDGER)
     {
-        return rpcNO_CURRENT;
+        if (context.ledgerMaster.getValidatedLedgerAge () >
+            Tuning::maxValidatedLedgerAge)
+        {
+            return rpcNO_CURRENT;
+        }
+
+        auto const cID = context.ledgerMaster.getCurrentLedgerIndex ();
+        auto const vID = context.ledgerMaster.getValidLedgerIndex ();
+
+        if (cID + 10 < vID)
+        {
+            JLOG (context.j.debug) << "Current ledger ID(" << cID <<
+                ") is less than validated ledger ID(" << vID << ")";
+            return rpcNO_CURRENT;
+        }
     }
 
     if ((handler->condition_ & NEEDS_CLOSED_LEDGER) &&
-        !context.netOps.getClosedLedger ())
+        !context.ledgerMaster.getClosedLedger ())
     {
         return rpcNO_CLOSED;
     }
@@ -172,13 +186,13 @@ Status callMethod (
 {
     try
     {
-        auto v = getApp().getJobQueue().getLoadEventAP(
+        auto v = context.app.getJobQueue().getLoadEventAP(
             jtGENERIC, "cmd:" + name);
         return method (context, result);
     }
     catch (std::exception& e)
     {
-        WriteLog (lsINFO, RPCHandler) << "Caught throw: " << e.what ();
+        JLOG (context.j.info) << "Caught throw: " << e.what ();
 
         if (context.loadType == Resource::feeReferenceRPC)
             context.loadType = Resource::feeExceptionRPC;
@@ -192,10 +206,10 @@ template <class Method, class Object>
 void getResult (
     Context& context, Method method, Object& object, std::string const& name)
 {
-    auto&& result = addObject (object, jss::result);
+    auto&& result = Json::addObject (object, jss::result);
     if (auto status = callMethod (context, method, name, result))
     {
-        WriteLog (lsDEBUG, RPCErr) << "rpcError: " << status.toString();
+        JLOG (context.j.debug) << "rpcError: " << status.toString();
         result[jss::status] = jss::error;
         result[jss::request] = context.params;
     }
@@ -208,7 +222,7 @@ void getResult (
 } // namespace
 
 Status doCommand (
-    RPC::Context& context, Json::Value& result, YieldStrategy const&)
+    RPC::Context& context, Json::Value& result)
 {
     boost::optional <Handler const&> handler;
     if (auto error = fillHandler (context, handler))
@@ -218,42 +232,69 @@ Status doCommand (
     }
 
     if (auto method = handler->valueMethod_)
-        return callMethod (context, method, handler->name_, result);
+    {
+        if (! context.headers.user.empty() ||
+            ! context.headers.forwardedFor.empty())
+        {
+            context.j.debug << "start command: " << handler->name_ <<
+                ", X-User: " << context.headers.user << ", X-Forwarded-For: " <<
+                    context.headers.forwardedFor;
+
+            auto ret = callMethod (context, method, handler->name_, result);
+
+            context.j.debug << "finish command: " << handler->name_ <<
+                ", X-User: " << context.headers.user << ", X-Forwarded-For: " <<
+                    context.headers.forwardedFor;
+
+            return ret;
+        }
+        else
+        {
+            return callMethod (context, method, handler->name_, result);
+        }
+    }
 
     return rpcUNKNOWN_COMMAND;
 }
 
 /** Execute an RPC command and store the results in a string. */
 void executeRPC (
-    RPC::Context& context, std::string& output, YieldStrategy const& strategy)
+    RPC::Context& context, std::string& output)
 {
     boost::optional <Handler const&> handler;
     if (auto error = fillHandler (context, handler))
     {
-        auto wo = stringWriterObject (output);
-        auto&& sub = addObject (*wo, jss::result);
+        auto wo = Json::stringWriterObject (output);
+        auto&& sub = Json::addObject (*wo, jss::result);
         inject_error (error, sub);
     }
     else if (auto method = handler->objectMethod_)
     {
-        auto wo = stringWriterObject (output);
+        auto wo = Json::stringWriterObject (output);
         getResult (context, method, *wo, handler->name_);
     }
     else if (auto method = handler->valueMethod_)
     {
         auto object = Json::Value (Json::objectValue);
         getResult (context, method, object, handler->name_);
-        if (strategy.streaming == YieldStrategy::Streaming::yes)
-            output = jsonAsString (object);
-        else
-            output = to_string (object);
+        output = to_string (object);
     }
     else
     {
         // Can't ever get here.
         assert (false);
-        throw RPC::JsonException ("RPC handler with no method");
+        Throw<std::logic_error> ("RPC handler with no method");
     }
+}
+
+Role roleRequired (std::string const& method)
+{
+    auto handler = RPC::getHandler(method);
+
+    if (!handler)
+        return Role::FORBID;
+
+    return handler->role_;
 }
 
 } // RPC

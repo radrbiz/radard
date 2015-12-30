@@ -18,6 +18,10 @@
 //==============================================================================
 
 #include <BeastConfig.h>
+#include <ripple/app/misc/NetworkOPs.h>
+#include <ripple/json/json_value.h>
+#include <ripple/protocol/JsonFields.h>
+#include <ripple/rpc/Context.h>
 
 namespace ripple {
 
@@ -25,13 +29,13 @@ Json::Value doFetchInfo (RPC::Context& context)
 {
     Json::Value ret (Json::objectValue);
 
-    if (context.params.isMember("clear") && context.params["clear"].asBool())
+    if (context.params.isMember(jss::clear) && context.params[jss::clear].asBool())
     {
         context.netOps.clearLedgerFetch();
-        ret["clear"] = true;
+        ret[jss::clear] = true;
     }
 
-    ret["info"] = context.netOps.getLedgerFetchInfo();
+    ret[jss::info] = context.netOps.getLedgerFetchInfo();
 
     return ret;
 }

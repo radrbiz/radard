@@ -21,13 +21,12 @@
 
 #include <beast/nudb/nudb.cpp>
 
-#include <ripple/nodestore/backend/HyperDBFactory.cpp>
-#include <ripple/nodestore/backend/LevelDBFactory.cpp>
 #include <ripple/nodestore/backend/MemoryFactory.cpp>
 #include <ripple/nodestore/backend/NuDBFactory.cpp>
 #include <ripple/nodestore/backend/NullFactory.cpp>
 #include <ripple/nodestore/backend/RocksDBFactory.cpp>
 #include <ripple/nodestore/backend/RocksDBQuickFactory.cpp>
+#include <ripple/nodestore/backend/HBaseFactory.cpp>
 
 #include <ripple/nodestore/impl/BatchWriter.cpp>
 #include <ripple/nodestore/impl/DatabaseImp.h>

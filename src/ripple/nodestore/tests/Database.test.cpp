@@ -35,9 +35,9 @@ public:
         DummyScheduler scheduler;
 
         beast::UnitTestUtilities::TempDirectory node_db ("node_db");
-        beast::StringPairArray srcParams;
+        Section srcParams;
         srcParams.set ("type", srcBackendType);
-        srcParams.set ("path", node_db.getFullPathName ());
+        srcParams.set ("path", node_db.getFullPathName ().toStdString ());
 
         // Create a batch
         Batch batch;
@@ -61,9 +61,9 @@ public:
 
             // Set up the destination database
             beast::UnitTestUtilities::TempDirectory dest_db ("dest_db");
-            beast::StringPairArray destParams;
+            Section destParams;
             destParams.set ("type", destBackendType);
-            destParams.set ("path", dest_db.getFullPathName ());
+            destParams.set ("path", dest_db.getFullPathName ().toStdString ());
 
             std::unique_ptr <Database> dest = Manager::instance().make_Database (
                 "test", scheduler, j, 2, destParams);
@@ -79,15 +79,14 @@ public:
         }
 
         // Canonicalize the source and destination batches
-        std::sort (batch.begin (), batch.end (), NodeObject::LessThan ());
-        std::sort (copy.begin (), copy.end (), NodeObject::LessThan ());
+        std::sort (batch.begin (), batch.end (), LessThan{});
+        std::sort (copy.begin (), copy.end (), LessThan{});
         expect (areBatchesEqual (batch, copy), "Should be equal");
     }
 
     //--------------------------------------------------------------------------
 
     void testNodeStore (std::string const& type,
-                        bool const useEphemeralDatabase,
                         bool const testPersistence,
                         std::int64_t const seedValue,
                         int numObjectsToTest = 2000)
@@ -95,23 +94,13 @@ public:
         DummyScheduler scheduler;
 
         std::string s = "NodeStore backend '" + type + "'";
-        if (useEphemeralDatabase)
-            s += " (with ephemeral database)";
 
         testcase (s);
 
         beast::UnitTestUtilities::TempDirectory node_db ("node_db");
-        beast::StringPairArray nodeParams;
+        Section nodeParams;
         nodeParams.set ("type", type);
-        nodeParams.set ("path", node_db.getFullPathName ());
-
-        beast::UnitTestUtilities::TempDirectory temp_db ("temp_db");
-        beast::StringPairArray tempParams;
-        if (useEphemeralDatabase)
-        {
-            tempParams.set ("type", type);
-            tempParams.set ("path", temp_db.getFullPathName ());
-        }
+        nodeParams.set ("path", node_db.getFullPathName ().toStdString ());
 
         // Create a batch
         Batch batch;
@@ -122,7 +111,7 @@ public:
         {
             // Open the database
             std::unique_ptr <Database> db = Manager::instance().make_Database (
-                "test", scheduler, j, 2, nodeParams, tempParams);
+                "test", scheduler, j, 2, nodeParams);
 
             // Write the batch
             storeBatch (*db, batch);
@@ -155,24 +144,8 @@ public:
                 fetchCopyOfBatch (*db, &copy, batch);
 
                 // Canonicalize the source and destination batches
-                std::sort (batch.begin (), batch.end (), NodeObject::LessThan ());
-                std::sort (copy.begin (), copy.end (), NodeObject::LessThan ());
-                expect (areBatchesEqual (batch, copy), "Should be equal");
-            }
-
-            if (useEphemeralDatabase)
-            {
-                // Verify the ephemeral db
-                std::unique_ptr <Database> db = Manager::instance().make_Database ("test",
-                    scheduler, j, 2, tempParams, beast::StringPairArray ());
-
-                // Read it back in
-                Batch copy;
-                fetchCopyOfBatch (*db, &copy, batch);
-
-                // Canonicalize the source and destination batches
-                std::sort (batch.begin (), batch.end (), NodeObject::LessThan ());
-                std::sort (copy.begin (), copy.end (), NodeObject::LessThan ());
+                std::sort (batch.begin (), batch.end (), LessThan{});
+                std::sort (copy.begin (), copy.end (), LessThan{});
                 expect (areBatchesEqual (batch, copy), "Should be equal");
             }
         }
@@ -180,22 +153,12 @@ public:
 
     //--------------------------------------------------------------------------
 
-    void runBackendTests (bool useEphemeralDatabase, std::int64_t const seedValue)
+    void runBackendTests (std::int64_t const seedValue)
     {
-        testNodeStore ("nudb", useEphemeralDatabase, true, seedValue);
-
-        testNodeStore ("leveldb", useEphemeralDatabase, true, seedValue);
-
-    #if RIPPLE_HYPERLEVELDB_AVAILABLE
-        testNodeStore ("hyperleveldb", useEphemeralDatabase, true, seedValue);
-    #endif
+        testNodeStore ("nudb", true, seedValue);
 
     #if RIPPLE_ROCKSDB_AVAILABLE
-        testNodeStore ("rocksdb", useEphemeralDatabase, true, seedValue);
-    #endif
-
-    #if RIPPLE_ENABLE_SQLITE_BACKEND_TESTS
-        testNodeStore ("sqlite", useEphemeralDatabase, true, seedValue);
+        testNodeStore ("rocksdb", true, seedValue);
     #endif
     }
 
@@ -204,12 +167,6 @@ public:
     void runImportTests (std::int64_t const seedValue)
     {
         testImport ("nudb", "nudb", seedValue);
-
-        testImport ("leveldb", "leveldb", seedValue);
-        
-    #if RIPPLE_HYPERLEVELDB_AVAILABLE
-        testImport ("hyperleveldb", "hyperleveldb", seedValue);
-    #endif
 
     #if RIPPLE_ROCKSDB_AVAILABLE
         testImport ("rocksdb", "rocksdb", seedValue);
@@ -226,11 +183,9 @@ public:
     {
         std::int64_t const seedValue = 50;
 
-        testNodeStore ("memory", false, false, seedValue);
+        testNodeStore ("memory", false, seedValue);
 
-        runBackendTests (false, seedValue);
-
-        runBackendTests (true, seedValue);
+        runBackendTests (seedValue);
 
         runImportTests (seedValue);
     }

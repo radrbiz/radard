@@ -19,7 +19,7 @@
 
 #include <BeastConfig.h>
 #include <ripple/peerfinder/impl/SlotImp.h>
-#include <ripple/peerfinder/Manager.h>
+#include <ripple/peerfinder/PeerfinderManager.h>
 #include <ripple/peerfinder/impl/Tuning.h>
 
 namespace ripple {
@@ -35,6 +35,7 @@ SlotImp::SlotImp (beast::IP::Endpoint const& local_endpoint,
     , m_state (accept)
     , m_remote_endpoint (remote_endpoint)
     , m_local_endpoint (local_endpoint)
+    , m_listening_port (unknownPort)
     , checked (false)
     , canAccept (false)
     , connectivityCheckInProgress (false)
@@ -49,6 +50,7 @@ SlotImp::SlotImp (beast::IP::Endpoint const& remote_endpoint,
     , m_cluster (false)
     , m_state (connect)
     , m_remote_endpoint (remote_endpoint)
+    , m_listening_port (unknownPort)
     , checked (true)
     , canAccept (true)
     , connectivityCheckInProgress (false)

@@ -57,7 +57,7 @@ public:
 
     std::unique_ptr <Backend>
     make_Backend (
-        Parameters const& parameters,
+        Section const& parameters,
         Scheduler& scheduler,
         beast::Journal journal) override;
 
@@ -67,8 +67,7 @@ public:
         Scheduler& scheduler,
         beast::Journal journal,
         int readThreads,
-        Parameters const& backendParameters,
-        Parameters fastBackendParameters) override;
+        Section const& backendParameters) override;
 
     std::unique_ptr <DatabaseRotating>
     make_DatabaseRotating (
@@ -77,7 +76,6 @@ public:
         std::int32_t readThreads,
         std::shared_ptr <Backend> writableBackend,
         std::shared_ptr <Backend> archiveBackend,
-        std::unique_ptr <Backend> fastBackend,
         beast::Journal journal) override;
 };
 

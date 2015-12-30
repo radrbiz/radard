@@ -62,6 +62,7 @@ enum error_code_i
     rpcACT_NOT_FOUND,
     rpcINSUF_FUNDS,
     rpcLGR_NOT_FOUND,
+    rpcLGR_NOT_VALIDATED,
     rpcMASTER_DISABLED,
     rpcNO_ACCOUNT,
     rpcNO_PATH,
@@ -90,6 +91,7 @@ enum error_code_i
     rpcDST_ACT_MALFORMED,
     rpcDST_ACT_MISSING,
     rpcDST_AMT_MALFORMED,
+    rpcDST_AMT_MISSING,
     rpcDST_ISR_MALFORMED,
     rpcGETS_ACT_MALFORMED,
     rpcGETS_AMT_MALFORMED,
@@ -100,6 +102,8 @@ enum error_code_i
     rpcPAYS_AMT_MALFORMED,
     rpcPORT_MALFORMED,
     rpcPUBLIC_MALFORMED,
+    rpcSIGN_FOR_MALFORMED,
+    rpcSENDMAX_MALFORMED,
     rpcSRC_ACT_MALFORMED,
     rpcSRC_ACT_MISSING,
     rpcSRC_ACT_NOT_FOUND,
@@ -113,10 +117,8 @@ enum error_code_i
 
     // Internal error (should never happen)
     rpcINTERNAL,        // Generic internal error.
-    rpcFAIL_GEN_DECRYPT,
     rpcNOT_IMPL,
     rpcNOT_SUPPORTED,
-    rpcNO_GEN_DECRYPT,
 };
 
 //------------------------------------------------------------------------------
@@ -195,6 +197,11 @@ inline Json::Value missing_field_error (std::string const& name)
     return make_param_error (missing_field_message (name));
 }
 
+inline Json::Value missing_field_error (Json::StaticString name)
+{
+    return missing_field_error (std::string (name));
+}
+
 inline std::string object_field_message (std::string const& name)
 {
     return "Invalid field '" + name + "', not object.";
@@ -205,14 +212,29 @@ inline Json::Value object_field_error (std::string const& name)
     return make_param_error (object_field_message (name));
 }
 
+inline Json::Value object_field_error (Json::StaticString name)
+{
+    return object_field_error (std::string (name));
+}
+
 inline std::string invalid_field_message (std::string const& name)
 {
     return "Invalid field '" + name + "'.";
 }
 
+inline std::string invalid_field_message (Json::StaticString name)
+{
+    return invalid_field_message (std::string(name));
+}
+
 inline Json::Value invalid_field_error (std::string const& name)
 {
     return make_param_error (invalid_field_message (name));
+}
+
+inline Json::Value invalid_field_error (Json::StaticString name)
+{
+    return invalid_field_error (std::string (name));
 }
 
 inline std::string expected_field_message (
@@ -221,10 +243,22 @@ inline std::string expected_field_message (
     return "Invalid field '" + name + "', not " + type + ".";
 }
 
+inline std::string expected_field_message (
+    Json::StaticString name, std::string const& type)
+{
+    return expected_field_message (std::string (name), type);
+}
+
 inline Json::Value expected_field_error (
     std::string const& name, std::string const& type)
 {
     return make_param_error (expected_field_message (name, type));
+}
+
+inline Json::Value expected_field_error (
+    Json::StaticString name, std::string const& type)
+{
+    return expected_field_error (std::string (name), type);
 }
 
 /** @} */
@@ -232,7 +266,10 @@ inline Json::Value expected_field_error (
 /** Returns `true` if the json contains an rpc error specification. */
 bool contains_error (Json::Value const& json);
 
-}
+} // RPC
+
+/** Returns a single string with the contents of an RPC error. */
+std::string rpcErrorString(Json::Value const& jv);
 
 }
 

@@ -21,7 +21,6 @@
 #ifndef BEAST_HASH_SIPHASH_H_INCLUDED
 #define BEAST_HASH_SIPHASH_H_INCLUDED
 
-#include <beast/utility/noexcept.h>
 #include <cstddef>
 #include <cstdint>
 
@@ -42,13 +41,15 @@ private:
 public:
     using result_type = std::size_t;
 
+    static beast::endian const endian = beast::endian::native;
+
     siphash() = default;
 
     explicit
     siphash (std::uint64_t k0, std::uint64_t k1 = 0) noexcept;
 
     void
-    append (void const* key, std::size_t len) noexcept;
+    operator() (void const* key, std::size_t len) noexcept;
 
     explicit
     operator std::size_t() noexcept;

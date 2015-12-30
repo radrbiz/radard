@@ -17,13 +17,15 @@
 */
 //==============================================================================
 
-#ifndef RIPPLE_SERIALIZEDTRANSACTION_H
-#define RIPPLE_SERIALIZEDTRANSACTION_H
+#ifndef RIPPLE_PROTOCOL_STTX_H_INCLUDED
+#define RIPPLE_PROTOCOL_STTX_H_INCLUDED
 
-#include <ripple/app/data/Database.h>
+#include <ripple/core/DatabaseCon.h>
 #include <ripple/protocol/STObject.h>
 #include <ripple/protocol/TxFormats.h>
+#include <boost/container/flat_set.hpp>
 #include <boost/logic/tribool.hpp>
+#include <boost/optional.hpp>
 
 namespace ripple {
 
@@ -35,15 +37,15 @@ namespace ripple {
 #define TXN_SQL_INCLUDED    'I'
 #define TXN_SQL_UNKNOWN     'U'
 
-class STTx
+class STTx final
     : public STObject
     , public CountedObject <STTx>
 {
 public:
     static char const* getCountedObjectName () { return "STTx"; }
 
-    typedef std::shared_ptr<STTx>        pointer;
-    typedef const std::shared_ptr<STTx>& ref;
+    static std::size_t const minMultiSigners = 1;
+    static std::size_t const maxMultiSigners = 8;
 
 public:
     STTx () = delete;
@@ -51,20 +53,32 @@ public:
 
     STTx (STTx const& other) = default;
 
-    explicit STTx (SerializerIterator& sit);
+    explicit STTx (SerialIter& sit);
+    explicit STTx (SerialIter&& sit) : STTx(sit) {}
     explicit STTx (TxType type);
-    
-    // Only called from ripple::RPC::transactionSign - can we eliminate this?
-    explicit STTx (STObject const& object);
 
-    // STObject functions
-    SerializedTypeID getSType () const
+    explicit STTx (STObject&& object);
+
+    STBase*
+    copy (std::size_t n, void* buf) const override
+    {
+        return emplace(n, buf, *this);
+    }
+
+    STBase*
+    move (std::size_t n, void* buf) override
+    {
+        return emplace(n, buf, std::move(*this));
+    }
+
+    // STObject functions.
+    SerializedTypeID getSType () const override
     {
         return STI_TRANSACTION;
     }
-    std::string getFullText () const;
+    std::string getFullText () const override;
 
-    // outer transaction functions / signature functions
+    // Outer transaction functions / signature functions.
     Blob getSignature () const;
 
     uint256 getSigningHash () const;
@@ -73,25 +87,12 @@ public:
     {
         return tx_type_;
     }
-    STAmount getTransactionFee () const
-    {
-        return getFieldAmount (sfFee);
-    }
-    void setTransactionFee (const STAmount & fee)
-    {
-        setFieldAmount (sfFee, fee);
-    }
 
-    RippleAddress getSourceAccount () const
-    {
-        return getFieldAccount (sfAccount);
-    }
     Blob getSigningPubKey () const
     {
         return getFieldVL (sfSigningPubKey);
     }
     void setSigningPubKey (const RippleAddress & naSignPubKey);
-    void setSourceAccount (const RippleAddress & naSource);
 
     std::uint32_t getSequence () const
     {
@@ -102,38 +103,22 @@ public:
         return setFieldU32 (sfSequence, seq);
     }
 
-    std::vector<RippleAddress> getMentionedAccounts () const;
+    boost::container::flat_set<AccountID>
+    getMentionedAccounts() const;
 
     uint256 getTransactionID () const;
 
-    virtual Json::Value getJson (int options) const;
-    virtual Json::Value getJson (int options, bool binary) const;
+    Json::Value getJson (int options) const override;
+    Json::Value getJson (int options, bool binary) const;
 
     void sign (RippleAddress const& private_key);
 
-    bool checkSign () const;
+    bool checkSign(bool allowMultiSign) const;
 
-    bool isKnownGood () const
-    {
-        return (sig_state_ == true);
-    }
-    bool isKnownBad () const
-    {
-        return (sig_state_ == false);
-    }
-    void setGood () const
-    {
-        sig_state_ = true;
-    }
-    void setBad () const
-    {
-        sig_state_ = false;
-    }
-
-    // SQL Functions with metadata
+    // SQL Functions with metadata.
     static
     std::string const&
-    getMetaSQLInsertReplaceHeader (const Database::Type dbType);
+    getMetaSQLInsertReplaceHeader (const DatabaseCon::Type dbType);
 
     std::string getMetaSQL (
         std::uint32_t inLedger, std::string const& escapedMetaData, std::uint32_t closeTime) const;
@@ -146,18 +131,24 @@ public:
         std::uint32_t closeTime) const;
 
 private:
-    STTx* duplicate () const override
-    {
-        return new STTx (*this);
-    }
+    bool checkSingleSign () const;
+    bool checkMultiSign () const;
 
+    boost::optional<uint256> tid_;
     TxType tx_type_;
-
-    mutable boost::tribool sig_state_;
 };
 
 bool passesLocalChecks (STObject const& st, std::string&);
-bool passesLocalChecks (STObject const& st);
+
+/** Sterilize a transaction.
+
+    The transaction is serialized and then deserialized,
+    ensuring that all equivalent transactions are in canonical
+    form. This also ensures that program metadata such as
+    the transaction's digest, are all computed.
+*/
+std::shared_ptr<STTx const>
+sterilize (STTx const& stx);
 
 } // ripple
 

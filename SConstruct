@@ -15,11 +15,13 @@
 
     clang           All clang variants
     clang.debug     clang debug variant
+    clang.coverage  clang coverage variant
     clang.release   clang release variant
     clang.profile   clang profile variant
 
     gcc             All gcc variants
     gcc.debug       gcc debug variant
+    gcc.coverage    gcc coverage variant
     gcc.release     gcc release variant
     gcc.profile     gcc profile variant
 
@@ -39,6 +41,53 @@
 If the clang toolchain is detected, then the default target will use it, else
 the gcc toolchain will be used. On Windows environments, the MSVC toolchain is
 also detected.
+
+The following environment variables modify the build environment:
+    CLANG_CC
+    CLANG_CXX
+    CLANG_LINK
+      If set, a clang toolchain will be used. These must all be set together.
+
+    GNU_CC
+    GNU_CXX
+    GNU_LINK
+      If set, a gcc toolchain will be used (unless a clang toolchain is
+      detected first). These must all be set together.
+
+    CXX
+      If set, used to detect a toolchain.
+
+    BOOST_ROOT
+      Path to the boost directory.
+    OPENSSL_ROOT
+      Path to the openssl directory.
+    PROTOBUF_DIR
+      Path to the protobuf directory. This is usually only needed when
+      the installed protobuf library uses a different ABI than clang
+      (as with ubuntu 15.10).
+
+The following extra options may be used:
+    --ninja         Generate a `build.ninja` build file for the specified target
+                    (see: https://martine.github.io/ninja/). Only gcc and clang targets
+                     are supported.
+
+    --static        On linux, link protobuf, openssl, libc++, and boost statically
+
+GCC 5: If the gcc toolchain is used, gcc version 5 or better is required. On
+    linux distros that ship with gcc 4 (ubuntu < 15.10), rippled will force gcc
+    to use gcc4's ABI (there was an ABI change between versions). This allows us
+    to use the package manager to install rippled dependencies. It also means if
+    the user builds C++ dependencies themselves - such as boost - they must
+    either be built with gcc 4 or with the preprocessor flag
+    `_GLIBCXX_USE_CXX11_ABI` set to zero.
+
+Clang on linux: Clang cannot use the new gcc 5 ABI (clang does not know about
+    the `abi_tag` attribute). On linux distros that ship with the gcc 5 ABI
+    (ubuntu >= 15.10), building with clang requires building boost and protobuf
+    with the old ABI (best to build them with clang). It is best to statically
+    link rippled in this scenario (use the `--static` with scons), as dynamic
+    linking may use a library with the incorrect ABI.
+
 
 '''
 #
@@ -63,34 +112,83 @@ import time
 import SCons.Action
 
 sys.path.append(os.path.join('src', 'beast', 'site_scons'))
+sys.path.append(os.path.join('src', 'ripple', 'site_scons'))
 
 import Beast
+import scons_to_ninja
 
 #------------------------------------------------------------------------------
 
-def parse_time(t):
-    return time.strptime(t, '%a %b %d %H:%M:%S %Z %Y')
+AddOption('--ninja', dest='ninja', action='store_true',
+          help='generate ninja build file build.ninja')
 
-CHECK_PLATFORMS = 'Debian', 'Ubuntu'
-CHECK_COMMAND = 'openssl version -a'
-CHECK_LINE = 'built on: '
-BUILD_TIME = 'Mon Apr  7 20:33:19 UTC 2014'
-OPENSSL_ERROR = ('Your openSSL was built on %s; '
-                 'radard needs a version built on or after %s.')
+AddOption('--static', dest='static', action='store_true',
+          help='On linux, link protobuf, openssl, libc++, and boost statically')
+
+def parse_time(t):
+    l = len(t.split())
+    if l==5:
+        return time.strptime(t, '%a %b %d %H:%M:%S %Y')
+    elif l==3:
+        return time.strptime(t, '%d %b %Y')
+    else:
+        return time.strptime(t, '%a %b %d %H:%M:%S %Z %Y')
+
 UNITY_BUILD_DIRECTORY = 'src/ripple/unity/'
 
+def memoize(function):
+  memo = {}
+  def wrapper(*args):
+    if args in memo:
+      return memo[args]
+    else:
+      rv = function(*args)
+      memo[args] = rv
+      return rv
+  return wrapper
+
 def check_openssl():
-    if Beast.system.platform in CHECK_PLATFORMS:
-        for line in subprocess.check_output(CHECK_COMMAND.split()).splitlines():
-            if line.startswith(CHECK_LINE):
-                line = line[len(CHECK_LINE):]
-                if parse_time(line) < parse_time(BUILD_TIME):
-                    raise Exception(OPENSSL_ERROR % (line, BUILD_TIME))
-                else:
-                    break
-        else:
-            raise Exception("Didn't find any '%s' line in '$ %s'" %
-                            (CHECK_LINE, CHECK_COMMAND))
+    if Beast.system.platform not in ['Debian', 'Ubuntu']:
+        return
+    line = subprocess.check_output('openssl version -b'.split()).strip()
+    check_line = 'built on: '
+    if not line.startswith(check_line):
+        raise Exception("Didn't find any '%s' line in '$ %s'" %
+                        (check_line, 'openssl version -b'))
+    d = line[len(check_line):]
+    if 'date unspecified' in d:
+        words = subprocess.check_output('openssl version'.split()).split()
+        if len(words)!=5:
+            raise Exception("Didn't find version date in '$ openssl version'")
+        d = ' '.join(words[-3:])
+    build_time = 'Mon Apr  7 20:33:19 UTC 2014'
+    if parse_time(d) < parse_time(build_time):
+        raise Exception('Your openSSL was built on %s; '
+                        'rippled needs a version built on or after %s.'
+                        % (line, build_time))
+
+
+def set_implicit_cache():
+    '''Use implicit_cache on some targets to improve build times.
+
+    By default, scons scans each file for include dependecies. The implicit
+    cache flag lets you cache these dependencies for later builds, and will
+    only rescan files that change.
+
+    Failure cases are:
+    1) If the include search paths are changed (i.e. CPPPATH), then a file
+       may not be rebuilt.
+    2) If a same-named file has been added to a directory that is earlier in
+       the search path than the directory in which the file was found.
+    Turn on if this build is for a specific debug target (i.e. clang.debug)
+
+    If one of the failure cases applies, you can force a rescan of dependencies
+    using the command line option `--implicit-deps-changed`
+    '''
+    if len(COMMAND_LINE_TARGETS) == 1:
+        s = COMMAND_LINE_TARGETS[0].split('.')
+        if len(s) > 1 and 'debug' in s:
+            SetOption('implicit_cache', 1)
 
 
 def import_environ(env):
@@ -197,6 +295,41 @@ def print_coms(target, source, env):
     # TODO Add 'PROTOCCOM' to this list and make it work
     Beast.print_coms(['CXXCOM', 'CCCOM', 'LINKCOM'], env)
 
+def is_debug_variant(variant):
+  return variant in ('debug', 'coverage')
+
+@memoize
+def is_ubuntu():
+    try:
+        return "Ubuntu" == subprocess.check_output(['lsb_release', '-si'],
+                                                   stderr=subprocess.STDOUT).strip()
+    except:
+        return False
+
+@memoize
+def use_gcc4_abi(cc_cmd):
+    if os.getenv('RIPPLED_OLD_GCC_ABI'):
+        return True
+    gcc_ver = ''
+    ubuntu_ver = None
+    try:
+        if 'gcc' in cc_cmd:
+            gcc_ver = subprocess.check_output([cc_cmd, '-dumpversion'],
+                                            stderr=subprocess.STDOUT).strip()
+        else:
+            gcc_ver = '5' # assume gcc 5 for ABI purposes for clang
+
+        if is_ubuntu():
+            ubuntu_ver = float(
+                subprocess.check_output(['lsb_release', '-sr'],
+                    stderr=subprocess.STDOUT).strip())
+    except:
+        print("Unable to determine gcc version. Assuming native ABI.")
+        return False
+    if ubuntu_ver and ubuntu_ver < 15.1 and gcc_ver.startswith('5'):
+        return True
+    return False
+
 #-------------------------------------------------------------------------------
 
 # Set construction variables for the base environment
@@ -212,23 +345,24 @@ def config_base(env):
     env.Append(CPPDEFINES=[
         'OPENSSL_NO_SSL2'
         ,'DEPRECATED_IN_MAC_OS_X_VERSION_10_7_AND_LATER'
+        ,{'HAVE_USLEEP' : '1'}
+        ,{'SOCI_CXX_C11' : '1'}
+        ,'_SILENCE_STDEXT_HASH_DEPRECATION_WARNINGS'
+        ,'-DBOOST_NO_AUTO_PTR'
         ])
-
-    #use async dividend
-    #env.Append(CPPDEFINES=['RADAR_ASYNC_DIVIDEND'])
-
-    if Beast.system.linux and ARGUMENTS.get('use-sha512-asm'):
-        env.Append(CPPDEFINES=['USE_SHA512_ASM'])
 
     try:
         BOOST_ROOT = os.path.normpath(os.environ['BOOST_ROOT'])
-        env.Append(CPPPATH=[
-            BOOST_ROOT,
-            ])
         env.Append(LIBPATH=[
             os.path.join(BOOST_ROOT, 'stage', 'lib'),
             ])
         env['BOOST_ROOT'] = BOOST_ROOT
+    except KeyError:
+        pass
+
+    try:
+        protobuf_dir = os.environ['PROTOBUF_DIR']
+        env.Append(LIBPATH=[protobuf_dir])
     except KeyError:
         pass
 
@@ -239,7 +373,7 @@ def config_base(env):
                 os.path.join(OPENSSL_ROOT, 'include'),
                 ])
             env.Append(LIBPATH=[
-                os.path.join(OPENSSL_ROOT, 'lib', 'VC', 'static'),
+                os.path.join(OPENSSL_ROOT, 'lib'),
                 ])
         except KeyError:
             pass
@@ -264,18 +398,70 @@ def config_base(env):
         env.Append(LINKFLAGS=['-Wl,-no-as-needed'])
         env.Append(LIBS=['profiler'])
 
+def add_static_libs(env, static_libs, dyn_libs=None):
+    if not 'HASSTATICLIBS' in env:
+        env['HASSTATICLIBS'] = True
+        env.Replace(LINKCOM=env['LINKCOM'] + " -Wl,-Bstatic $STATICLIBS -Wl,-Bdynamic $DYNAMICLIBS")
+    for k,l in [('STATICLIBS', static_libs or []), ('DYNAMICLIBS', dyn_libs or [])]:
+        c = env.get(k, '')
+        for f in l:
+            c += ' -l' + f 
+        env[k] = c
+
+def get_libs(lib, static):
+    '''Returns a tuple of lists. The first element is the static libs,
+       the second element is the dynamic libs
+    '''
+    always_dynamic = ['dl', 'pthread', 'z', # for ubuntu
+                      'gssapi_krb5', 'krb5', 'com_err', 'k5crypto', # for fedora
+                      ]
+    try:
+        cmd = ['pkg-config', '--static', '--libs', lib]
+        libs = subprocess.check_output(cmd,
+                                       stderr=subprocess.STDOUT).strip()
+        all_libs = [l[2:] for l in libs.split() if l.startswith('-l')]
+        if not static:
+            return ([], all_libs)
+        static_libs = []
+        dynamic_libs = []
+        for l in all_libs:
+            if l in always_dynamic:
+                dynamic_libs.append(l)
+            else:
+                static_libs.append(l)
+        return (static_libs, dynamic_libs)
+    except:
+        raise Exception('pkg-config failed for ' + lib)
+
 # Set toolchain and variant specific construction variables
 def config_env(toolchain, variant, env):
-    if variant == 'debug':
+    if is_debug_variant(variant):
         env.Append(CPPDEFINES=['DEBUG', '_DEBUG'])
 
     elif variant == 'release' or variant == 'profile':
         env.Append(CPPDEFINES=['NDEBUG'])
 
+    if 'BOOST_ROOT' in env:
+        if toolchain == 'gcc':
+            env.Append(CCFLAGS=['-isystem' + env['BOOST_ROOT']])
+        else:
+            env.Append(CPPPATH=[
+                env['BOOST_ROOT'],
+                ])
+
+    if should_link_static() and not Beast.system.linux:
+        raise Exception("Static linking is only implemented for linux.")
+
     if toolchain in Split('clang gcc'):
         if Beast.system.linux:
-            env.ParseConfig('pkg-config --static --cflags --libs openssl')
-            env.ParseConfig('pkg-config --static --cflags --libs protobuf')
+            link_static = should_link_static()
+            for l in ['openssl', 'protobuf']:
+                static, dynamic = get_libs(l, link_static) 
+                if link_static:
+                    add_static_libs(env, static, dynamic)
+                else:
+                    env.Append(LIBS=dynamic)
+                env.ParseConfig('pkg-config --static --cflags ' + l)
 
         env.Prepend(CFLAGS=['-Wall'])
         env.Prepend(CXXFLAGS=['-Wall'])
@@ -308,7 +494,7 @@ def config_env(toolchain, variant, env):
 
         env.Append(CXXFLAGS=[
             '-frtti',
-            '-std=c++11',
+            '-std=c++14',
             '-Wno-invalid-offsetof'])
 
         env.Append(CPPDEFINES=['_FILE_OFFSET_BITS=64'])
@@ -327,9 +513,19 @@ def config_env(toolchain, variant, env):
                 '-Wno-unused-function',
                 ])
         else:
+            if should_link_static():
+                env.Append(LINKFLAGS=[
+                    '-static-libstdc++',
+                ])
+            if use_gcc4_abi(env['CC'] if 'CC' in env else 'gcc'):
+                env.Append(CPPDEFINES={
+                    '-D_GLIBCXX_USE_CXX11_ABI' : 0
+                })
             if toolchain == 'gcc':
+
                 env.Append(CCFLAGS=[
-                    '-Wno-unused-but-set-variable'
+                    '-Wno-unused-but-set-variable',
+                    '-Wno-deprecated',
                     ])
 
         boost_libs = [
@@ -342,25 +538,38 @@ def config_env(toolchain, variant, env):
             'boost_system',
             'boost_thread'
         ]
-        # We prefer static libraries for boost
-        if env.get('BOOST_ROOT'):
-            static_libs = ['%s/stage/lib/lib%s.a' % (env['BOOST_ROOT'], l) for
-                           l in boost_libs]
-            if all(os.path.exists(f) for f in static_libs):
-                boost_libs = [File(f) for f in static_libs]
-        elif Beast.system.osx:
-            boost_libs[-1]='boost_thread-mt'
-
-        env.Append(LIBS=boost_libs)
         env.Append(LIBS=['dl'])
+
+        if should_link_static():
+            add_static_libs(env, boost_libs)
+        else:
+            # We prefer static libraries for boost
+            if env.get('BOOST_ROOT'):
+                static_libs = ['%s/stage/lib/lib%s.a' % (env['BOOST_ROOT'], l) for
+                               l in boost_libs]
+                if all(os.path.exists(f) for f in static_libs):
+                    boost_libs = [File(f) for f in static_libs]
+            else:
+                if Beast.system.osx:
+                    boost_libs[1]='boost_context-mt'
+                    boost_libs[-1]='boost_thread-mt'
+                for lib_dir in ['/usr/lib', '/usr/local/lib']:
+                    static_libs = ['%s/lib%s.a' % (lib_dir, l) for l  in boost_libs]
+                    if all(os.path.exists(f) for f in static_libs):
+                        boost_libs = [File(f) for f in static_libs]
+                        break
+
+            env.Append(LIBS=boost_libs)
 
         # If MySql is used.
         if ARGUMENTS.get('use-mysql'):
-            env.Append(CPPDEFINES=['USE_MYSQL'])
             env.Append(LIBS=['mysqlclient', 'z'])
             if not Beast.system.osx:
                 env.Append(CPPPATH=['/usr/include/mysql'])
                 env.Append(LIBPATH=['/usr/lib/mysql'])
+
+        if ARGUMENTS.get('use-hbase'):
+            env.Append(LIBS=['z', 'event'])
 
         if Beast.system.osx:
             env.Append(LIBS=[
@@ -384,6 +593,12 @@ def config_env(toolchain, variant, env):
                 '-fno-strict-aliasing'
                 ])
 
+        if variant == 'coverage':
+             env.Append(CXXFLAGS=[
+                 '-fprofile-arcs', '-ftest-coverage'])
+             env.Append(LINKFLAGS=[
+                 '-fprofile-arcs', '-ftest-coverage'])
+
         if toolchain == 'clang':
             if Beast.system.osx:
                 env.Replace(CC='clang', CXX='clang++', LINK='clang++')
@@ -398,6 +613,8 @@ def config_env(toolchain, variant, env):
             env.Append(CXXFLAGS=[
                 '-Wno-mismatched-tags',
                 '-Wno-deprecated-register',
+                '-Wno-unused-local-typedefs',
+                '-Wno-unknown-warning-option',
                 ])
 
         elif toolchain == 'gcc':
@@ -411,7 +628,7 @@ def config_env(toolchain, variant, env):
             # If we are in debug mode, use GCC-specific functionality to add
             # extra error checking into the code (e.g. std::vector will throw
             # for out-of-bounds conditions)
-            if variant == 'debug':
+            if is_debug_variant(variant):
                 env.Append(CPPDEFINES={
                     '_FORTIFY_SOURCE': 2
                     })
@@ -455,9 +672,18 @@ def config_env(toolchain, variant, env):
             '_CRT_SECURE_NO_WARNINGS',
             'WIN32_CONSOLE',
             ])
+        if variant == 'debug':
+            env.Append(LIBS=[
+                'VC/static/ssleay32MTd.lib',
+                'VC/static/libeay32MTd.lib',
+                ])
+        else:
+            env.Append(LIBS=[
+                'VC/static/ssleay32MT.lib',
+                'VC/static/libeay32MT.lib',
+                ])
         env.Append(LIBS=[
-            'ssleay32MT.lib',
-            'libeay32MT.lib',
+            'legacy_stdio_definitions.lib',
             'Shlwapi.lib',
             'kernel32.lib',
             'user32.lib',
@@ -510,6 +736,7 @@ def config_env(toolchain, variant, env):
 # Configure the base construction environment
 root_dir = Dir('#').srcnode().get_abspath() # Path to this SConstruct file
 build_dir = os.path.join('build')
+
 base = Environment(
     toolpath=[os.path.join ('src', 'beast', 'site_scons', 'site_tools')],
     tools=['default', 'Protoc', 'VSProject'],
@@ -521,10 +748,15 @@ base.Append(CPPPATH=[
     'src',
     os.path.join('src', 'beast'),
     os.path.join(build_dir, 'proto'),
+    os.path.join('src','soci','src'),
+    os.path.join('src','soci','include'),
     ])
 
+base.Decider('MD5-timestamp')
+set_implicit_cache()
+
 # Configure the toolchains, variants, default toolchain, and default target
-variants = ['debug', 'release', 'profile']
+variants = ['debug', 'coverage', 'release', 'profile']
 all_toolchains = ['clang', 'gcc', 'msvc']
 if Beast.system.osx:
     toolchains = ['clang']
@@ -566,6 +798,7 @@ class ObjectBuilder(object):
         self.env = env
         self.variant_dirs = variant_dirs
         self.objects = []
+        self.child_envs = []
 
     def add_source_files(self, *filenames, **kwds):
         for filename in filenames:
@@ -573,6 +806,7 @@ class ObjectBuilder(object):
             if kwds:
                 env = env.Clone()
                 env.Prepend(**kwds)
+                self.child_envs.append(env)
             o = env.Object(Beast.variantFile(filename, self.variant_dirs))
             self.objects.append(o)
 
@@ -588,14 +822,231 @@ def list_sources(base, suffixes):
                     yield os.path.normpath(path)
     return list(_iter(base))
 
+
+def append_sources(result, *filenames, **kwds):
+    result.append([filenames, kwds])
+
+
+def get_soci_sources(style):
+    result = []
+    cpp_path = [
+        'src/soci/src/core',
+        'src/soci/include/private',
+        'src/sqlite', ]
+    cpp_define = []
+    append_sources(result,
+                   'src/ripple/unity/soci.cpp',
+                   CPPPATH=cpp_path)
+    if ARGUMENTS.get('use-mysql'):
+        cpp_define = ['USE_MYSQL']
+        append_sources(result,
+                       'src/ripple/unity/soci_mysql.cpp',
+                       CPPPATH=cpp_path)
+    if style == 'unity':
+        append_sources(result,
+                       'src/ripple/unity/soci_ripple.cpp',
+                       CPPDEFINES=cpp_define,
+                       CPPPATH=cpp_path)
+    return result
+
+def use_shp(toolchain):
+    '''
+    Return True if we want to use the --system-header-prefix command-line switch
+    '''
+    if toolchain != 'clang':
+        return False
+    if use_shp.cache is None:
+        try:
+            ver = subprocess.check_output(
+                ['clang', '--version'], stderr=subprocess.STDOUT).strip()
+            use_shp.cache = 'version 3.4' not in ver and 'version 3.0' not in ver
+        except:
+            use_shp.cache = False
+    return use_shp.cache
+use_shp.cache = None
+
+def get_common_sources(toolchain):
+    result = []
+    if toolchain == 'msvc':
+        warning_flags = {}
+    else:
+        warning_flags = {'CCFLAGS': ['-Wno-unused-function']}
+    append_sources(
+        result,
+        'src/ripple/unity/secp256k1.cpp',
+        CPPPATH=['src/secp256k1'],
+        **warning_flags)
+    return result
+
+def get_classic_sources(toolchain):
+    result = []
+    append_sources(
+        result,
+        *list_sources('src/ripple/core', '.cpp'),
+        CPPDEFINES=['USE_MYSQL'] if ARGUMENTS.get('use-mysql') else [],
+        CPPPATH=[
+            'src/soci/src/core',
+            'src/sqlite']
+    )
+    append_sources(result, *list_sources('src/ripple/app', '.cpp'), CPPDEFINES=['USE_SHA512_ASM'] if Beast.system.linux and ARGUMENTS.get('use-sha512-asm') else [])
+    append_sources(result, *list_sources('src/ripple/basics', '.cpp'))
+    append_sources(result, *list_sources('src/ripple/crypto', '.cpp'))
+    append_sources(result, *list_sources('src/ripple/json', '.cpp'))
+    append_sources(result, *list_sources('src/ripple/ledger', '.cpp'))
+    append_sources(result, *list_sources('src/ripple/legacy', '.cpp'))
+    append_sources(result, *list_sources('src/ripple/net', '.cpp'))
+    append_sources(result, *list_sources('src/ripple/overlay', '.cpp'))
+    append_sources(result, *list_sources('src/ripple/peerfinder', '.cpp'))
+    append_sources(result, *list_sources('src/ripple/rpc', '.cpp'))
+    append_sources(result, *list_sources('src/ripple/shamap', '.cpp'))
+    append_sources(result, *list_sources('src/ripple/test', '.cpp'))
+    append_sources(result, *list_sources('src/ripple/unl', '.cpp'))
+
+    if use_shp(toolchain):
+        cc_flags = {'CCFLAGS': ['--system-header-prefix=rocksdb2']}
+    else:
+        cc_flags = {}
+
+    append_sources(
+        result,
+        *list_sources('src/ripple/nodestore', '.cpp'),
+        CPPDEFINES=['RIPPLE_THRIFT_AVAILABLE'] if ARGUMENTS.get('use-hbase') else [],
+        CPPPATH=[
+            'src/rocksdb2/include',
+            'src/snappy/snappy',
+            'src/snappy/config',
+            'src/thrift/lib/cpp/src',
+        ],
+        **cc_flags)
+
+    result += get_soci_sources('classic')
+    result += get_common_sources(toolchain)
+
+    return result
+
+def get_unity_sources(toolchain):
+    result = []
+    append_sources(
+        result,
+        'src/ripple/unity/app_ledger.cpp',
+        'src/ripple/unity/app_misc.cpp',
+        'src/ripple/unity/app_paths.cpp',
+        'src/ripple/unity/app_tests.cpp',
+        'src/ripple/unity/app_tx.cpp',
+        'src/ripple/unity/core.cpp',
+        'src/ripple/unity/basics.cpp',
+        'src/ripple/unity/crypto.cpp',
+        'src/ripple/unity/ledger.cpp',
+        'src/ripple/unity/net.cpp',
+        'src/ripple/unity/overlay.cpp',
+        'src/ripple/unity/peerfinder.cpp',
+        'src/ripple/unity/json.cpp',
+        'src/ripple/unity/rpcx.cpp',
+        'src/ripple/unity/shamap.cpp',
+        'src/ripple/unity/test.cpp',
+        'src/ripple/unity/unl.cpp',
+    )
+
+    append_sources(
+        result,
+        'src/ripple/unity/app_main.cpp',
+        CPPDEFINES=['USE_SHA512_ASM'] if Beast.system.linux and ARGUMENTS.get('use-sha512-asm') else []
+        )
+
+    if use_shp(toolchain):
+        cc_flags = {'CCFLAGS': ['--system-header-prefix=rocksdb2']}
+    else:
+        cc_flags = {}
+
+    append_sources(
+        result,
+        'src/ripple/unity/nodestore.cpp',
+        CPPDEFINES=['USE_SHA512_ASM'] if Beast.system.linux and ARGUMENTS.get('use-sha512-asm') else [],
+        CPPPATH=[
+            'src/rocksdb2/include',
+            'src/snappy/snappy',
+            'src/snappy/config',
+            'src/thrift/lib/cpp/src',
+        ],
+        **cc_flags)
+
+    result += get_soci_sources('unity')
+    result += get_common_sources(toolchain)
+
+    return result
+
 # Declare the targets
 aliases = collections.defaultdict(list)
 msvc_configs = []
 
+
+def should_prepare_target(cl_target,
+                          style, toolchain, variant):
+    if not cl_target:
+        # default target
+        return (style == default_tu_style and
+                toolchain == default_toolchain and
+                variant == default_variant)
+    if 'vcxproj' in cl_target:
+        return toolchain == 'msvc'
+    s = cl_target.split('.')
+    if style == 'unity' and 'nounity' in s:
+        return False
+    if len(s) == 1:
+        return ('all' in cl_target or
+                variant in cl_target or
+                toolchain in cl_target)
+    if len(s) == 2 or len(s) == 3:
+        return s[0] == toolchain and s[1] == variant
+
+    return True  # A target we don't know about, better prepare to build it
+
+
+def should_prepare_targets(style, toolchain, variant):
+    if not COMMAND_LINE_TARGETS:
+        return should_prepare_target(None, style, toolchain, variant)
+    for t in COMMAND_LINE_TARGETS:
+        if should_prepare_target(t, style, toolchain, variant):
+            return True
+
+def should_link_static():
+    """
+    Return True if libraries should be linked statically
+
+    """
+    return GetOption('static')
+
+def should_build_ninja(style, toolchain, variant):
+    """
+    Return True if a ninja build file should be generated.
+
+    Typically, scons will be called as follows to generate a ninja build file:
+    `scons ninja=1 gcc.debug` where `gcc.debug` may be replaced with any of our
+    non-visual studio targets. Raise an exception if we cannot generate the
+    requested ninja build file (for example, if multiple targets are requested).
+    """
+    if not GetOption('ninja'):
+        return False
+    if len(COMMAND_LINE_TARGETS) != 1:
+        raise Exception('Can only generate a ninja file for a single target')
+    cl_target = COMMAND_LINE_TARGETS[0]
+    if 'vcxproj' in cl_target:
+        raise Exception('Cannot generate a ninja file for a vcxproj')
+    s = cl_target.split('.')
+    if ( style == 'unity' and 'nounity' in s or
+         style == 'classic' and 'nounity' not in s or
+         len(s) == 1 ):
+        return False
+    if len(s) == 2 or len(s) == 3:
+        return s[0] == toolchain and s[1] == variant
+    return False
+
 for tu_style in ['classic', 'unity']:
     for toolchain in all_toolchains:
         for variant in variants:
-            if variant == 'profile' and toolchain == 'msvc':
+            if not should_prepare_targets(tu_style, toolchain, variant):
+                continue
+            if variant in ['profile', 'coverage'] and toolchain == 'msvc':
                 continue
             # Configure this variant's construction environment
             env = base.Clone()
@@ -626,62 +1077,11 @@ for tu_style in ['classic', 'unity']:
                 )
 
             if tu_style == 'classic':
-                object_builder.add_source_files(
-                    *list_sources('src/ripple/app', '.cpp'))
-                object_builder.add_source_files(
-                    *list_sources('src/ripple/basics', '.cpp'))
-                object_builder.add_source_files(
-                    *list_sources('src/ripple/core', '.cpp'))
-                object_builder.add_source_files(
-                    *list_sources('src/ripple/crypto', '.cpp'))
-                object_builder.add_source_files(
-                    *list_sources('src/ripple/json', '.cpp'))
-                object_builder.add_source_files(
-                    *list_sources('src/ripple/net', '.cpp'))
-                object_builder.add_source_files(
-                    *list_sources('src/ripple/overlay', '.cpp'))
-                object_builder.add_source_files(
-                    *list_sources('src/ripple/peerfinder', '.cpp'))
-                object_builder.add_source_files(
-                    *list_sources('src/ripple/shamap', '.cpp'))
-                object_builder.add_source_files(
-                    *list_sources('src/ripple/nodestore', '.cpp'),
-                    CPPPATH=[
-                        'src/leveldb/include',
-                        'src/rocksdb2/include',
-                        'src/snappy/snappy',
-                        'src/snappy/config',
-                    ])
+                sources = get_classic_sources(toolchain)
             else:
-                object_builder.add_source_files(
-                    'src/ripple/unity/app.cpp',
-                    'src/ripple/unity/app1.cpp',
-                    'src/ripple/unity/app2.cpp',
-                    'src/ripple/unity/app3.cpp',
-                    'src/ripple/unity/app4.cpp',
-                    'src/ripple/unity/app5.cpp',
-                    'src/ripple/unity/app6.cpp',
-                    'src/ripple/unity/app7.cpp',
-                    'src/ripple/unity/app8.cpp',
-                    'src/ripple/unity/app9.cpp',
-                    'src/ripple/unity/core.cpp',
-                    'src/ripple/unity/basics.cpp',
-                    'src/ripple/unity/crypto.cpp',
-                    'src/ripple/unity/net.cpp',
-                    'src/ripple/unity/overlay.cpp',
-                    'src/ripple/unity/peerfinder.cpp',
-                    'src/ripple/unity/json.cpp',
-                    'src/ripple/unity/shamap.cpp',
-                )
-
-                object_builder.add_source_files(
-                    'src/ripple/unity/nodestore.cpp',
-                    CPPPATH=[
-                        'src/leveldb/include',
-                        'src/rocksdb2/include',
-                        'src/snappy/snappy',
-                        'src/snappy/config',
-                    ])
+                sources = get_unity_sources(toolchain)
+            for s, k in sources:
+                object_builder.add_source_files(*s, **k)
 
             git_commit_tag = {}
             build_version_tag = {}
@@ -702,6 +1102,11 @@ for tu_style in ['classic', 'unity']:
                 'src/ripple/unity/git_id.cpp',
                 **git_commit_tag)
 
+            if use_shp(toolchain):
+                cc_flags = {'CCFLAGS': ['--system-header-prefix=rocksdb2']}
+            else:
+                cc_flags = {}
+
             object_builder.add_source_files(
                 'src/ripple/unity/protocol.cpp',
                 **build_version_tag)
@@ -713,10 +1118,9 @@ for tu_style in ['classic', 'unity']:
                 'src/ripple/unity/protobuf.cpp',
                 'src/ripple/unity/ripple.proto.cpp',
                 'src/ripple/unity/resource.cpp',
-                'src/ripple/unity/rpcx.cpp',
                 'src/ripple/unity/server.cpp',
-                'src/ripple/unity/validators.cpp',
-                'src/ripple/unity/websocket.cpp'
+                'src/ripple/unity/websocket02.cpp',
+                **cc_flags
             )
 
             object_builder.add_source_files(
@@ -724,36 +1128,17 @@ for tu_style in ['classic', 'unity']:
                 CCFLAGS = ([] if toolchain == 'msvc' else ['-Wno-array-bounds']))
 
             if 'gcc' in toolchain:
-                no_uninitialized_warning = {'CCFLAGS': ['-Wno-maybe-uninitialized']}
+                cc_flags = {'CCFLAGS': ['-Wno-maybe-uninitialized']}
+            elif use_shp(toolchain):
+                cc_flags = {'CCFLAGS': ['--system-header-prefix=rocksdb2']}
             else:
-                no_uninitialized_warning = {}
+                cc_flags = {}
 
             object_builder.add_source_files(
                 'src/ripple/unity/ed25519.c',
                 CPPPATH=[
                     'src/ed25519-donna',
                 ]
-            )
-
-            object_builder.add_source_files(
-                'src/ripple/unity/leveldb.cpp',
-                CPPPATH=[
-                    'src/leveldb/',
-                    'src/leveldb/include',
-                    'src/snappy/snappy',
-                    'src/snappy/config',
-                ],
-                **no_uninitialized_warning
-            )
-
-            object_builder.add_source_files(
-                'src/ripple/unity/hyperleveldb.cpp',
-                CPPPATH=[
-                    'src/hyperleveldb',
-                    'src/snappy/snappy',
-                    'src/snappy/config',
-                ],
-                **no_uninitialized_warning
             )
 
             object_builder.add_source_files(
@@ -764,8 +1149,36 @@ for tu_style in ['classic', 'unity']:
                     'src/snappy/snappy',
                     'src/snappy/config',
                 ],
-                **no_uninitialized_warning
+                **cc_flags
             )
+
+            if ARGUMENTS.get('use-hbase'):
+                object_builder.add_source_files(
+                    'src/ripple/unity/thrift.cpp',
+                    CPPDEFINES=['RIPPLE_THRIFT_AVAILABLE'],
+                    CPPPATH=[
+                        'src/thrift/lib/cpp/src',
+                    ],
+                    **cc_flags
+                )
+
+                object_builder.add_source_files(
+                    'src/ripple/unity/thrift2.cpp',
+                    CPPDEFINES=['RIPPLE_THRIFT_AVAILABLE'],
+                    CPPPATH=[
+                        'src/thrift/lib/cpp/src',
+                    ],
+                    **cc_flags
+                )
+
+                object_builder.add_source_files(
+                    'src/ripple/unity/thrift3.cpp',
+                    CPPDEFINES=['RIPPLE_THRIFT_AVAILABLE'],
+                    CPPPATH=[
+                        'src/thrift/lib/cpp/src',
+                    ],
+                    **cc_flags
+                )
 
             object_builder.add_source_files(
                 'src/ripple/unity/snappy.cpp',
@@ -774,6 +1187,11 @@ for tu_style in ['classic', 'unity']:
                     'src/snappy/snappy',
                     'src/snappy/config',
                 ]
+            )
+
+            object_builder.add_source_files(
+                'src/ripple/unity/websocket04.cpp',
+                CPPPATH='src/websocketpp',
             )
 
             if toolchain == "clang" and Beast.system.osx:
@@ -798,15 +1216,26 @@ for tu_style in ['classic', 'unity']:
                 if toolchain in toolchains:
                     aliases['all'].extend(target)
                     aliases[toolchain].extend(target)
+            elif toolchain == 'msvc':
+                config = env.VSProjectConfig(variant + ".classic", 'x64', target, env)
+                msvc_configs.append(config)
+
             if toolchain in toolchains:
                 aliases[variant].extend(target)
                 env.Alias(variant_name, target)
+
+            # ninja support
+            if should_build_ninja(tu_style, toolchain, variant):
+                print('Generating ninja: {}:{}:{}'.format(tu_style, toolchain, variant))
+                scons_to_ninja.GenerateNinjaFile(
+                    [object_builder.env] + object_builder.child_envs,
+                    dest_file='build.ninja')
 
 for key, value in aliases.iteritems():
     env.Alias(key, value)
 
 vcxproj = base.VSProject(
-    os.path.join('Builds', 'VisualStudio2013', 'RippleD'),
+    os.path.join('Builds', 'VisualStudio2015', 'RippleD'),
     source = [],
     VSPROJECT_ROOT_DIRS = ['src/beast', 'src', '.'],
     VSPROJECT_CONFIGS = msvc_configs)

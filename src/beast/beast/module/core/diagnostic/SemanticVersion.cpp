@@ -70,7 +70,7 @@ bool chopUInt (int& value, int limit, std::string& input)
     auto left_iter = std::find_if_not (input.begin (), input.end (),
         [](std::string::value_type c)
         {
-            return std::isdigit (c, std::locale::classic()); 
+            return std::isdigit (c, std::locale::classic());
         });
 
     std::string item (input.begin (), left_iter);
@@ -163,7 +163,7 @@ bool SemanticVersion::parse (std::string const& input, bool debug)
     auto left_iter = std::find_if_not (input.begin (), input.end (),
         [](std::string::value_type c)
         {
-            return std::isspace (c, std::locale::classic()); 
+            return std::isspace (c, std::locale::classic());
         });
 
     auto right_iter = std::find_if_not (input.rbegin (), input.rend (),
@@ -322,7 +322,7 @@ int compare (SemanticVersion const& lhs, SemanticVersion const& rhs)
 
 class SemanticVersion_test: public unit_test::suite
 {
-    typedef SemanticVersion::identifier_list identifier_list;
+    using identifier_list = SemanticVersion::identifier_list;
 
 public:
     void checkPass (std::string const& input, bool shouldPass = true)

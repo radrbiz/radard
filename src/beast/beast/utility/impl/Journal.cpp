@@ -18,7 +18,6 @@
 //==============================================================================
 
 #include <beast/utility/Journal.h>
-#include <beast/module/core/memory/SharedSingleton.h>
 
 namespace beast {
 
@@ -60,8 +59,8 @@ public:
 
 Journal::Sink& Journal::getNullSink ()
 {
-    return *SharedSingleton <NullJournalSink>::get (
-        SingletonLifetime::neverDestroyed);
+    static NullJournalSink sink;
+    return sink;
 }
 
 //------------------------------------------------------------------------------

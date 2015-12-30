@@ -35,10 +35,10 @@ enum TxType
     ttINVALID           = -1,
 
     ttPAYMENT           = 0,
-    ttCLAIM             = 1, // open
-    ttWALLET_ADD        = 2,
+    ttSUSPAY_CREATE     = 1,
+    ttSUSPAY_FINISH     = 2,
     ttACCOUNT_SET       = 3,
-    ttPASSWORD_FUND     = 4, // open
+    ttSUSPAY_CANCEL     = 4,
     ttREGULAR_KEY_SET   = 5,
     ttNICKNAME_SET      = 6, // open
     ttOFFER_CREATE      = 7,
@@ -46,6 +46,7 @@ enum TxType
     no_longer_used      = 9,
     ttTICKET_CREATE     = 10,
     ttTICKET_CANCEL     = 11,
+    ttSIGNER_LIST_SET   = 12,
 
     ttTRUST_SET         = 20,
 

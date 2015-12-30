@@ -17,18 +17,19 @@
 */
 //==============================================================================
 
-#ifndef RIPPLE_PROTOCOL_STPATHELEMENT_H_INCLUDED
-#define RIPPLE_PROTOCOL_STPATHELEMENT_H_INCLUDED
+#ifndef RIPPLE_PROTOCOL_STPATHSET_H_INCLUDED
+#define RIPPLE_PROTOCOL_STPATHSET_H_INCLUDED
 
 #include <ripple/json/json_value.h>
 #include <ripple/protocol/SField.h>
 #include <ripple/protocol/STBase.h>
 #include <ripple/protocol/UintTypes.h>
+#include <boost/optional.hpp>
+#include <cassert>
 #include <cstddef>
 
 namespace ripple {
 
-// VFALCO Why isn't this derived from STBase?
 class STPathElement
 {
 public:
@@ -49,9 +50,43 @@ private:
     get_hash (STPathElement const& element);
 
 public:
+    STPathElement(
+        boost::optional<AccountID> const& account,
+        boost::optional<Currency> const& currency,
+        boost::optional<AccountID> const& issuer)
+        : mType (typeNone)
+    {
+        if (! account)
+        {
+            is_offer_ = true;
+        }
+        else
+        {
+            is_offer_ = false;
+            mAccountID = *account;
+            mType |= typeAccount;
+            assert(mAccountID != noAccount());
+        }
+
+        if (currency)
+        {
+            mCurrencyID = *currency;
+            mType |= typeCurrency;
+        }
+
+        if (issuer)
+        {
+            mIssuerID = *issuer;
+            mType |= typeIssuer;
+            assert(mIssuerID != noAccount());
+        }
+
+        hash_value_ = get_hash (*this);
+    }
+
     STPathElement (
-        Account const& account, Currency const& currency,
-        Account const& issuer, bool forceCurrency = false)
+        AccountID const& account, Currency const& currency,
+        AccountID const& issuer, bool forceCurrency = false)
         : mType (typeNone), mAccountID (account), mCurrencyID (currency)
 		, mIssuerID(issuer), is_offer_(isNative(mAccountID))
     {
@@ -68,8 +103,8 @@ public:
     }
 
     STPathElement (
-        unsigned int uType, Account const& account, Currency const& currency,
-        Account const& issuer)
+        unsigned int uType, AccountID const& account, Currency const& currency,
+        AccountID const& issuer)
         : mType (uType), mAccountID (account), mCurrencyID (currency)
 		, mIssuerID(issuer), is_offer_(isNative(mAccountID))
     {
@@ -82,35 +117,46 @@ public:
         hash_value_ = get_hash (*this);
     }
 
-    int getNodeType () const
+    int
+    getNodeType () const
     {
         return mType;
     }
-    bool isOffer () const
+
+    bool
+    isOffer () const
     {
         return is_offer_;
     }
-    bool isAccount () const
+
+    bool
+    isAccount () const
     {
         return !isOffer ();
     }
 
     // Nodes are either an account ID or a offer prefix. Offer prefixs denote a
     // class of offers.
-    Account const& getAccountID () const
+    AccountID const&
+    getAccountID () const
     {
         return mAccountID;
     }
-    Currency const& getCurrency () const
+
+    Currency const&
+    getCurrency () const
     {
         return mCurrencyID;
     }
-    Account const& getIssuerID () const
+
+    AccountID const&
+    getIssuerID () const
     {
         return mIssuerID;
     }
 
-    bool operator== (const STPathElement& t) const
+    bool
+    operator== (const STPathElement& t) const
     {
         return (mType & typeAccount) == (t.mType & typeAccount) &&
             hash_value_ == t.hash_value_ &&
@@ -121,9 +167,9 @@ public:
 
 private:
     unsigned int mType;
-    Account mAccountID;
+    AccountID mAccountID;
     Currency mCurrencyID;
-    Account mIssuerID;
+    AccountID mIssuerID;
 
     bool is_offer_;
     std::size_t hash_value_;
@@ -162,9 +208,13 @@ public:
         mPath.emplace_back (std::forward<Args> (args)...);
     }
 
-    bool hasSeen (Account const& account, Currency const& currency,
-                  Account const& issuer) const;
-    Json::Value getJson (int) const;
+    bool
+    hasSeen (
+        AccountID const& account, Currency const& currency,
+        AccountID const& issuer) const;
+
+    Json::Value
+    getJson (int) const;
 
     std::vector<STPathElement>::const_iterator
     begin () const
@@ -178,7 +228,8 @@ public:
         return mPath.end ();
     }
 
-    bool operator== (STPath const& t) const
+    bool
+    operator== (STPath const& t) const
     {
         return mPath == t.mPath;
     }
@@ -195,6 +246,16 @@ public:
         return mPath.front ();
     }
 
+    STPathElement& operator[](int i)
+    {
+        return mPath[i];
+    }
+
+    const STPathElement& operator[](int i) const
+    {
+        return mPath[i];
+    }
+
 private:
     std::vector<STPathElement> mPath;
 };
@@ -202,102 +263,105 @@ private:
 //------------------------------------------------------------------------------
 
 // A set of zero or more payment paths
-class STPathSet : public STBase
+class STPathSet final
+    : public STBase
 {
 public:
     STPathSet () = default;
 
-    STPathSet (SField::ref n)
+    STPathSet (SField const& n)
         : STBase (n)
     { }
 
-    static
-    std::unique_ptr<STBase>
-    deserialize (SerializerIterator& sit, SField::ref name)
+    STPathSet (SerialIter& sit, SField const& name);
+
+    STBase*
+    copy (std::size_t n, void* buf) const override
     {
-        return std::unique_ptr<STBase> (construct (sit, name));
+        return emplace(n, buf, *this);
     }
 
-    void add (Serializer& s) const;
-    virtual Json::Value getJson (int) const;
+    STBase*
+    move (std::size_t n, void* buf) override
+    {
+        return emplace(n, buf, std::move(*this));
+    }
 
-    SerializedTypeID getSType () const
+    void
+    add (Serializer& s) const override;
+
+    Json::Value
+    getJson (int) const override;
+
+    SerializedTypeID
+    getSType () const override
     {
         return STI_PATHSET;
     }
-    std::vector<STPath>::size_type
-    size () const
-    {
-        return value.size ();
-    }
 
-    bool empty () const
-    {
-        return value.empty ();
-    }
+    bool
+    assembleAdd(STPath const& base, STPathElement const& tail);
 
-    void push_back (STPath const& e)
-    {
-        value.push_back (e);
-    }
+    bool
+    isEquivalent (const STBase& t) const override;
 
-    bool assembleAdd(STPath const& base, STPathElement const& tail)
-    { // assemble base+tail and add it to the set if it's not a duplicate
-        value.push_back (base);
-
-        std::vector<STPath>::reverse_iterator it = value.rbegin ();
-
-        STPath& newPath = *it;
-        newPath.push_back (tail);
-
-        while (++it != value.rend ())
-        {
-            if (*it == newPath)
-            {
-                value.pop_back ();
-                return false;
-            }
-        }
-        return true;
-    }
-
-    virtual bool isEquivalent (const STBase& t) const;
-    virtual bool isDefault () const
+    bool
+    isDefault () const override
     {
         return value.empty ();
     }
 
+    // std::vector like interface:
     std::vector<STPath>::const_reference
     operator[] (std::vector<STPath>::size_type n) const
     {
         return value[n];
     }
 
-    std::vector<STPath>::const_iterator begin () const
+    std::vector<STPath>::reference
+    operator[] (std::vector<STPath>::size_type n)
+    {
+        return value[n];
+    }
+
+    std::vector<STPath>::const_iterator
+    begin () const
     {
         return value.begin ();
     }
 
-    std::vector<STPath>::const_iterator end () const
+    std::vector<STPath>::const_iterator
+    end () const
     {
         return value.end ();
     }
 
-private:
-    std::vector<STPath> value;
-
-    STPathSet (SField::ref n, const std::vector<STPath>& v)
-        : STBase (n), value (v)
-    { }
-
-    STPathSet* duplicate () const
+    std::vector<STPath>::size_type
+    size () const
     {
-        return new STPathSet (*this);
+        return value.size ();
     }
 
-    static
-    STPathSet*
-    construct (SerializerIterator&, SField::ref);
+    bool
+    empty () const
+    {
+        return value.empty ();
+    }
+
+    void
+    push_back (STPath const& e)
+    {
+        value.push_back (e);
+    }
+
+    template <typename... Args>
+    void emplace_back (Args&&... args)
+    {
+        value.emplace_back (std::forward<Args> (args)...);
+    }
+
+private:
+    std::vector<STPath> value;
 };
 
 } // ripple

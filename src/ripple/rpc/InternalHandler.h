@@ -17,8 +17,8 @@
 */
 //==============================================================================
 
-#ifndef RIPPLE_APP_RPC_INTERNAL_HANDLER
-#define RIPPLE_APP_RPC_INTERNAL_HANDLER
+#ifndef RIPPLE_RPC_INTERNALHANDLER_H_INCLUDED
+#define RIPPLE_RPC_INTERNALHANDLER_H_INCLUDED
 
 namespace ripple {
 namespace RPC {
@@ -27,7 +27,7 @@ namespace RPC {
  * instance of InternalHandler with your own handler function. */
 struct InternalHandler
 {
-    typedef Json::Value (*handler_t) (const Json::Value&);
+    using handler_t = Json::Value (*) (const Json::Value&);
 
     InternalHandler (const std::string& name, handler_t handler)
             : name_ (name),

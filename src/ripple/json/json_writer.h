@@ -17,10 +17,9 @@
 */
 //==============================================================================
 
-#ifndef JSON_WRITER_H_INCLUDED
-#define JSON_WRITER_H_INCLUDED
+#ifndef RIPPLE_JSON_JSON_WRITER_H_INCLUDED
+#define RIPPLE_JSON_JSON_WRITER_H_INCLUDED
 
-#include <ripple/json/json_config.h>
 #include <ripple/json/json_forwards.h>
 #include <ripple/json/json_value.h>
 #include <vector>
@@ -32,27 +31,25 @@ class Value;
 
 /** \brief Abstract class for writers.
  */
-class JSON_API Writer
+class WriterBase
 {
 public:
-    virtual ~Writer ();
-
+    virtual ~WriterBase () {}
     virtual std::string write ( const Value& root ) = 0;
 };
 
 /** \brief Outputs a Value in <a HREF="http://www.json.org">JSON</a> format without formatting (not human friendly).
  *
  * The JSON document is written in a single line. It is not intended for 'human' consumption,
- * but may be usefull to support feature such as RPC where bandwith is limited.
+ * but may be useful to support feature such as RPC where bandwith is limited.
  * \sa Reader, Value
  */
-class JSON_API FastWriter : public Writer
+
+class FastWriter : public WriterBase
 {
 public:
     FastWriter ();
     virtual ~FastWriter () {}
-
-    void enableYAMLCompatibility ();
 
 public: // overridden from Writer
     virtual std::string write ( const Value& root );
@@ -61,7 +58,6 @@ private:
     void writeValue ( const Value& value );
 
     std::string document_;
-    bool yamlCompatiblityEnabled_;
 };
 
 /** \brief Writes a Value in <a HREF="http://www.json.org">JSON</a> format in a human friendly way.
@@ -82,7 +78,7 @@ private:
  *
  * \sa Reader, Value, Value::setComment()
  */
-class JSON_API StyledWriter: public Writer
+class StyledWriter: public WriterBase
 {
 public:
     StyledWriter ();
@@ -104,12 +100,8 @@ private:
     void writeWithIndent ( std::string const& value );
     void indent ();
     void unindent ();
-    void writeCommentBeforeValue ( const Value& root );
-    void writeCommentAfterValueOnSameLine ( const Value& root );
-    bool hasCommentForValue ( const Value& value );
-    static std::string normalizeEOL ( std::string const& text );
 
-    typedef std::vector<std::string> ChildValues;
+    using ChildValues = std::vector<std::string>;
 
     ChildValues childValues_;
     std::string document_;
@@ -139,7 +131,7 @@ private:
  * \param indentation Each level will be indented by this amount extra.
  * \sa Reader, Value, Value::setComment()
  */
-class JSON_API StyledStreamWriter
+class StyledStreamWriter
 {
 public:
     StyledStreamWriter ( std::string indentation = "\t" );
@@ -162,12 +154,8 @@ private:
     void writeWithIndent ( std::string const& value );
     void indent ();
     void unindent ();
-    void writeCommentBeforeValue ( const Value& root );
-    void writeCommentAfterValueOnSameLine ( const Value& root );
-    bool hasCommentForValue ( const Value& value );
-    static std::string normalizeEOL ( std::string const& text );
 
-    typedef std::vector<std::string> ChildValues;
+    using ChildValues = std::vector<std::string>;
 
     ChildValues childValues_;
     std::ostream* document_;
@@ -177,11 +165,11 @@ private:
     bool addChildValues_;
 };
 
-std::string JSON_API valueToString ( Int value );
-std::string JSON_API valueToString ( UInt value );
-std::string JSON_API valueToString ( double value );
-std::string JSON_API valueToString ( bool value );
-std::string JSON_API valueToQuotedString ( const char* value );
+std::string valueToString ( Int value );
+std::string valueToString ( UInt value );
+std::string valueToString ( double value );
+std::string valueToString ( bool value );
+std::string valueToQuotedString ( const char* value );
 
 /// \brief Output using the StyledStreamWriter.
 /// \see Json::operator>>()

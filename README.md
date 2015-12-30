@@ -20,7 +20,9 @@ Platform or IDE-specific project files.
 Documentation and example configuration files.
 
 #### ./src
-Source code directory. Some of the directories contained here are external repositories inlined via git-subtree, see the corresponding README for more details.
+Source code directory. Some of the directories contained here are
+external repositories inlined via git-subtree, see the corresponding
+README for more details.
 
 ### Transaction Fees
   1. Activating the wallet（Creating an account）：It requires a transfer to the newly created account from an existing account. Both owners need to pay 0.01 VRP plus transaction fee for the transfer（see Point 2 for details).

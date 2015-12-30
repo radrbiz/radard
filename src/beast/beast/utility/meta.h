@@ -20,7 +20,7 @@
 #ifndef BEAST_UTILITY_META_H_INCLUDED
 #define BEAST_UTILITY_META_H_INCLUDED
 
-#include <beast/cxx14/type_traits.h> // <type_traits>
+#include <type_traits>
 
 namespace beast {
 
@@ -71,16 +71,16 @@ struct enable_if_lvalue
 };
 
 /** Ensure const reference function parameters are valid lvalues.
- 
+
     Some functions, especially class constructors, accept const references and
-    store them for later use. If any of those parameters are rvalue objects, 
-    the object will be freed as soon as the function returns. This could 
+    store them for later use. If any of those parameters are rvalue objects,
+    the object will be freed as soon as the function returns. This could
     potentially lead to a variety of "use after free" errors.
- 
-    If the function is rewritten as a template using this type and the 
+
+    If the function is rewritten as a template using this type and the
     parameters references as rvalue references (eg. TX&&), a compiler
     error will be generated if an rvalue is provided in the caller.
- 
+
     @code
         // Example:
         struct X

@@ -17,8 +17,8 @@
 */
 //==============================================================================
 
-#ifndef RIPPLE_CORE_SYSTEMPARAMETERS_H_INCLUDED
-#define RIPPLE_CORE_SYSTEMPARAMETERS_H_INCLUDED
+#ifndef RIPPLE_PROTOCOL_SYSTEMPARAMETERS_H_INCLUDED
+#define RIPPLE_PROTOCOL_SYSTEMPARAMETERS_H_INCLUDED
 
 #include <cstdint>
 #include <string>
@@ -44,6 +44,7 @@ static
 std::uint64_t const
 SYSTEM_CURRENCY_USERS = 1000000;
 
+/** Number of drops per 1 XRP */
 static
 std::uint64_t const
 SYSTEM_CURRENCY_PARTS = 1000000;      // 10^SYSTEM_CURRENCY_PRECISION
@@ -67,9 +68,8 @@ SYSTEM_CURRENCY_PARTS_VBC = 1000000;      // 10^SYSTEM_CURRENCY_PRECISION
 static
 std::uint64_t const
 MIN_VSPD_TO_GET_FEE_SHARE = 10000000000;
-    
 
-/** Calculate the amount of native currency created at genesis. */
+/** Number of drops in the genesis account. */
 static
 std::uint64_t const
 SYSTEM_CURRENCY_START_VBC = SYSTEM_CURRENCY_GIFT_VBC*SYSTEM_CURRENCY_USERS_VBC*SYSTEM_CURRENCY_PARTS_VBC;

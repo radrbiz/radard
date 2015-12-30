@@ -20,7 +20,6 @@
 #include <BeastConfig.h>
 #include <ripple/basics/hardened_hash.h>
 #include <beast/unit_test/suite.h>
-#include <beast/crypto/Sha256.h>
 #include <boost/functional/hash.hpp>
 #include <array>
 #include <cstdint>
@@ -118,7 +117,7 @@ private:
     std::array <UInt, size> m_vec;
 
 public:
-    typedef UInt value_type;
+    using value_type = UInt;
 
     static std::size_t const bits = Bits;
     static std::size_t const bytes = bits / 8;
@@ -169,7 +168,7 @@ public:
     }
 };
 
-typedef unsigned_integer <256, std::size_t> sha256_t;
+using sha256_t = unsigned_integer <256, std::size_t>;
 
 static_assert (sha256_t::bits == 256,
     "sha256_t must have 256 bits");
@@ -261,46 +260,6 @@ public:
     }
 };
 
-class hardened_hash_sha256_test
-    : public beast::unit_test::suite
-{
-public:
-    void
-    testSHA256()
-    {
-        testcase ("sha256");
-
-        log <<
-            "sizeof(std::size_t) == " << sizeof(std::size_t);
-
-        hardened_hash <> h;
-        for (int i = 0; i < 100; ++i)
-        {
-            sha256_t v (sha256_t::from_number (i));
-            beast::Sha256::digest_type d;
-            beast::Sha256::hash (v.data(), sha256_t::bytes, d);
-            sha256_t d_;
-            memcpy (d_.data(), d.data(), sha256_t::bytes);
-            std::size_t result (h (d_));
-            log <<
-                "i=" << std::setw(2) << i << " " <<
-                "sha256=0x" << d_ << " " <<
-                "hash=0x" <<
-                    std::setfill ('0') <<
-                    std::setw (2*sizeof(std::size_t)) << result
-                ;
-            pass();
-        }
-    }
-
-    void
-    run ()
-    {
-        testSHA256();
-    }
-};
-
 BEAST_DEFINE_TESTSUITE(hardened_hash,basics,ripple);
-BEAST_DEFINE_TESTSUITE_MANUAL(hardened_hash_sha256,basics,ripple);
 
 } // ripple

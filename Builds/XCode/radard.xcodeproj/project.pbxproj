@@ -7,26 +7,54 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		3402FD5C1B65DDF6009EC7D1 /* thrift2.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 3402FD5B1B65DDF6009EC7D1 /* thrift2.cpp */; };
+		3402FD5D1B65DDF6009EC7D1 /* thrift2.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 3402FD5B1B65DDF6009EC7D1 /* thrift2.cpp */; };
+		3402FD5F1B65DF6A009EC7D1 /* thrift3.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 3402FD5E1B65DF6A009EC7D1 /* thrift3.cpp */; };
+		3402FD601B65DF6A009EC7D1 /* thrift3.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 3402FD5E1B65DF6A009EC7D1 /* thrift3.cpp */; };
+		3402FD691B65E295009EC7D1 /* libz.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 3402FD681B65E295009EC7D1 /* libz.dylib */; };
+		3402FD6B1B65E299009EC7D1 /* libssl.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 3402FD6A1B65E299009EC7D1 /* libssl.dylib */; };
+		3402FD6D1B65E2A1009EC7D1 /* libcrypto.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 3402FD6C1B65E2A1009EC7D1 /* libcrypto.dylib */; };
+		3402FD6E1B65E2C8009EC7D1 /* libcrypto.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 3402FD6C1B65E2A1009EC7D1 /* libcrypto.dylib */; };
+		3402FD6F1B65E2C8009EC7D1 /* libssl.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 3402FD6A1B65E299009EC7D1 /* libssl.dylib */; };
+		3402FD701B65E2C8009EC7D1 /* libz.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 3402FD681B65E295009EC7D1 /* libz.dylib */; };
+		3402FD721B65E373009EC7D1 /* libdl.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 3402FD711B65E373009EC7D1 /* libdl.dylib */; };
+		3402FD731B65E377009EC7D1 /* libdl.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 3402FD711B65E373009EC7D1 /* libdl.dylib */; };
 		3414533F1A19D8390005FD6D /* ripple.proto in Sources */ = {isa = PBXBuildFile; fileRef = 8424474F1A13B30200A37710 /* ripple.proto */; };
+		341495D21BA81FA9006EFD47 /* app_ledger.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 341495CC1BA81FA9006EFD47 /* app_ledger.cpp */; };
+		341495D31BA81FA9006EFD47 /* app_ledger.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 341495CC1BA81FA9006EFD47 /* app_ledger.cpp */; };
+		341495D41BA81FA9006EFD47 /* app_main.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 341495CD1BA81FA9006EFD47 /* app_main.cpp */; };
+		341495D51BA81FA9006EFD47 /* app_main.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 341495CD1BA81FA9006EFD47 /* app_main.cpp */; };
+		341495D61BA81FA9006EFD47 /* app_misc.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 341495CE1BA81FA9006EFD47 /* app_misc.cpp */; };
+		341495D71BA81FA9006EFD47 /* app_misc.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 341495CE1BA81FA9006EFD47 /* app_misc.cpp */; };
+		341495D81BA81FA9006EFD47 /* app_paths.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 341495CF1BA81FA9006EFD47 /* app_paths.cpp */; };
+		341495D91BA81FA9006EFD47 /* app_paths.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 341495CF1BA81FA9006EFD47 /* app_paths.cpp */; };
+		341495DA1BA81FA9006EFD47 /* app_tests.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 341495D01BA81FA9006EFD47 /* app_tests.cpp */; };
+		341495DB1BA81FA9006EFD47 /* app_tests.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 341495D01BA81FA9006EFD47 /* app_tests.cpp */; };
+		341495DC1BA81FA9006EFD47 /* app_tx.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 341495D11BA81FA9006EFD47 /* app_tx.cpp */; };
+		341495DD1BA81FA9006EFD47 /* app_tx.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 341495D11BA81FA9006EFD47 /* app_tx.cpp */; };
+		341495E51BA8201C006EFD47 /* ledger.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 341495DE1BA8201C006EFD47 /* ledger.cpp */; };
+		341495E61BA8201C006EFD47 /* ledger.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 341495DE1BA8201C006EFD47 /* ledger.cpp */; };
+		341495E71BA8201C006EFD47 /* secp256k1.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 341495DF1BA8201C006EFD47 /* secp256k1.cpp */; };
+		341495E81BA8201C006EFD47 /* secp256k1.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 341495DF1BA8201C006EFD47 /* secp256k1.cpp */; };
+		341495E91BA8201C006EFD47 /* soci_ripple.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 341495E01BA8201C006EFD47 /* soci_ripple.cpp */; };
+		341495EA1BA8201C006EFD47 /* soci_ripple.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 341495E01BA8201C006EFD47 /* soci_ripple.cpp */; };
+		341495EB1BA8201C006EFD47 /* soci.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 341495E11BA8201C006EFD47 /* soci.cpp */; };
+		341495EC1BA8201C006EFD47 /* soci.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 341495E11BA8201C006EFD47 /* soci.cpp */; };
+		341495ED1BA8201C006EFD47 /* test.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 341495E21BA8201C006EFD47 /* test.cpp */; };
+		341495EE1BA8201C006EFD47 /* test.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 341495E21BA8201C006EFD47 /* test.cpp */; };
+		341495EF1BA8201C006EFD47 /* websocket02.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 341495E31BA8201C006EFD47 /* websocket02.cpp */; };
+		341495F01BA8201C006EFD47 /* websocket02.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 341495E31BA8201C006EFD47 /* websocket02.cpp */; };
+		341495F11BA8201C006EFD47 /* websocket04.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 341495E41BA8201C006EFD47 /* websocket04.cpp */; };
+		341495F21BA8201C006EFD47 /* websocket04.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 341495E41BA8201C006EFD47 /* websocket04.cpp */; };
+		341B4C361B65C8C800A9E6FF /* thrift.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 341B4C351B65C8C800A9E6FF /* thrift.cpp */; };
+		341B4C371B65C8C800A9E6FF /* thrift.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 341B4C351B65C8C800A9E6FF /* thrift.cpp */; };
 		34373C561A7B767A00487CE0 /* ripple.proto in Sources */ = {isa = PBXBuildFile; fileRef = 8424474F1A13B30200A37710 /* ripple.proto */; };
-		34373C571A7B767A00487CE0 /* app.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 8424480E1A13B30300A37710 /* app.cpp */; };
-		34373C581A7B767A00487CE0 /* app1.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 842448101A13B30300A37710 /* app1.cpp */; };
-		34373C591A7B767A00487CE0 /* app2.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 842448111A13B30300A37710 /* app2.cpp */; };
-		34373C5A1A7B767A00487CE0 /* app3.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 842448121A13B30300A37710 /* app3.cpp */; };
-		34373C5B1A7B767A00487CE0 /* app4.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 842448131A13B30300A37710 /* app4.cpp */; };
-		34373C5C1A7B767A00487CE0 /* app5.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 842448141A13B30300A37710 /* app5.cpp */; };
-		34373C5D1A7B767A00487CE0 /* app6.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 842448151A13B30300A37710 /* app6.cpp */; };
-		34373C5E1A7B767A00487CE0 /* app7.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 842448161A13B30300A37710 /* app7.cpp */; };
-		34373C5F1A7B767A00487CE0 /* app8.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 842448171A13B30300A37710 /* app8.cpp */; };
-		34373C601A7B767A00487CE0 /* app9.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 842448181A13B30300A37710 /* app9.cpp */; };
 		34373C611A7B767A00487CE0 /* basics.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 842448191A13B30300A37710 /* basics.cpp */; };
 		34373C621A7B767A00487CE0 /* beast.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 8424481A1A13B30300A37710 /* beast.cpp */; };
 		34373C631A7B767A00487CE0 /* beastc.c in Sources */ = {isa = PBXBuildFile; fileRef = 8424481B1A13B30300A37710 /* beastc.c */; };
 		34373C641A7B767A00487CE0 /* beastobjc.mm in Sources */ = {isa = PBXBuildFile; fileRef = 8424481C1A13B30300A37710 /* beastobjc.mm */; settings = {COMPILER_FLAGS = "-DOBJC_OLD_DISPATCH_PROTOTYPES"; }; };
 		34373C661A7B767A00487CE0 /* core.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 8424481E1A13B30300A37710 /* core.cpp */; };
-		34373C691A7B767A00487CE0 /* hyperleveldb.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 842448231A13B30300A37710 /* hyperleveldb.cpp */; settings = {COMPILER_FLAGS = "-I../../src/hyperleveldb -I../../src/snappy/snappy -I../../src/snappy/config"; }; };
 		34373C6A1A7B767A00487CE0 /* json.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 842448251A13B30300A37710 /* json.cpp */; };
-		34373C6B1A7B767A00487CE0 /* leveldb.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 842448271A13B30300A37710 /* leveldb.cpp */; settings = {COMPILER_FLAGS = "-I../../src/leveldb -I../../src/leveldb/include -I../../src/snappy/snappy -I../../src/snappy/config"; }; };
 		34373C6C1A7B767A00487CE0 /* net.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 842448291A13B30300A37710 /* net.cpp */; };
 		34373C6D1A7B767A00487CE0 /* nodestore.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 8424482B1A13B30300A37710 /* nodestore.cpp */; settings = {COMPILER_FLAGS = "-I../../src/leveldb/include -I../../src/rocksdb2/include -I../../src/snappy/snappy -I../../src/snappy/config"; }; };
 		34373C6E1A7B767A00487CE0 /* overlay.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 8424482C1A13B30300A37710 /* overlay.cpp */; };
@@ -37,8 +65,15 @@
 		34373C731A7B767A00487CE0 /* rocksdb.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 842448321A13B30300A37710 /* rocksdb.cpp */; settings = {COMPILER_FLAGS = "-I../../src/rocksdb2 -I../../src/rocksdb2/include -I../../src/snappy/snappy -I../../src/snappy/config"; }; };
 		34373C741A7B767A00487CE0 /* rpcx.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 842448341A13B30300A37710 /* rpcx.cpp */; };
 		34373C761A7B767A00487CE0 /* snappy.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 842448371A13B30300A37710 /* snappy.cpp */; settings = {COMPILER_FLAGS = " -I../../src/snappy/snappy -I../../src/snappy/config"; }; };
-		34373C791A7B767A00487CE0 /* validators.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 8424483C1A13B30300A37710 /* validators.cpp */; };
-		34373C7A1A7B767A00487CE0 /* websocket.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 8424483D1A13B30300A37710 /* websocket.cpp */; };
+		34373C831A7B770400487CE0 /* libmysqlclient.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 34373C821A7B770400487CE0 /* libmysqlclient.a */; };
+		344C10111BA97369004EE061 /* AppKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 344C100F1BA97369004EE061 /* AppKit.framework */; };
+		344C10121BA97369004EE061 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 344C10101BA97369004EE061 /* Foundation.framework */; };
+		344C10131BA97388004EE061 /* AppKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 344C100F1BA97369004EE061 /* AppKit.framework */; };
+		344C10141BA97388004EE061 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 344C10101BA97369004EE061 /* Foundation.framework */; };
+		344C10161BA97F20004EE061 /* soci_mysql.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 344C10151BA97F20004EE061 /* soci_mysql.cpp */; };
+		34707C071BB0F2A4003D6201 /* lz4.c in Sources */ = {isa = PBXBuildFile; fileRef = 525A39B41A9DC46E00847815 /* lz4.c */; };
+		34707C081BB0F2A4003D6201 /* lz4.c in Sources */ = {isa = PBXBuildFile; fileRef = 525A39B41A9DC46E00847815 /* lz4.c */; };
+		34971DC21BFDD3A600EA2870 /* unl.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 34971DC11BFDD3A600EA2870 /* unl.cpp */; };
 		34DD1F851A89C1CF00F3F599 /* ed25519.c in Sources */ = {isa = PBXBuildFile; fileRef = 52A240B31A7B8A9E009BB3F0 /* ed25519.c */; settings = {COMPILER_FLAGS = "-I../../src/ed25519-donna"; }; };
 		34DD1F861A89C1D500F3F599 /* git_id.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 52A240611A7B7E8D009BB3F0 /* git_id.cpp */; };
 		34DD1F871A89C1DB00F3F599 /* shamap.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 52A240631A7B7E8D009BB3F0 /* shamap.cpp */; };
@@ -46,8 +81,6 @@
 		34DD1F891A89C23400F3F599 /* protocol.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 52A23FE21A7A4501009BB3F0 /* protocol.cpp */; };
 		34DD1F8A1A89C23A00F3F599 /* server.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 52A23FE91A7A4501009BB3F0 /* server.cpp */; };
 		34DD1F8B1A89C2EA00F3F599 /* hash_unity.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 529087BB1A7F1BE8008CB1B9 /* hash_unity.cpp */; };
-		525A39B51A9DC46E00847815 /* lz4.c in Sources */ = {isa = PBXBuildFile; fileRef = 525A39B41A9DC46E00847815 /* lz4.c */; };
-		525A39B61A9DC46E00847815 /* lz4.c in Sources */ = {isa = PBXBuildFile; fileRef = 525A39B41A9DC46E00847815 /* lz4.c */; };
 		529087BC1A7F1BE8008CB1B9 /* hash_unity.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 529087BB1A7F1BE8008CB1B9 /* hash_unity.cpp */; };
 		52A23FF11A7A4543009BB3F0 /* protocol.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 52A23FE21A7A4501009BB3F0 /* protocol.cpp */; };
 		52A23FF21A7A4543009BB3F0 /* server.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 52A23FE91A7A4501009BB3F0 /* server.cpp */; };
@@ -55,24 +88,12 @@
 		52A240641A7B7E8D009BB3F0 /* git_id.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 52A240611A7B7E8D009BB3F0 /* git_id.cpp */; };
 		52A240651A7B7E8D009BB3F0 /* shamap.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 52A240631A7B7E8D009BB3F0 /* shamap.cpp */; };
 		52A240B41A7B8A9E009BB3F0 /* ed25519.c in Sources */ = {isa = PBXBuildFile; fileRef = 52A240B31A7B8A9E009BB3F0 /* ed25519.c */; settings = {COMPILER_FLAGS = "-I../../src/ed25519-donna"; }; };
-		84244BB21A13B36C00A37710 /* app.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 8424480E1A13B30300A37710 /* app.cpp */; };
-		84244BB31A13B36C00A37710 /* app1.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 842448101A13B30300A37710 /* app1.cpp */; };
-		84244BB41A13B36C00A37710 /* app2.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 842448111A13B30300A37710 /* app2.cpp */; };
-		84244BB51A13B36C00A37710 /* app3.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 842448121A13B30300A37710 /* app3.cpp */; };
-		84244BB61A13B36C00A37710 /* app4.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 842448131A13B30300A37710 /* app4.cpp */; };
-		84244BB71A13B36C00A37710 /* app5.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 842448141A13B30300A37710 /* app5.cpp */; };
-		84244BB81A13B36C00A37710 /* app6.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 842448151A13B30300A37710 /* app6.cpp */; };
-		84244BB91A13B36C00A37710 /* app7.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 842448161A13B30300A37710 /* app7.cpp */; };
-		84244BBA1A13B36C00A37710 /* app8.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 842448171A13B30300A37710 /* app8.cpp */; };
-		84244BBB1A13B36C00A37710 /* app9.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 842448181A13B30300A37710 /* app9.cpp */; };
 		84244BBC1A13B36C00A37710 /* basics.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 842448191A13B30300A37710 /* basics.cpp */; };
 		84244BBD1A13B36C00A37710 /* beast.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 8424481A1A13B30300A37710 /* beast.cpp */; };
 		84244BBE1A13B36C00A37710 /* beastc.c in Sources */ = {isa = PBXBuildFile; fileRef = 8424481B1A13B30300A37710 /* beastc.c */; };
 		84244BBF1A13B36C00A37710 /* beastobjc.mm in Sources */ = {isa = PBXBuildFile; fileRef = 8424481C1A13B30300A37710 /* beastobjc.mm */; settings = {COMPILER_FLAGS = "-DOBJC_OLD_DISPATCH_PROTOTYPES"; }; };
 		84244BC11A13B36C00A37710 /* core.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 8424481E1A13B30300A37710 /* core.cpp */; };
-		84244BC41A13B36C00A37710 /* hyperleveldb.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 842448231A13B30300A37710 /* hyperleveldb.cpp */; settings = {COMPILER_FLAGS = "-I../../src/hyperleveldb -I../../src/snappy/snappy -I../../src/snappy/config"; }; };
 		84244BC51A13B36C00A37710 /* json.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 842448251A13B30300A37710 /* json.cpp */; };
-		84244BC61A13B36C00A37710 /* leveldb.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 842448271A13B30300A37710 /* leveldb.cpp */; settings = {COMPILER_FLAGS = "-I../../src/leveldb -I../../src/leveldb/include -I../../src/snappy/snappy -I../../src/snappy/config"; }; };
 		84244BC71A13B36C00A37710 /* net.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 842448291A13B30300A37710 /* net.cpp */; };
 		84244BC81A13B36C00A37710 /* nodestore.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 8424482B1A13B30300A37710 /* nodestore.cpp */; settings = {COMPILER_FLAGS = "-I../../src/leveldb/include -I../../src/rocksdb2/include -I../../src/snappy/snappy -I../../src/snappy/config"; }; };
 		84244BC91A13B36C00A37710 /* overlay.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 8424482C1A13B30300A37710 /* overlay.cpp */; };
@@ -83,8 +104,6 @@
 		84244BCE1A13B36C00A37710 /* rocksdb.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 842448321A13B30300A37710 /* rocksdb.cpp */; settings = {COMPILER_FLAGS = "-I../../src/rocksdb2 -I../../src/rocksdb2/include -I../../src/snappy/snappy -I../../src/snappy/config"; }; };
 		84244BCF1A13B36C00A37710 /* rpcx.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 842448341A13B30300A37710 /* rpcx.cpp */; };
 		84244BD11A13B36C00A37710 /* snappy.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 842448371A13B30300A37710 /* snappy.cpp */; settings = {COMPILER_FLAGS = " -I../../src/snappy/snappy -I../../src/snappy/config"; }; };
-		84244BD41A13B36C00A37710 /* validators.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 8424483C1A13B30300A37710 /* validators.cpp */; };
-		84244BD51A13B36C00A37710 /* websocket.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 8424483D1A13B30300A37710 /* websocket.cpp */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXBuildRule section */
@@ -134,9 +153,34 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		3402FD5B1B65DDF6009EC7D1 /* thrift2.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = thrift2.cpp; path = ../../src/ripple/unity/thrift2.cpp; sourceTree = "<group>"; };
+		3402FD5E1B65DF6A009EC7D1 /* thrift3.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = thrift3.cpp; path = ../../src/ripple/unity/thrift3.cpp; sourceTree = "<group>"; };
+		3402FD681B65E295009EC7D1 /* libz.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libz.dylib; path = usr/lib/libz.dylib; sourceTree = SDKROOT; };
+		3402FD6A1B65E299009EC7D1 /* libssl.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libssl.dylib; path = usr/lib/libssl.dylib; sourceTree = SDKROOT; };
+		3402FD6C1B65E2A1009EC7D1 /* libcrypto.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libcrypto.dylib; path = usr/lib/libcrypto.dylib; sourceTree = SDKROOT; };
+		3402FD711B65E373009EC7D1 /* libdl.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libdl.dylib; path = usr/lib/libdl.dylib; sourceTree = SDKROOT; };
+		341495CC1BA81FA9006EFD47 /* app_ledger.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = app_ledger.cpp; path = ../../src/ripple/unity/app_ledger.cpp; sourceTree = "<group>"; };
+		341495CD1BA81FA9006EFD47 /* app_main.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = app_main.cpp; path = ../../src/ripple/unity/app_main.cpp; sourceTree = "<group>"; };
+		341495CE1BA81FA9006EFD47 /* app_misc.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = app_misc.cpp; path = ../../src/ripple/unity/app_misc.cpp; sourceTree = "<group>"; };
+		341495CF1BA81FA9006EFD47 /* app_paths.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = app_paths.cpp; path = ../../src/ripple/unity/app_paths.cpp; sourceTree = "<group>"; };
+		341495D01BA81FA9006EFD47 /* app_tests.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = app_tests.cpp; path = ../../src/ripple/unity/app_tests.cpp; sourceTree = "<group>"; };
+		341495D11BA81FA9006EFD47 /* app_tx.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = app_tx.cpp; path = ../../src/ripple/unity/app_tx.cpp; sourceTree = "<group>"; };
+		341495DE1BA8201C006EFD47 /* ledger.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = ledger.cpp; path = ../../src/ripple/unity/ledger.cpp; sourceTree = "<group>"; };
+		341495DF1BA8201C006EFD47 /* secp256k1.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = secp256k1.cpp; path = ../../src/ripple/unity/secp256k1.cpp; sourceTree = "<group>"; };
+		341495E01BA8201C006EFD47 /* soci_ripple.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = soci_ripple.cpp; path = ../../src/ripple/unity/soci_ripple.cpp; sourceTree = "<group>"; };
+		341495E11BA8201C006EFD47 /* soci.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = soci.cpp; path = ../../src/ripple/unity/soci.cpp; sourceTree = "<group>"; };
+		341495E21BA8201C006EFD47 /* test.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = test.cpp; path = ../../src/ripple/unity/test.cpp; sourceTree = "<group>"; };
+		341495E31BA8201C006EFD47 /* websocket02.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = websocket02.cpp; path = ../../src/ripple/unity/websocket02.cpp; sourceTree = "<group>"; };
+		341495E41BA8201C006EFD47 /* websocket04.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = websocket04.cpp; path = ../../src/ripple/unity/websocket04.cpp; sourceTree = "<group>"; };
+		341B4C351B65C8C800A9E6FF /* thrift.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = thrift.cpp; path = ../../src/ripple/unity/thrift.cpp; sourceTree = "<group>"; };
 		34373C811A7B767A00487CE0 /* radard-mysql */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = "radard-mysql"; sourceTree = BUILT_PRODUCTS_DIR; };
+		34373C821A7B770400487CE0 /* libmysqlclient.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libmysqlclient.a; path = /usr/local/lib/libmysqlclient.a; sourceTree = "<absolute>"; };
+		344C100F1BA97369004EE061 /* AppKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AppKit.framework; path = System/Library/Frameworks/AppKit.framework; sourceTree = SDKROOT; };
+		344C10101BA97369004EE061 /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = System/Library/Frameworks/Foundation.framework; sourceTree = SDKROOT; };
+		344C10151BA97F20004EE061 /* soci_mysql.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = soci_mysql.cpp; path = ../../src/ripple/unity/soci_mysql.cpp; sourceTree = "<group>"; };
 		3493343D1A3FE05000418C3F /* beast */ = {isa = PBXFileReference; lastKnownFileType = folder; name = beast; path = ../../src/beast; sourceTree = "<group>"; };
 		3493343F1A3FE05000418C3F /* ripple */ = {isa = PBXFileReference; lastKnownFileType = folder; name = ripple; path = ../../src/ripple; sourceTree = "<group>"; };
+		34971DC11BFDD3A600EA2870 /* unl.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = unl.cpp; path = ../../src/ripple/unity/unl.cpp; sourceTree = "<group>"; };
 		525A39B41A9DC46E00847815 /* lz4.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = lz4.c; path = ../../src/ripple/unity/lz4.c; sourceTree = "<group>"; };
 		529087BB1A7F1BE8008CB1B9 /* hash_unity.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = hash_unity.cpp; path = ../../src/beast/beast/unity/hash_unity.cpp; sourceTree = "<group>"; };
 		52A23FD51A7A4501009BB3F0 /* crypto.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = crypto.cpp; path = ../../src/ripple/unity/crypto.cpp; sourceTree = "<group>"; };
@@ -147,24 +191,12 @@
 		52A240B31A7B8A9E009BB3F0 /* ed25519.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = ed25519.c; path = ../../src/ripple/unity/ed25519.c; sourceTree = "<group>"; };
 		842440541A13B2B900A37710 /* radard */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = radard; sourceTree = BUILT_PRODUCTS_DIR; };
 		8424474F1A13B30200A37710 /* ripple.proto */ = {isa = PBXFileReference; lastKnownFileType = text; name = ripple.proto; path = ../../src/ripple/proto/ripple.proto; sourceTree = "<group>"; };
-		8424480E1A13B30300A37710 /* app.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = app.cpp; path = ../../src/ripple/unity/app.cpp; sourceTree = "<group>"; };
-		842448101A13B30300A37710 /* app1.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = app1.cpp; path = ../../src/ripple/unity/app1.cpp; sourceTree = "<group>"; };
-		842448111A13B30300A37710 /* app2.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = app2.cpp; path = ../../src/ripple/unity/app2.cpp; sourceTree = "<group>"; };
-		842448121A13B30300A37710 /* app3.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = app3.cpp; path = ../../src/ripple/unity/app3.cpp; sourceTree = "<group>"; };
-		842448131A13B30300A37710 /* app4.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = app4.cpp; path = ../../src/ripple/unity/app4.cpp; sourceTree = "<group>"; };
-		842448141A13B30300A37710 /* app5.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = app5.cpp; path = ../../src/ripple/unity/app5.cpp; sourceTree = "<group>"; };
-		842448151A13B30300A37710 /* app6.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = app6.cpp; path = ../../src/ripple/unity/app6.cpp; sourceTree = "<group>"; };
-		842448161A13B30300A37710 /* app7.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = app7.cpp; path = ../../src/ripple/unity/app7.cpp; sourceTree = "<group>"; };
-		842448171A13B30300A37710 /* app8.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = app8.cpp; path = ../../src/ripple/unity/app8.cpp; sourceTree = "<group>"; };
-		842448181A13B30300A37710 /* app9.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = app9.cpp; path = ../../src/ripple/unity/app9.cpp; sourceTree = "<group>"; };
 		842448191A13B30300A37710 /* basics.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = basics.cpp; path = ../../src/ripple/unity/basics.cpp; sourceTree = "<group>"; };
 		8424481A1A13B30300A37710 /* beast.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = beast.cpp; path = ../../src/ripple/unity/beast.cpp; sourceTree = "<group>"; };
 		8424481B1A13B30300A37710 /* beastc.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = beastc.c; path = ../../src/ripple/unity/beastc.c; sourceTree = "<group>"; };
 		8424481C1A13B30300A37710 /* beastobjc.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; name = beastobjc.mm; path = ../../src/ripple/unity/beastobjc.mm; sourceTree = "<group>"; };
 		8424481E1A13B30300A37710 /* core.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = core.cpp; path = ../../src/ripple/unity/core.cpp; sourceTree = "<group>"; };
-		842448231A13B30300A37710 /* hyperleveldb.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = hyperleveldb.cpp; path = ../../src/ripple/unity/hyperleveldb.cpp; sourceTree = "<group>"; };
 		842448251A13B30300A37710 /* json.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = json.cpp; path = ../../src/ripple/unity/json.cpp; sourceTree = "<group>"; };
-		842448271A13B30300A37710 /* leveldb.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = leveldb.cpp; path = ../../src/ripple/unity/leveldb.cpp; sourceTree = "<group>"; };
 		842448291A13B30300A37710 /* net.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = net.cpp; path = ../../src/ripple/unity/net.cpp; sourceTree = "<group>"; };
 		8424482B1A13B30300A37710 /* nodestore.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = nodestore.cpp; path = ../../src/ripple/unity/nodestore.cpp; sourceTree = "<group>"; };
 		8424482C1A13B30300A37710 /* overlay.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = overlay.cpp; path = ../../src/ripple/unity/overlay.cpp; sourceTree = "<group>"; };
@@ -175,8 +207,6 @@
 		842448321A13B30300A37710 /* rocksdb.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = rocksdb.cpp; path = ../../src/ripple/unity/rocksdb.cpp; sourceTree = "<group>"; };
 		842448341A13B30300A37710 /* rpcx.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = rpcx.cpp; path = ../../src/ripple/unity/rpcx.cpp; sourceTree = "<group>"; };
 		842448371A13B30300A37710 /* snappy.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = snappy.cpp; path = ../../src/ripple/unity/snappy.cpp; sourceTree = "<group>"; };
-		8424483C1A13B30300A37710 /* validators.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = validators.cpp; path = ../../src/ripple/unity/validators.cpp; sourceTree = "<group>"; };
-		8424483D1A13B30300A37710 /* websocket.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = websocket.cpp; path = ../../src/ripple/unity/websocket.cpp; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -184,6 +214,13 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				344C10111BA97369004EE061 /* AppKit.framework in Frameworks */,
+				344C10121BA97369004EE061 /* Foundation.framework in Frameworks */,
+				34373C831A7B770400487CE0 /* libmysqlclient.a in Frameworks */,
+				3402FD731B65E377009EC7D1 /* libdl.dylib in Frameworks */,
+				3402FD6E1B65E2C8009EC7D1 /* libcrypto.dylib in Frameworks */,
+				3402FD6F1B65E2C8009EC7D1 /* libssl.dylib in Frameworks */,
+				3402FD701B65E2C8009EC7D1 /* libz.dylib in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -191,26 +228,41 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				344C10131BA97388004EE061 /* AppKit.framework in Frameworks */,
+				344C10141BA97388004EE061 /* Foundation.framework in Frameworks */,
+				3402FD721B65E373009EC7D1 /* libdl.dylib in Frameworks */,
+				3402FD6D1B65E2A1009EC7D1 /* libcrypto.dylib in Frameworks */,
+				3402FD6B1B65E299009EC7D1 /* libssl.dylib in Frameworks */,
+				3402FD691B65E295009EC7D1 /* libz.dylib in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		3402FD671B65E279009EC7D1 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				344C100F1BA97369004EE061 /* AppKit.framework */,
+				344C10101BA97369004EE061 /* Foundation.framework */,
+				3402FD6C1B65E2A1009EC7D1 /* libcrypto.dylib */,
+				3402FD711B65E373009EC7D1 /* libdl.dylib */,
+				34373C821A7B770400487CE0 /* libmysqlclient.a */,
+				3402FD6A1B65E299009EC7D1 /* libssl.dylib */,
+				3402FD681B65E295009EC7D1 /* libz.dylib */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
 		3493343C1A3FDFF900418C3F /* build */ = {
 			isa = PBXGroup;
 			children = (
-				525A39B41A9DC46E00847815 /* lz4.c */,
-				8424480E1A13B30300A37710 /* app.cpp */,
-				842448101A13B30300A37710 /* app1.cpp */,
-				842448111A13B30300A37710 /* app2.cpp */,
-				842448121A13B30300A37710 /* app3.cpp */,
-				842448131A13B30300A37710 /* app4.cpp */,
-				842448141A13B30300A37710 /* app5.cpp */,
-				842448151A13B30300A37710 /* app6.cpp */,
-				842448161A13B30300A37710 /* app7.cpp */,
-				842448171A13B30300A37710 /* app8.cpp */,
-				842448181A13B30300A37710 /* app9.cpp */,
+				341495CC1BA81FA9006EFD47 /* app_ledger.cpp */,
+				341495CD1BA81FA9006EFD47 /* app_main.cpp */,
+				341495CE1BA81FA9006EFD47 /* app_misc.cpp */,
+				341495CF1BA81FA9006EFD47 /* app_paths.cpp */,
+				341495D01BA81FA9006EFD47 /* app_tests.cpp */,
+				341495D11BA81FA9006EFD47 /* app_tx.cpp */,
 				842448191A13B30300A37710 /* basics.cpp */,
 				8424481A1A13B30300A37710 /* beast.cpp */,
 				8424481B1A13B30300A37710 /* beastc.c */,
@@ -220,9 +272,9 @@
 				52A240B31A7B8A9E009BB3F0 /* ed25519.c */,
 				52A240611A7B7E8D009BB3F0 /* git_id.cpp */,
 				529087BB1A7F1BE8008CB1B9 /* hash_unity.cpp */,
-				842448231A13B30300A37710 /* hyperleveldb.cpp */,
 				842448251A13B30300A37710 /* json.cpp */,
-				842448271A13B30300A37710 /* leveldb.cpp */,
+				341495DE1BA8201C006EFD47 /* ledger.cpp */,
+				525A39B41A9DC46E00847815 /* lz4.c */,
 				842448291A13B30300A37710 /* net.cpp */,
 				8424482B1A13B30300A37710 /* nodestore.cpp */,
 				8424482C1A13B30300A37710 /* overlay.cpp */,
@@ -234,11 +286,20 @@
 				842448311A13B30300A37710 /* ripple.proto.cpp */,
 				842448321A13B30300A37710 /* rocksdb.cpp */,
 				842448341A13B30300A37710 /* rpcx.cpp */,
+				341495DF1BA8201C006EFD47 /* secp256k1.cpp */,
 				52A23FE91A7A4501009BB3F0 /* server.cpp */,
 				52A240631A7B7E8D009BB3F0 /* shamap.cpp */,
 				842448371A13B30300A37710 /* snappy.cpp */,
-				8424483C1A13B30300A37710 /* validators.cpp */,
-				8424483D1A13B30300A37710 /* websocket.cpp */,
+				344C10151BA97F20004EE061 /* soci_mysql.cpp */,
+				341495E01BA8201C006EFD47 /* soci_ripple.cpp */,
+				341495E11BA8201C006EFD47 /* soci.cpp */,
+				341495E21BA8201C006EFD47 /* test.cpp */,
+				341B4C351B65C8C800A9E6FF /* thrift.cpp */,
+				3402FD5B1B65DDF6009EC7D1 /* thrift2.cpp */,
+				3402FD5E1B65DF6A009EC7D1 /* thrift3.cpp */,
+				34971DC11BFDD3A600EA2870 /* unl.cpp */,
+				341495E31BA8201C006EFD47 /* websocket02.cpp */,
+				341495E41BA8201C006EFD47 /* websocket04.cpp */,
 			);
 			name = build;
 			sourceTree = "<group>";
@@ -250,6 +311,7 @@
 				3493343D1A3FE05000418C3F /* beast */,
 				3493343F1A3FE05000418C3F /* ripple */,
 				842440551A13B2B900A37710 /* Products */,
+				3402FD671B65E279009EC7D1 /* Frameworks */,
 			);
 			sourceTree = "<group>";
 		};
@@ -339,23 +401,23 @@
 			buildActionMask = 2147483647;
 			files = (
 				34373C561A7B767A00487CE0 /* ripple.proto in Sources */,
-				34373C571A7B767A00487CE0 /* app.cpp in Sources */,
-				34373C581A7B767A00487CE0 /* app1.cpp in Sources */,
-				525A39B61A9DC46E00847815 /* lz4.c in Sources */,
-				34373C591A7B767A00487CE0 /* app2.cpp in Sources */,
-				34373C5A1A7B767A00487CE0 /* app3.cpp in Sources */,
-				34373C5B1A7B767A00487CE0 /* app4.cpp in Sources */,
-				34373C5C1A7B767A00487CE0 /* app5.cpp in Sources */,
-				34373C5D1A7B767A00487CE0 /* app6.cpp in Sources */,
-				34373C5E1A7B767A00487CE0 /* app7.cpp in Sources */,
-				34373C5F1A7B767A00487CE0 /* app8.cpp in Sources */,
-				34373C601A7B767A00487CE0 /* app9.cpp in Sources */,
 				34373C661A7B767A00487CE0 /* core.cpp in Sources */,
+				341495DB1BA81FA9006EFD47 /* app_tests.cpp in Sources */,
 				34373C611A7B767A00487CE0 /* basics.cpp in Sources */,
+				341495D91BA81FA9006EFD47 /* app_paths.cpp in Sources */,
 				34DD1F881A89C22000F3F599 /* crypto.cpp in Sources */,
+				341495DD1BA81FA9006EFD47 /* app_tx.cpp in Sources */,
+				341495EA1BA8201C006EFD47 /* soci_ripple.cpp in Sources */,
+				341495EE1BA8201C006EFD47 /* test.cpp in Sources */,
 				34373C6C1A7B767A00487CE0 /* net.cpp in Sources */,
+				341495D51BA81FA9006EFD47 /* app_main.cpp in Sources */,
+				341495EC1BA8201C006EFD47 /* soci.cpp in Sources */,
+				341495E81BA8201C006EFD47 /* secp256k1.cpp in Sources */,
+				341495D71BA81FA9006EFD47 /* app_misc.cpp in Sources */,
 				34373C6E1A7B767A00487CE0 /* overlay.cpp in Sources */,
 				34373C6F1A7B767A00487CE0 /* peerfinder.cpp in Sources */,
+				341495D31BA81FA9006EFD47 /* app_ledger.cpp in Sources */,
+				34707C081BB0F2A4003D6201 /* lz4.c in Sources */,
 				34373C6A1A7B767A00487CE0 /* json.cpp in Sources */,
 				34DD1F871A89C1DB00F3F599 /* shamap.cpp in Sources */,
 				34373C6D1A7B767A00487CE0 /* nodestore.cpp in Sources */,
@@ -364,18 +426,21 @@
 				34DD1F8B1A89C2EA00F3F599 /* hash_unity.cpp in Sources */,
 				34373C621A7B767A00487CE0 /* beast.cpp in Sources */,
 				34373C701A7B767A00487CE0 /* protobuf.cpp in Sources */,
+				344C10161BA97F20004EE061 /* soci_mysql.cpp in Sources */,
+				341495F21BA8201C006EFD47 /* websocket04.cpp in Sources */,
 				34373C721A7B767A00487CE0 /* ripple.proto.cpp in Sources */,
+				341495E61BA8201C006EFD47 /* ledger.cpp in Sources */,
 				34373C711A7B767A00487CE0 /* resource.cpp in Sources */,
 				34373C741A7B767A00487CE0 /* rpcx.cpp in Sources */,
 				34DD1F8A1A89C23A00F3F599 /* server.cpp in Sources */,
-				34373C791A7B767A00487CE0 /* validators.cpp in Sources */,
-				34373C7A1A7B767A00487CE0 /* websocket.cpp in Sources */,
 				34373C631A7B767A00487CE0 /* beastc.c in Sources */,
 				34DD1F851A89C1CF00F3F599 /* ed25519.c in Sources */,
-				34373C6B1A7B767A00487CE0 /* leveldb.cpp in Sources */,
-				34373C691A7B767A00487CE0 /* hyperleveldb.cpp in Sources */,
 				34373C731A7B767A00487CE0 /* rocksdb.cpp in Sources */,
+				341495F01BA8201C006EFD47 /* websocket02.cpp in Sources */,
 				34373C761A7B767A00487CE0 /* snappy.cpp in Sources */,
+				341B4C371B65C8C800A9E6FF /* thrift.cpp in Sources */,
+				3402FD5D1B65DDF6009EC7D1 /* thrift2.cpp in Sources */,
+				3402FD601B65DF6A009EC7D1 /* thrift3.cpp in Sources */,
 				34373C641A7B767A00487CE0 /* beastobjc.mm in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -385,43 +450,46 @@
 			buildActionMask = 2147483647;
 			files = (
 				3414533F1A19D8390005FD6D /* ripple.proto in Sources */,
-				84244BB21A13B36C00A37710 /* app.cpp in Sources */,
-				84244BB31A13B36C00A37710 /* app1.cpp in Sources */,
-				525A39B51A9DC46E00847815 /* lz4.c in Sources */,
-				84244BB41A13B36C00A37710 /* app2.cpp in Sources */,
-				84244BB51A13B36C00A37710 /* app3.cpp in Sources */,
-				84244BB61A13B36C00A37710 /* app4.cpp in Sources */,
-				84244BB71A13B36C00A37710 /* app5.cpp in Sources */,
-				84244BB81A13B36C00A37710 /* app6.cpp in Sources */,
-				84244BB91A13B36C00A37710 /* app7.cpp in Sources */,
-				84244BBA1A13B36C00A37710 /* app8.cpp in Sources */,
-				84244BBB1A13B36C00A37710 /* app9.cpp in Sources */,
+				341495D21BA81FA9006EFD47 /* app_ledger.cpp in Sources */,
+				341495D41BA81FA9006EFD47 /* app_main.cpp in Sources */,
+				341495D61BA81FA9006EFD47 /* app_misc.cpp in Sources */,
+				341495D81BA81FA9006EFD47 /* app_paths.cpp in Sources */,
+				341495DA1BA81FA9006EFD47 /* app_tests.cpp in Sources */,
+				341495DC1BA81FA9006EFD47 /* app_tx.cpp in Sources */,
 				84244BC11A13B36C00A37710 /* core.cpp in Sources */,
 				84244BBC1A13B36C00A37710 /* basics.cpp in Sources */,
 				52A23FF31A7A4587009BB3F0 /* crypto.cpp in Sources */,
+				341495E51BA8201C006EFD47 /* ledger.cpp in Sources */,
 				84244BC71A13B36C00A37710 /* net.cpp in Sources */,
 				84244BC91A13B36C00A37710 /* overlay.cpp in Sources */,
 				84244BCA1A13B36C00A37710 /* peerfinder.cpp in Sources */,
 				84244BC51A13B36C00A37710 /* json.cpp in Sources */,
+				84244BCF1A13B36C00A37710 /* rpcx.cpp in Sources */,
 				52A240651A7B7E8D009BB3F0 /* shamap.cpp in Sources */,
+				341495ED1BA8201C006EFD47 /* test.cpp in Sources */,
+				34971DC21BFDD3A600EA2870 /* unl.cpp in Sources */,
 				84244BC81A13B36C00A37710 /* nodestore.cpp in Sources */,
+				341495EB1BA8201C006EFD47 /* soci.cpp in Sources */,
+				341495E91BA8201C006EFD47 /* soci_ripple.cpp in Sources */,
+				341495E71BA8201C006EFD47 /* secp256k1.cpp in Sources */,
 				52A240641A7B7E8D009BB3F0 /* git_id.cpp in Sources */,
 				52A23FF11A7A4543009BB3F0 /* protocol.cpp in Sources */,
 				529087BC1A7F1BE8008CB1B9 /* hash_unity.cpp in Sources */,
 				84244BBD1A13B36C00A37710 /* beast.cpp in Sources */,
+				34707C071BB0F2A4003D6201 /* lz4.c in Sources */,
 				84244BCB1A13B36C00A37710 /* protobuf.cpp in Sources */,
 				84244BCD1A13B36C00A37710 /* ripple.proto.cpp in Sources */,
 				84244BCC1A13B36C00A37710 /* resource.cpp in Sources */,
-				84244BCF1A13B36C00A37710 /* rpcx.cpp in Sources */,
 				52A23FF21A7A4543009BB3F0 /* server.cpp in Sources */,
-				84244BD41A13B36C00A37710 /* validators.cpp in Sources */,
-				84244BD51A13B36C00A37710 /* websocket.cpp in Sources */,
+				341495EF1BA8201C006EFD47 /* websocket02.cpp in Sources */,
 				84244BBE1A13B36C00A37710 /* beastc.c in Sources */,
 				52A240B41A7B8A9E009BB3F0 /* ed25519.c in Sources */,
-				84244BC61A13B36C00A37710 /* leveldb.cpp in Sources */,
-				84244BC41A13B36C00A37710 /* hyperleveldb.cpp in Sources */,
 				84244BCE1A13B36C00A37710 /* rocksdb.cpp in Sources */,
+				341B4C361B65C8C800A9E6FF /* thrift.cpp in Sources */,
+				3402FD5C1B65DDF6009EC7D1 /* thrift2.cpp in Sources */,
+				3402FD5F1B65DF6A009EC7D1 /* thrift3.cpp in Sources */,
 				84244BD11A13B36C00A37710 /* snappy.cpp in Sources */,
+				341495F11BA8201C006EFD47 /* websocket04.cpp in Sources */,
 				84244BBF1A13B36C00A37710 /* beastobjc.mm in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -444,7 +512,6 @@
 					"$(OTHER_CFLAGS)",
 					"-Wall",
 					"-frtti",
-					"-std=c++11",
 					"-Wno-invalid-offsetof",
 					"-Wno-mismatched-tags",
 					"-Wno-deprecated-register",
@@ -459,14 +526,6 @@
 					"-Wno-unused-function",
 					"-O3",
 					"-fno-strict-aliasing",
-					"-DOPENSSL_NO_SSL2",
-					"-DNDEBUG",
-					"-DBEAST_COMPILE_OBJECTIVE_CPP=1",
-					"-DRADAR_ASYNC_DIVIDEND",
-				);
-				OTHER_LDFLAGS = (
-					"${inherited}",
-					"-lmysqlclient",
 				);
 				PRODUCT_NAME = "radard-mysql";
 			};
@@ -487,7 +546,6 @@
 					"$(OTHER_CFLAGS)",
 					"-Wall",
 					"-frtti",
-					"-std=c++11",
 					"-Wno-invalid-offsetof",
 					"-Wno-mismatched-tags",
 					"-Wno-deprecated-register",
@@ -502,14 +560,6 @@
 					"-Wno-unused-function",
 					"-O3",
 					"-fno-strict-aliasing",
-					"-DOPENSSL_NO_SSL2",
-					"-DNDEBUG",
-					"-DBEAST_COMPILE_OBJECTIVE_CPP=1",
-					"-DRADAR_ASYNC_DIVIDEND",
-				);
-				OTHER_LDFLAGS = (
-					"${inherited}",
-					"-lmysqlclient",
 				);
 				PRODUCT_NAME = "radard-mysql";
 			};
@@ -519,7 +569,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
-				CLANG_CXX_LANGUAGE_STANDARD = "c++0x";
+				CLANG_CXX_LANGUAGE_STANDARD = "c++14";
 				CLANG_CXX_LIBRARY = "libc++";
 				CLANG_ENABLE_MODULES = YES;
 				CLANG_ENABLE_OBJC_ARC = NO;
@@ -534,11 +584,17 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				FRAMEWORK_SEARCH_PATHS = /usr/local/lib;
 				GCC_C_LANGUAGE_STANDARD = gnu99;
 				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_OPTIMIZATION_LEVEL = 0;
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					"DEBUG=1",
+					NDEBUG,
+					OPENSSL_NO_SSL2,
+					"BEAST_COMPILE_OBJECTIVE_CPP=1",
+					RADAR_ASYNC_DIVIDEND,
+					"RIPPLE_THRIFT_AVAILABLE=1",
 					"$(inherited)",
 				);
 				GCC_SYMBOLS_PRIVATE_EXTERN = NO;
@@ -555,12 +611,26 @@
 					../../src,
 					../../src/beast,
 					../../build/proto,
+					../../src/soci/src,
+					../../src/soci/include,
+					../../src/soci/src/core,
+					../../src/soci/include/private,
+					../../src/sqlite,
+					../../src/secp256k1,
+					../../src/rocksdb2/include,
+					../../src/snappy/snappy,
+					../../src/snappy/config,
+					"../../src/ed25519-donna",
+					../../src/websocketpp,
+					../../src/thrift/lib/cpp/src,
 				);
-				LIBRARY_SEARCH_PATHS = /usr/local/lib;
+				LIBRARY_SEARCH_PATHS = (
+					"$(inherited)",
+					/usr/local/lib,
+				);
 				MACOSX_DEPLOYMENT_TARGET = 10.10;
 				MTL_ENABLE_DEBUG_INFO = YES;
 				ONLY_ACTIVE_ARCH = YES;
-				OTHER_CPLUSPLUSFLAGS = "$(OTHER_CFLAGS)";
 				OTHER_LDFLAGS = (
 					"-lboost_coroutine",
 					"-lboost_context-mt",
@@ -574,11 +644,7 @@
 					"-lcrypto",
 					"-lprotobuf",
 					"-lssl",
-					"-v",
-					"-framework",
-					AppKit,
-					"-framework",
-					Foundation,
+					"-levent",
 				);
 				SDKROOT = macosx;
 			};
@@ -588,7 +654,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
-				CLANG_CXX_LANGUAGE_STANDARD = "c++0x";
+				CLANG_CXX_LANGUAGE_STANDARD = "c++14";
 				CLANG_CXX_LIBRARY = "libc++";
 				CLANG_ENABLE_MODULES = YES;
 				CLANG_ENABLE_OBJC_ARC = NO;
@@ -605,7 +671,16 @@
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				FRAMEWORK_SEARCH_PATHS = /usr/local/lib;
 				GCC_C_LANGUAGE_STANDARD = gnu99;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					NDEBUG,
+					OPENSSL_NO_SSL2,
+					"BEAST_COMPILE_OBJECTIVE_CPP=1",
+					RADAR_ASYNC_DIVIDEND,
+					"RIPPLE_THRIFT_AVAILABLE=1",
+					"$(inherited)",
+				);
 				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
 				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
 				GCC_WARN_UNDECLARED_SELECTOR = YES;
@@ -619,8 +694,23 @@
 					../../src,
 					../../src/beast,
 					../../build/proto,
+					../../src/soci/src,
+					../../src/soci/include,
+					../../src/soci/src/core,
+					../../src/soci/include/private,
+					../../src/sqlite,
+					../../src/secp256k1,
+					../../src/rocksdb2/include,
+					../../src/snappy/snappy,
+					../../src/snappy/config,
+					"../../src/ed25519-donna",
+					../../src/websocketpp,
+					../../src/thrift/lib/cpp/src,
 				);
-				LIBRARY_SEARCH_PATHS = /usr/local/lib;
+				LIBRARY_SEARCH_PATHS = (
+					"$(inherited)",
+					/usr/local/lib,
+				);
 				MACOSX_DEPLOYMENT_TARGET = 10.10;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				OTHER_LDFLAGS = (
@@ -636,11 +726,6 @@
 					"-lcrypto",
 					"-lprotobuf",
 					"-lssl",
-					"-v",
-					"-framework",
-					AppKit,
-					"-framework",
-					Foundation,
 				);
 				SDKROOT = macosx;
 			};
@@ -653,7 +738,6 @@
 					"$(OTHER_CFLAGS)",
 					"-Wall",
 					"-frtti",
-					"-std=c++11",
 					"-Wno-invalid-offsetof",
 					"-Wno-mismatched-tags",
 					"-Wno-deprecated-register",
@@ -667,10 +751,6 @@
 					"-Wno-unused-variable",
 					"-Wno-unused-function",
 					"-fno-strict-aliasing",
-					"-DOPENSSL_NO_SSL2",
-					"-DNDEBUG",
-					"-DBEAST_COMPILE_OBJECTIVE_CPP=1",
-					"-DRADAR_ASYNC_DIVIDEND",
 				);
 				PRODUCT_NAME = radard;
 			};
@@ -683,7 +763,6 @@
 					"$(OTHER_CFLAGS)",
 					"-Wall",
 					"-frtti",
-					"-std=c++11",
 					"-Wno-invalid-offsetof",
 					"-Wno-mismatched-tags",
 					"-Wno-deprecated-register",
@@ -697,10 +776,6 @@
 					"-Wno-unused-variable",
 					"-Wno-unused-function",
 					"-fno-strict-aliasing",
-					"-DOPENSSL_NO_SSL2",
-					"-DNDEBUG",
-					"-DBEAST_COMPILE_OBJECTIVE_CPP=1",
-					"-DRADAR_ASYNC_DIVIDEND",
 				);
 				PRODUCT_NAME = radard;
 			};

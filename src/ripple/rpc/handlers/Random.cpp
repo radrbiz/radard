@@ -20,8 +20,16 @@
 #include <BeastConfig.h>
 #include <ripple/crypto/RandomNumbers.h>
 #include <ripple/json/json_value.h>
+#include <ripple/net/RPCErr.h>
+#include <ripple/protocol/ErrorCodes.h>
+#include <ripple/protocol/JsonFields.h>
+#include <ripple/basics/base_uint.h>
 
 namespace ripple {
+
+namespace RPC {
+struct Context;
+}
 
 // Result:
 // {
@@ -37,10 +45,10 @@ Json::Value doRandom (RPC::Context& context)
         random_fill (rand.begin (), rand.size ());
 
         Json::Value jvResult;
-        jvResult["random"]  = to_string (rand);
+        jvResult[jss::random]  = to_string (rand);
         return jvResult;
     }
-    catch (...)
+    catch (std::exception const&)
     {
         return rpcError (rpcINTERNAL);
     }

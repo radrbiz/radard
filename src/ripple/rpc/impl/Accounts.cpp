@@ -19,12 +19,16 @@
 
 #include <BeastConfig.h>
 #include <ripple/rpc/impl/Accounts.h>
+#include <ripple/rpc/impl/Utilities.h>
+#include <ripple/app/main/Application.h>
+#include <ripple/protocol/Indexes.h>
+#include <ripple/protocol/types.h>
 
 namespace ripple {
 namespace RPC {
 
 Json::Value accounts (
-    Ledger::ref lrLedger,
+    std::shared_ptr <ReadView const> const& lrLedger,
     RippleAddress const& naMasterGenerator,
     NetworkOPs& netOps)
 {
@@ -36,17 +40,18 @@ Json::Value accounts (
 
     do
     {
-        RippleAddress       naAccount;
+        // VFALCO Should be PublicKey and Generator
+        RippleAddress pk;
+        pk.setAccountPublic (naMasterGenerator, uIndex++);
 
-        naAccount.setAccountPublic (naMasterGenerator, uIndex++);
+        auto const sle =
+            lrLedger->read (keylet::account(calcAccountID(pk)));
 
-        AccountState::pointer as    = netOps.getAccountState (lrLedger, naAccount);
-
-        if (as)
+        if (sle)
         {
             Json::Value jsonAccount (Json::objectValue);
 
-            as->addJson (jsonAccount);
+            injectSLE(jsonAccount, *sle);
 
             jsonAccounts.append (jsonAccount);
         }

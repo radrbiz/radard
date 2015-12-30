@@ -25,57 +25,83 @@
 namespace ripple {
 
 template <typename Integer>
-class STInteger : public STBase
+class STInteger
+    : public STBase
 {
 public:
-    explicit STInteger (Integer v) : value_ (v)
+    using value_type = Integer;
+
+    explicit
+    STInteger (Integer v)
+        : value_ (v)
+    { }
+
+    STInteger (SField const& n, Integer v = 0)
+        : STBase (n), value_ (v)
+    { }
+
+    STInteger(SerialIter& sit, SField const& name);
+
+    STBase*
+    copy (std::size_t n, void* buf) const override
     {
+        return emplace(n, buf, *this);
     }
 
-    STInteger (SField::ref n, Integer v = 0) : STBase (n), value_ (v)
+    STBase*
+    move (std::size_t n, void* buf) override
     {
+        return emplace(n, buf, std::move(*this));
     }
 
-    static std::unique_ptr<STBase> deserialize (
-        SerializerIterator& sit, SField::ref name)
-    {
-        return std::unique_ptr<STBase> (construct (sit, name));
-    }
+    SerializedTypeID
+    getSType () const override;
 
-    SerializedTypeID getSType () const
-    {
-        return STI_UINT8;
-    }
+    Json::Value
+    getJson (int) const override;
 
-    Json::Value getJson (int) const;
-    std::string getText () const;
+    std::string
+    getText () const override;
 
-    void add (Serializer& s) const
+    void
+    add (Serializer& s) const override
     {
         assert (fName->isBinary ());
         assert (fName->fieldType == getSType ());
         s.addInteger (value_);
     }
 
-    Integer getValue () const
+    STInteger& operator= (value_type const& v)
+    {
+        value_ = v;
+        return *this;
+    }
+
+    value_type value() const noexcept
     {
         return value_;
     }
-    void setValue (Integer v)
+
+    void
+    setValue (Integer v)
     {
         value_ = v;
     }
 
-    operator Integer () const
+    operator
+    Integer () const
     {
         return value_;
     }
-    virtual bool isDefault () const
+
+    virtual
+    bool isDefault () const override
     {
         return value_ == 0;
     }
 
-    bool isEquivalent (const STBase& t) const
+    bool
+    isEquivalent (const STBase& t) const override
     {
         const STInteger* v = dynamic_cast<const STInteger*> (&t);
         return v && (value_ == v->value_);
@@ -83,15 +109,9 @@ public:
 
 private:
     Integer value_;
-
-    STInteger* duplicate () const
-    {
-        return new STInteger (*this);
-    }
-    static STInteger* construct (SerializerIterator&, SField::ref f);
 };
 
-using STUInt8 = STInteger<unsigned char>;
+using STUInt8  = STInteger<unsigned char>;
 using STUInt16 = STInteger<std::uint16_t>;
 using STUInt32 = STInteger<std::uint32_t>;
 using STUInt64 = STInteger<std::uint64_t>;

@@ -24,16 +24,17 @@
 #include <ripple/server/make_ServerHandler.h>
 #include <ripple/server/impl/JSONRPCUtil.h>
 #include <ripple/server/impl/ServerHandlerImp.h>
+#include <ripple/basics/contract.h>
 #include <ripple/basics/Log.h>
 #include <ripple/basics/make_SSLContext.h>
 #include <ripple/core/JobQueue.h>
 #include <ripple/server/make_Server.h>
 #include <ripple/overlay/Overlay.h>
-#include <ripple/resource/Manager.h>
+#include <ripple/resource/ResourceManager.h>
 #include <ripple/resource/Fees.h>
-#include <ripple/rpc/Coroutine.h>
+#include <ripple/rpc/impl/Tuning.h>
 #include <beast/crypto/base64.h>
-#include <beast/cxx14/algorithm.h> // <algorithm>
+#include <ripple/rpc/RPCHandler.h>
 #include <beast/http/rfc2616.h>
 #include <boost/algorithm/string.hpp>
 #include <boost/type_traits.hpp>
@@ -52,17 +53,23 @@ ServerHandler::ServerHandler (Stoppable& parent)
 
 //------------------------------------------------------------------------------
 
-ServerHandlerImp::ServerHandlerImp (Stoppable& parent,
+ServerHandlerImp::ServerHandlerImp (Application& app, Stoppable& parent,
     boost::asio::io_service& io_service, JobQueue& jobQueue,
-        NetworkOPs& networkOPs, Resource::Manager& resourceManager)
+        NetworkOPs& networkOPs, Resource::Manager& resourceManager,
+            CollectorManager& cm)
     : ServerHandler (parent)
+    , app_ (app)
     , m_resourceManager (resourceManager)
-    , m_journal (deprecatedLogs().journal("Server"))
-    , m_jobQueue (jobQueue)
+    , m_journal (app_.journal("Server"))
     , m_networkOPs (networkOPs)
     , m_server (HTTP::make_Server(
-        *this, io_service, deprecatedLogs().journal("Server")))
+        *this, io_service, app_.journal("Server")))
+    , m_jobQueue (jobQueue)
 {
+    auto const& group (cm.group ("rpc"));
+    rpc_requests_ = group->make_counter ("requests");
+    rpc_size_ = group->make_event ("size");
+    rpc_time_ = group->make_event ("time");
 }
 
 ServerHandlerImp::~ServerHandlerImp()
@@ -99,17 +106,6 @@ ServerHandlerImp::onAccept (HTTP::Session& session,
     return true;
 }
 
-void
-ServerHandlerImp::onLegacyPeerHello (
-    std::unique_ptr<beast::asio::ssl_bundle>&& ssl_bundle,
-        boost::asio::const_buffer buffer,
-            boost::asio::ip::tcp::endpoint remote_address)
-{
-    // VFALCO TODO Inject Overlay
-    getApp().overlay().onLegacyPeerHello(std::move(ssl_bundle),
-        buffer, remote_address);
-}
-
 auto
 ServerHandlerImp::onHandoff (HTTP::Session& session,
     std::unique_ptr <beast::asio::ssl_bundle>&& bundle,
@@ -126,7 +122,7 @@ ServerHandlerImp::onHandoff (HTTP::Session& session,
         return handoff;
     }
     if (session.port().protocol.count("peer") > 0)
-        return getApp().overlay().onHandoff (std::move(bundle),
+        return app_.overlay().onHandoff (std::move(bundle),
             std::move(request), remote_address);
     // Pass through to legacy onRequest
     return Handoff{};
@@ -152,34 +148,13 @@ ServerHandlerImp::onHandoff (HTTP::Session& session,
 }
 
 static inline
-RPC::Output makeOutput (HTTP::Session& session)
+Json::Output makeOutput (HTTP::Session& session)
 {
     return [&](boost::string_ref const& b)
     {
         session.write (b.data(), b.size());
     };
 }
-
-namespace {
-
-void runCoroutine (RPC::Coroutine coroutine, JobQueue& jobQueue)
-{
-    if (!coroutine)
-        return;
-    coroutine();
-    if (!coroutine)
-        return;
-
-    // Reschedule the job on the job queue.
-    jobQueue.addJob (
-        jtCLIENT, "RPC-Coroutine",
-        [coroutine, &jobQueue] (Job&)
-        {
-            runCoroutine (coroutine, jobQueue);
-        });
-}
-
-} // namespace
 
 void
 ServerHandlerImp::onRequest (HTTP::Session& session)
@@ -188,35 +163,25 @@ ServerHandlerImp::onRequest (HTTP::Session& session)
     if (session.port().protocol.count("http") == 0 &&
         session.port().protocol.count("https") == 0)
     {
-        HTTPReply (403, "Forbidden", makeOutput (session));
+        HTTPReply (403, "Forbidden", makeOutput (session), app_.journal ("RPC"));
         session.close (true);
         return;
     }
 
     // Check user/password authorization
-    if (! authorized (session.port(),
-        build_map(session.request().headers)))
+    if (! authorized (
+            session.port(), build_map(session.request().headers)))
     {
-        HTTPReply (403, "Forbidden", makeOutput (session));
+        HTTPReply (403, "Forbidden", makeOutput (session), app_.journal ("RPC"));
         session.close (true);
         return;
     }
 
-    auto detach = session.detach();
-
-    if (setup_.yieldStrategy.useCoroutines ==
-        RPC::YieldStrategy::UseCoroutines::yes)
-    {
-        RPC::Coroutine::YieldFunction yieldFunction =
-                [this, detach] (Yield const& y) { processSession (detach, y); };
-        runCoroutine (RPC::Coroutine (yieldFunction), m_jobQueue);
-    }
-    else
-    {
-        m_jobQueue.addJob (
-            jtCLIENT, "RPC-Client",
-            [=] (Job&) { processSession (detach, RPC::Yield{}); });
-    }
+    m_jobQueue.postCoro(jtCLIENT, "RPC-Client",
+        [this, detach = session.detach()](std::shared_ptr<JobCoro> jc)
+        {
+            processSession(detach, jc);
+        });
 }
 
 void
@@ -233,21 +198,14 @@ ServerHandlerImp::onStopped (HTTP::Server&)
 
 //------------------------------------------------------------------------------
 
-// Dispatched on the job queue
+// Run as a couroutine.
 void
-ServerHandlerImp::processSession (
-    std::shared_ptr<HTTP::Session> const& session, Yield const& yield)
+ServerHandlerImp::processSession (std::shared_ptr<HTTP::Session> const& session,
+    std::shared_ptr<JobCoro> jobCoro)
 {
-    auto output = makeOutput (*session);
-    if (auto byteYieldCount = setup_.yieldStrategy.byteYieldCount)
-        output = RPC::chunkedYieldingOutput (output, yield, byteYieldCount);
-
-    processRequest (
-        session->port(),
-        to_string (session->body()),
-        session->remoteAddress().at_port (0),
-        output,
-        yield);
+    processRequest (session->port(), to_string (session->body()),
+        session->remoteAddress().at_port (0), makeOutput (*session), jobCoro,
+        session->forwarded_for(), session->user());
 
     if (session->request().keep_alive())
         session->complete();
@@ -256,73 +214,90 @@ ServerHandlerImp::processSession (
 }
 
 void
-ServerHandlerImp::processRequest (
-    HTTP::Port const& port,
-    std::string const& request,
-    beast::IP::Endpoint const& remoteIPAddress,
-    Output output,
-    Yield yield)
+ServerHandlerImp::processRequest (HTTP::Port const& port,
+    std::string const& request, beast::IP::Endpoint const& remoteIPAddress,
+        Output&& output, std::shared_ptr<JobCoro> jobCoro,
+        std::string forwardedFor, std::string user)
 {
+    auto rpcJ = app_.journal ("RPC");
+    // Move off the webserver thread onto the JobQueue.
+    assert (app_.getJobQueue().getJobForThread());
+
     Json::Value jsonRPC;
     {
         Json::Reader reader;
-        if ((request.size () > 1000000) ||
+        if ((request.size () > RPC::Tuning::maxRequestSize) ||
             ! reader.parse (request, jsonRPC) ||
-            jsonRPC.isNull () ||
+            ! jsonRPC ||
             ! jsonRPC.isObject ())
         {
-            HTTPReply (400, "Unable to parse request", output);
+            HTTPReply (400, "Unable to parse request", output, rpcJ);
             return;
         }
-    }
-
-    auto const& admin_allow = getConfig().RPC_ADMIN_ALLOW;
-    auto role = Role::FORBID;
-    if (jsonRPC.isObject() && jsonRPC.isMember("params") &&
-            jsonRPC["params"].isArray() && jsonRPC["params"].size() > 0 &&
-                jsonRPC["params"][Json::UInt(0)].isObject())
-        role = adminRole(port, jsonRPC["params"][Json::UInt(0)],
-            remoteIPAddress, admin_allow);
-    else
-        role = adminRole(port, Json::objectValue,
-            remoteIPAddress, admin_allow);
-
-    Resource::Consumer usage;
-
-    if (role == Role::ADMIN)
-        usage = m_resourceManager.newAdminEndpoint (remoteIPAddress.to_string());
-    else
-        usage = m_resourceManager.newInboundEndpoint(remoteIPAddress);
-
-    if (usage.disconnect ())
-    {
-        HTTPReply (503, "Server is overloaded", output);
-        return;
     }
 
     // Parse id now so errors from here on will have the id
     //
     // VFALCO NOTE Except that "id" isn't included in the following errors.
     //
-    Json::Value const id = jsonRPC ["id"];
-    Json::Value const method = jsonRPC ["method"];
+    Json::Value const& id = jsonRPC ["id"];
+    Json::Value const& method = jsonRPC ["method"];
 
-    if (method.isNull ())
-    {
-        HTTPReply (400, "Null method", output);
+    if (! method) {
+        HTTPReply (400, "Null method", output, rpcJ);
         return;
     }
 
-    if (! method.isString ())
+    if (!method.isString ()) {
+        HTTPReply (400, "method is not string", output, rpcJ);
+        return;
+    }
+
+    /* ---------------------------------------------------------------------- */
+    auto role = Role::FORBID;
+    auto required = RPC::roleRequired(id.asString());
+
+    if (jsonRPC.isObject() && jsonRPC.isMember("params") &&
+            jsonRPC["params"].isArray() && jsonRPC["params"].size() > 0 &&
+                jsonRPC["params"][Json::UInt(0)].isObject())
     {
-        HTTPReply (400, "method is not string", output);
+        role = requestRole(required, port, jsonRPC["params"][Json::UInt(0)],
+            remoteIPAddress, user);
+    }
+    else
+    {
+        role = requestRole(required, port, Json::objectValue,
+            remoteIPAddress, user);
+    }
+
+    /**
+     * Clear header-assigned values if not positively identified from a
+     * secure_gateway.
+     */
+    if (role != Role::IDENTIFIED)
+    {
+        forwardedFor.clear();
+        user.clear();
+    }
+
+    Resource::Consumer usage;
+
+    if (isUnlimited (role))
+        usage = m_resourceManager.newUnlimitedEndpoint (
+            remoteIPAddress.to_string());
+    else
+        usage = m_resourceManager.newInboundEndpoint(remoteIPAddress);
+
+    if (usage.disconnect ())
+    {
+        HTTPReply (503, "Server is overloaded", output, rpcJ);
         return;
     }
 
     std::string strMethod = method.asString ();
     if (strMethod.empty())
     {
-        HTTPReply (400, "method is empty", output);
+        HTTPReply (400, "method is empty", output, rpcJ);
         return;
     }
 
@@ -332,14 +307,14 @@ ServerHandlerImp::processRequest (
     //
     // Otherwise, that field must be an array of length 1 (why?)
     // and we take that first entry and validate that it's an object.
-    Json::Value params = jsonRPC ["params"];
+    Json::Value params = jsonRPC [jss::params];
 
-    if (params.isNull () || params.empty())
+    if (! params)
         params = Json::Value (Json::objectValue);
 
     else if (!params.isArray () || params.size() != 1)
     {
-        HTTPReply (400, "params unparseable", output);
+        HTTPReply (400, "params unparseable", output, rpcJ);
         return;
     }
     else
@@ -347,7 +322,7 @@ ServerHandlerImp::processRequest (
         params = std::move (params[0u]);
         if (!params.isObject())
         {
-            HTTPReply (400, "params unparseable", output);
+            HTTPReply (400, "params unparseable", output, rpcJ);
             return;
         }
     }
@@ -359,7 +334,7 @@ ServerHandlerImp::processRequest (
         // VFALCO TODO Needs implementing
         // FIXME Needs implementing
         // XXX This needs rate limiting to prevent brute forcing password.
-        HTTPReply (403, "Forbidden", output);
+        HTTPReply (403, "Forbidden", output, rpcJ);
         return;
     }
 
@@ -369,39 +344,41 @@ ServerHandlerImp::processRequest (
 
     // Provide the JSON-RPC method as the field "command" in the request.
     params[jss::command] = strMethod;
-    WriteLog (lsTRACE, RPCHandler)
+    JLOG (m_journal.trace)
         << "doRpcCommand:" << strMethod << ":" << params;
 
-    RPC::Context context {params, loadType, m_networkOPs, role, nullptr, yield};
-    std::string response;
+    auto const start (std::chrono::high_resolution_clock::now ());
 
-    if (setup_.yieldStrategy.streaming == RPC::YieldStrategy::Streaming::yes)
+    RPC::Context context {m_journal, params, app_, loadType, m_networkOPs,
+        app_.getLedgerMaster(), role, jobCoro, InfoSub::pointer(),
+        {user, forwardedFor}};
+    Json::Value result;
+    RPC::doCommand (context, result);
+
+    // Always report "status".  On an error report the request as received.
+    if (result.isMember (jss::error))
     {
-        executeRPC (context, response, setup_.yieldStrategy);
+        result[jss::status] = jss::error;
+        result[jss::request] = params;
+        JLOG (m_journal.debug)  <<
+            "rpcError: " << result [jss::error] <<
+            ": " << result [jss::error_message];
     }
     else
     {
-        Json::Value result;
-        RPC::doCommand (context, result, setup_.yieldStrategy);
-
-        // Always report "status".  On an error report the request as received.
-        if (result.isMember ("error"))
-        {
-            result[jss::status] = jss::error;
-            result[jss::request] = params;
-            WriteLog (lsDEBUG, RPCErr) <<
-                "rpcError: " << result ["error"] <<
-                ": " << result ["error_message"];
-        }
-        else
-        {
-            result[jss::status]  = jss::success;
-        }
-
-        Json::Value reply (Json::objectValue);
-        reply[jss::result] = std::move (result);
-        response = to_string (reply);
+        result[jss::status]  = jss::success;
     }
+
+    Json::Value reply (Json::objectValue);
+    reply[jss::result] = std::move (result);
+    auto response = to_string (reply);
+
+    rpc_time_.notify (static_cast <beast::insight::Event::value_type> (
+        std::chrono::duration_cast <std::chrono::milliseconds> (
+            std::chrono::high_resolution_clock::now () - start)));
+    ++rpc_requests_;
+    rpc_size_.notify (static_cast <beast::insight::Event::value_type> (
+        response.size ()));
 
     response += '\n';
     usage.charge (loadType);
@@ -415,7 +392,7 @@ ServerHandlerImp::processRequest (
             m_journal.info << "Reply: " << response.substr (0, maxSize);
     }
 
-    HTTPReply (200, response, output);
+    HTTPReply (200, response, output, rpcJ);
 }
 
 //------------------------------------------------------------------------------
@@ -458,76 +435,6 @@ void
 ServerHandlerImp::onWrite (beast::PropertyStream::Map& map)
 {
     m_server->onWrite (map);
-}
-
-//------------------------------------------------------------------------------
-
-// Copied from Config::getAdminRole and modified to use the Port
-Role
-adminRole (HTTP::Port const& port,
-    Json::Value const& params, beast::IP::Endpoint const& remoteIp)
-{
-    Role role (Role::FORBID);
-
-    bool const bPasswordSupplied =
-        params.isMember ("admin_user") ||
-        params.isMember ("admin_password");
-
-    bool const bPasswordRequired =
-        ! port.admin_user.empty() || ! port.admin_password.empty();
-
-    bool bPasswordWrong;
-
-    if (bPasswordSupplied)
-    {
-        if (bPasswordRequired)
-        {
-            // Required, and supplied, check match
-            bPasswordWrong =
-                (port.admin_user !=
-                    (params.isMember ("admin_user") ? params["admin_user"].asString () : ""))
-                ||
-                (port.admin_password !=
-                    (params.isMember ("admin_user") ? params["admin_password"].asString () : ""));
-        }
-        else
-        {
-            // Not required, but supplied
-            bPasswordWrong = false;
-        }
-    }
-    else
-    {
-        // Required but not supplied,
-        bPasswordWrong = bPasswordRequired;
-    }
-
-    // Meets IP restriction for admin.
-    beast::IP::Endpoint const remote_addr (remoteIp.at_port (0));
-    bool bAdminIP = false;
-
-    for (auto const& allow_addr : getConfig().RPC_ADMIN_ALLOW)
-    {
-        if (allow_addr == remote_addr)
-        {
-            bAdminIP = true;
-            break;
-        }
-    }
-
-    if (bPasswordWrong                          // Wrong
-            || (bPasswordSupplied && !bAdminIP))    // Supplied and doesn't meet IP filter.
-    {
-        role   = Role::FORBID;
-    }
-    // If supplied, password is correct.
-    else
-    {
-        // Allow admin, if from admin IP and no password is required or it was supplied and correct.
-        role = bAdminIP && (!bPasswordRequired || bPasswordSupplied) ? Role::ADMIN : Role::GUEST;
-    }
-
-    return role;
 }
 
 //------------------------------------------------------------------------------
@@ -579,8 +486,73 @@ struct ParsedPort
 
     boost::optional<boost::asio::ip::address> ip;
     boost::optional<std::uint16_t> port;
-    boost::optional<bool> allow_admin;
+    boost::optional<std::vector<beast::IP::Address>> admin_ip;
+    boost::optional<std::vector<beast::IP::Address>> secure_gateway_ip;
 };
+
+void
+populate (Section const& section, std::string const& field, std::ostream& log,
+    boost::optional<std::vector<beast::IP::Address>>& ips,
+    bool allowAllIps, std::vector<beast::IP::Address> const& admin_ip)
+{
+    auto const result = section.find(field);
+    if (result.second)
+    {
+        std::stringstream ss (result.first);
+        std::string ip;
+        bool has_any (false);
+
+        ips.emplace();
+        while (std::getline (ss, ip, ','))
+        {
+            auto const addr = beast::IP::Endpoint::from_string_checked (ip);
+            if (! addr.second)
+            {
+                log << "Invalid value '" << ip << "' for key '" << field <<
+                    "' in [" << section.name () << "]\n";
+                Throw<std::exception> ();
+            }
+
+            if (is_unspecified (addr.first))
+            {
+                if (! allowAllIps)
+                {
+                    log << "0.0.0.0 not allowed'" <<
+                        "' for key '" << field << "' in [" <<
+                        section.name () << "]\n";
+                    throw std::exception ();
+                }
+                else
+                {
+                    has_any = true;
+                }
+            }
+
+            if (has_any && ! ips->empty ())
+            {
+                log << "IP specified along with 0.0.0.0 '" << ip <<
+                    "' for key '" << field << "' in [" <<
+                    section.name () << "]\n";
+                Throw<std::exception> ();
+            }
+
+            auto const& address = addr.first.address();
+            if (std::find_if (admin_ip.begin(), admin_ip.end(),
+                [&address] (beast::IP::Address const& ip)
+                {
+                    return address == ip;
+                }
+                ) != admin_ip.end())
+            {
+                log << "IP specified for " << field << " is also for " <<
+                    "admin: " << ip << " in [" << section.name() << "]\n";
+                throw std::exception();
+            }
+
+            ips->emplace_back (addr.first.address ());
+        }
+    }
+}
 
 void
 parse_Port (ParsedPort& port, Section const& section, std::ostream& log)
@@ -593,11 +565,11 @@ parse_Port (ParsedPort& port, Section const& section, std::ostream& log)
             {
                 port.ip = boost::asio::ip::address::from_string(result.first);
             }
-            catch(...)
+            catch (std::exception const&)
             {
                 log << "Invalid value '" << result.first <<
                     "' for key 'ip' in [" << section.name() << "]\n";
-                throw std::exception();
+                Throw();
             }
         }
     }
@@ -609,15 +581,15 @@ parse_Port (ParsedPort& port, Section const& section, std::ostream& log)
             auto const ul = std::stoul(result.first);
             if (ul > std::numeric_limits<std::uint16_t>::max())
             {
-                log <<
-                    "Value '" << result.first << "' for key 'port' is out of range\n";
-                throw std::exception();
+                log << "Value '" << result.first
+                    << "' for key 'port' is out of range\n";
+                Throw<std::exception> ();
             }
             if (ul == 0)
             {
                 log <<
                     "Value '0' for key 'port' is invalid\n";
-                throw std::exception();
+                Throw<std::exception> ();
             }
             port.port = static_cast<std::uint16_t>(ul);
         }
@@ -633,26 +605,9 @@ parse_Port (ParsedPort& port, Section const& section, std::ostream& log)
         }
     }
 
-    {
-        auto const result = section.find("admin");
-        if (result.second)
-        {
-            if (result.first == "no")
-            {
-                port.allow_admin = false;
-            }
-            else if (result.first == "allow")
-            {
-                port.allow_admin = true;
-            }
-            else
-            {
-                log << "Invalid value '" << result.first <<
-                    "' for key 'admin' in [" << section.name() << "]\n";
-                throw std::exception();
-            }
-        }
-    }
+    populate (section, "admin", log, port.admin_ip, true, {});
+    populate (section, "secure_gateway", log, port.secure_gateway_ip, false,
+        port.admin_ip.get_value_or({}));
 
     set(port.user, "user", section);
     set(port.password, "password", section);
@@ -672,31 +627,30 @@ to_Port(ParsedPort const& parsed, std::ostream& log)
     if (! parsed.ip)
     {
         log << "Missing 'ip' in [" << p.name << "]\n";
-        throw std::exception();
+        Throw<std::exception> ();
     }
     p.ip = *parsed.ip;
 
     if (! parsed.port)
     {
         log << "Missing 'port' in [" << p.name << "]\n";
-        throw std::exception();
+        Throw<std::exception> ();
     }
     else if (*parsed.port == 0)
     {
         log << "Port " << *parsed.port << "in [" << p.name << "] is invalid\n";
-        throw std::exception();
+        Throw<std::exception> ();
     }
     p.port = *parsed.port;
-
-    if (! parsed.allow_admin)
-        p.allow_admin = false;
-    else
-        p.allow_admin = *parsed.allow_admin;
+    if (parsed.admin_ip)
+        p.admin_ip = *parsed.admin_ip;
+    if (parsed.secure_gateway_ip)
+        p.secure_gateway_ip = *parsed.secure_gateway_ip;
 
     if (parsed.protocol.empty())
     {
         log << "Missing 'protocol' in [" << p.name << "]\n";
-        throw std::exception();
+        Throw<std::exception> ();
     }
     p.protocol = parsed.protocol;
     if (p.websockets() &&
@@ -705,7 +659,7 @@ to_Port(ParsedPort const& parsed, std::ostream& log)
         parsed.protocol.count("https") > 0))
     {
         log << "Invalid protocol combination in [" << p.name << "]\n";
-        throw std::exception();
+        Throw<std::exception> ();
     }
 
     p.user = parsed.user;
@@ -728,7 +682,7 @@ parse_Ports (BasicConfig const& config, std::ostream& log)
     {
         log <<
             "Required section [server] is missing\n";
-        throw std::exception();
+        Throw<std::exception> ();
     }
 
     ParsedPort common;
@@ -742,7 +696,7 @@ parse_Ports (BasicConfig const& config, std::ostream& log)
         {
             log <<
                 "Missing section: [" << name << "]\n";
-            throw std::exception();
+            Throw<std::exception> ();
         }
         ParsedPort parsed = common;
         parsed.name = name;
@@ -757,7 +711,7 @@ parse_Ports (BasicConfig const& config, std::ostream& log)
     if (count > 1)
     {
         log << "Error: More than one peer protocol configured in [server]\n";
-        throw std::exception();
+        Throw<std::exception> ();
     }
     if (count == 0)
         log << "Warning: No peer protocol configured\n";
@@ -811,11 +765,11 @@ setup_Overlay (ServerHandler::Setup& setup)
 }
 
 ServerHandler::Setup
-setup_ServerHandler (BasicConfig const& config, std::ostream& log)
+setup_ServerHandler(BasicConfig const& config, std::ostream& log)
 {
     ServerHandler::Setup setup;
-    setup.ports = detail::parse_Ports (config, log);
-    setup.yieldStrategy = RPC::makeYieldStrategy (config["server"]);
+    setup.ports = detail::parse_Ports(config, log);
+
     detail::setup_Client(setup);
     detail::setup_Overlay(setup);
 
@@ -823,12 +777,13 @@ setup_ServerHandler (BasicConfig const& config, std::ostream& log)
 }
 
 std::unique_ptr <ServerHandler>
-make_ServerHandler (beast::Stoppable& parent,
+make_ServerHandler (Application& app, beast::Stoppable& parent,
     boost::asio::io_service& io_service, JobQueue& jobQueue,
-        NetworkOPs& networkOPs, Resource::Manager& resourceManager)
+        NetworkOPs& networkOPs, Resource::Manager& resourceManager,
+            CollectorManager& cm)
 {
-    return std::make_unique <ServerHandlerImp> (parent, io_service,
-        jobQueue, networkOPs, resourceManager);
+    return std::make_unique<ServerHandlerImp>(app, parent,
+        io_service, jobQueue, networkOPs, resourceManager, cm);
 }
 
 }

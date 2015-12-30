@@ -20,14 +20,14 @@
 #include <BeastConfig.h>
 #include <ripple/protocol/STValidation.h>
 #include <ripple/protocol/HashPrefix.h>
+#include <ripple/basics/contract.h>
 #include <ripple/basics/Log.h>
 #include <ripple/json/to_string.h>
 
 namespace ripple {
 
-STValidation::STValidation (SerializerIterator& sit, bool checkSignature)
+STValidation::STValidation (SerialIter& sit, bool checkSignature)
     : STObject (getFormat (), sit, sfValidation)
-    , mTrusted (false)
 {
     mNodeID = RippleAddress::createNodePublic (getFieldVL (sfSigningPubKey)).getNodeID ();
     assert (mNodeID.isNonZero ());
@@ -35,7 +35,7 @@ STValidation::STValidation (SerializerIterator& sit, bool checkSignature)
     if  (checkSignature && !isValid ())
     {
         WriteLog (lsTRACE, Ledger) << "Invalid validation " << getJson (0);
-        throw std::runtime_error ("Invalid validation");
+        Throw<std::runtime_error> ("Invalid validation");
     }
 }
 
@@ -43,7 +43,7 @@ STValidation::STValidation (
     uint256 const& ledgerHash, std::uint32_t signTime,
     RippleAddress const& raPub, bool isFull)
     : STObject (getFormat (), sfValidation)
-    , mTrusted (false)
+    , mSeen (signTime)
 {
     // Does not sign
     setFieldH256 (sfLedgerHash, ledgerHash);
@@ -57,20 +57,16 @@ STValidation::STValidation (
         setFlag (kFullFlag);
 }
 
-void STValidation::sign (RippleAddress const& raPriv)
-{
-    uint256 signingHash;
-    sign (signingHash, raPriv);
-}
-
-void STValidation::sign (uint256& signingHash, RippleAddress const& raPriv)
+uint256 STValidation::sign (RippleAddress const& raPriv)
 {
     setFlag (vfFullyCanonicalSig);
 
-    signingHash = getSigningHash ();
+    auto signingHash = getSigningHash ();
     Blob signature;
     raPriv.signNodePrivate (signingHash, signature);
     setFieldVL (sfSignature, signature);
+
+    return signingHash;
 }
 
 uint256 STValidation::getSigningHash () const
@@ -86,6 +82,11 @@ uint256 STValidation::getLedgerHash () const
 std::uint32_t STValidation::getSignTime () const
 {
     return getFieldU32 (sfSigningTime);
+}
+
+std::uint32_t STValidation::getSeenTime () const
+{
+    return mSeen;
 }
 
 std::uint32_t STValidation::getFlags () const
@@ -108,7 +109,7 @@ bool STValidation::isValid (uint256 const& signingHash) const
         return raPublicKey.isValid () &&
             raPublicKey.verifyNodePublic (signingHash, getFieldVL (sfSignature), fullyCanonical);
     }
-    catch (...)
+    catch (std::exception const&)
     {
         WriteLog (lsINFO, Ledger) << "exception validating validation";
         return false;
@@ -162,7 +163,6 @@ SOTemplate const& STValidation::getFormat ()
             format.push_back (SOElement (sfDividendLedger,  SOE_OPTIONAL));
             format.push_back (SOElement (sfDividendCoins,   SOE_OPTIONAL));
             format.push_back (SOElement (sfDividendCoinsVBC, SOE_OPTIONAL));
-            format.push_back (SOElement (sfDividendResultHash, SOE_OPTIONAL));
         }
     };
 

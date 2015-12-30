@@ -25,7 +25,7 @@
 #include <mutex>
 
 namespace beast {
-   
+
 /** Adapts a regular Lockable to conform to the SharedMutex concept.
     Shared locks become unique locks with this interface. Two threads may not
     simultaneously acquire ownership of the lock. Typically the Mutex template
@@ -35,10 +35,10 @@ template <class Mutex>
 class SharedMutexAdapter
 {
 public:
-    typedef Mutex MutexType;
-    typedef std::lock_guard <SharedMutexAdapter> LockGuardType;
-    typedef SharedLockGuard <SharedMutexAdapter> SharedLockGuardType;
-    
+    using MutexType = Mutex;
+    using LockGuardType = std::lock_guard <SharedMutexAdapter>;
+    using SharedLockGuardType = SharedLockGuard <SharedMutexAdapter>;
+
     void lock() const
     {
         m_mutex.lock();

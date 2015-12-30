@@ -29,7 +29,7 @@ namespace beast {
 namespace insight {
 
 /** A metric for measuring an integral value.
-    
+
     A gauge is an instantaneous measurement of a value, like the gas gauge
     in a car. The caller directly sets the value, or adjusts it by a
     specified amount. The value is kept in the client rather than the collector.
@@ -40,8 +40,8 @@ namespace insight {
 class Gauge : public Base
 {
 public:
-    typedef GaugeImpl::value_type value_type;
-    typedef GaugeImpl::difference_type difference_type;
+    using value_type = GaugeImpl::value_type;
+    using difference_type = GaugeImpl::difference_type;
 
     /** Create a null metric.
         A null metric reports no information.

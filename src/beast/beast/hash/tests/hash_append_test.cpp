@@ -21,6 +21,7 @@
 #include <BeastConfig.h>
 #endif
 
+#include <beast/hash/endian.h>
 #include <beast/hash/tests/hash_metrics.h>
 #include <beast/hash/hash_append.h>
 #include <beast/chrono/chrono_io.h>
@@ -120,8 +121,10 @@ private:
     std::uint64_t state_ = 14695981039346656037u;
 
 public:
+    static beast::endian const endian = beast::endian::native;
+
     void
-    append (void const* key, std::size_t len) noexcept
+    operator() (void const* key, std::size_t len) noexcept
     {
         unsigned char const* p = static_cast<unsigned char const*>(key);
         unsigned char const* const e = p + len;
@@ -143,8 +146,10 @@ private:
     std::uint32_t state_ = 2166136261;
 
 public:
+    static beast::endian const endian = beast::endian::native;
+
     void
-    append (void const* key, std::size_t len) noexcept
+    operator() (void const* key, std::size_t len) noexcept
     {
         unsigned char const* p = static_cast<unsigned char const*>(key);
         unsigned char const* const e = p + len;
@@ -171,8 +176,10 @@ private:
     std::size_t state_ = 0;
 
 public:
+    static beast::endian const endian = beast::endian::native;
+
     void
-    append (void const* key, std::size_t len) noexcept
+    operator() (void const* key, std::size_t len) noexcept
     {
         unsigned char const* p = static_cast <unsigned char const*>(key);
         unsigned char const* const e = p + len;
@@ -199,14 +206,16 @@ class spooky
 private:
     SpookyHash state_;
 
-public: 
+public:
+    static beast::endian const endian = beast::endian::native;
+
     spooky(std::size_t seed1 = 1, std::size_t seed2 = 2) noexcept
     {
         state_.Init(seed1, seed2);
     }
 
     void
-    append(void const* key, std::size_t len) noexcept
+    operator()(void const* key, std::size_t len) noexcept
     {
         state_.Update(key, len);
     }
@@ -235,7 +244,7 @@ private:
     std::size_t m_seed;
     PRNG m_prng;
 
-    typedef block_stream <std::size_t, prng_hasher <PRNG>> base;
+    using base = block_stream <std::size_t, prng_hasher <PRNG>>;
     friend base;
 
     // compress
@@ -253,7 +262,7 @@ public:
     }
 
     void
-    append (void const* data, std::size_t bytes) noexcept
+    operator() (void const* data, std::size_t bytes) noexcept
     {
         base::operator() (data, bytes);
     }
@@ -340,9 +349,10 @@ public:
 
 //------------------------------------------------------------------------------
 
-template<>
-struct is_contiguously_hashable <hash_append_tests::FastKey>
-    : std::true_type
+template <class HashAlgorithm>
+struct is_contiguously_hashable <hash_append_tests::FastKey, HashAlgorithm>
+    : std::integral_constant<bool, is_contiguously_hashable<std::array <std::size_t, 4>,
+        HashAlgorithm>::value>
 {
 };
 
@@ -351,8 +361,8 @@ struct is_contiguously_hashable <hash_append_tests::FastKey>
 class hash_append_test : public unit_test::suite
 {
 public:
-    typedef hash_append_tests::SlowKey SlowKey;
-    typedef hash_append_tests::FastKey FastKey;
+    using SlowKey = hash_append_tests::SlowKey;
+    using FastKey = hash_append_tests::FastKey;
 
     struct results_t
     {
@@ -419,9 +429,9 @@ public:
     {
         auto const start (
             std::chrono::high_resolution_clock::now());
-        
+
         auto const hashes (make_hashes <Hasher> (keys));
-        
+
         results.elapsed = std::chrono::duration_cast <std::chrono::milliseconds> (
             std::chrono::high_resolution_clock::now() - start);
 

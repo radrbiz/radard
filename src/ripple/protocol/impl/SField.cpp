@@ -21,6 +21,7 @@
 #include <ripple/protocol/SField.h>
 #include <map>
 #include <memory>
+#include <mutex>
 #include <string>
 #include <utility>
 
@@ -31,17 +32,19 @@ namespace ripple {
 // file-scope.  The following 3 objects must have scope prior to
 // the file-scope SFields.
 static std::mutex SField_mutex;
-static std::map<int, SField::ptr> knownCodeToField;
+static std::map<int, SField const*> knownCodeToField;
 static std::map<int, std::unique_ptr<SField const>> unknownCodeToField;
+
+// Storage for static const member.
+SField::IsSigning const SField::notSigning;
 
 int SField::num = 0;
 
-typedef std::lock_guard <std::mutex> StaticScopedLockType;
+using StaticScopedLockType = std::lock_guard <std::mutex>;
 
 // Give this translation unit only, permission to construct SFields
 struct SField::make
 {
-#ifndef _MSC_VER
     template <class ...Args>
     static SField one(SField const* p, Args&& ...args)
     {
@@ -49,45 +52,14 @@ struct SField::make
         knownCodeToField[result.fieldCode] = p;
         return result;
     }
-#else  // remove this when VS gets variadic templates
-    template <class A0>
-    static SField one(SField const* p, A0&& arg0)
-    {
-        SField result(std::forward<A0>(arg0));
-        knownCodeToField[result.fieldCode] = p;
-        return result;
-    }
 
-    template <class A0, class A1, class A2>
-    static SField one(SField const* p, A0&& arg0, A1&& arg1, A2&& arg2)
+    template <class T, class ...Args>
+    static TypedField<T> one(SField const* p, Args&& ...args)
     {
-        SField result(std::forward<A0>(arg0), std::forward<A1>(arg1),
-                      std::forward<A2>(arg2));
+        TypedField<T> result(std::forward<Args>(args)...);
         knownCodeToField[result.fieldCode] = p;
         return result;
     }
-
-    template <class A0, class A1, class A2, class A3>
-    static SField one(SField const* p, A0&& arg0, A1&& arg1, A2&& arg2,
-                                       A3&& arg3)
-    {
-        SField result(std::forward<A0>(arg0), std::forward<A1>(arg1),
-                      std::forward<A2>(arg2), std::forward<A3>(arg3));
-        knownCodeToField[result.fieldCode] = p;
-        return result;
-    }
-
-    template <class A0, class A1, class A2, class A3, class A4>
-    static SField one(SField const* p, A0&& arg0, A1&& arg1, A2&& arg2,
-                                       A3&& arg3, A4&& arg4)
-    {
-        SField result(std::forward<A0>(arg0), std::forward<A1>(arg1),
-                      std::forward<A2>(arg2), std::forward<A3>(arg3),
-                      std::forward<A4>(arg4));
-        knownCodeToField[result.fieldCode] = p;
-        return result;
-    }
-#endif
 };
 
 using make = SField::make;
@@ -105,158 +77,169 @@ SField const sfHash        = make::one(&sfHash,        STI_HASH256,     257, "ha
 SField const sfIndex       = make::one(&sfIndex,       STI_HASH256,     258, "index");
 
 // 8-bit integers
-SField const sfCloseResolution   = make::one(&sfCloseResolution,   STI_UINT8, 1, "CloseResolution");
-SField const sfTemplateEntryType = make::one(&sfTemplateEntryType, STI_UINT8, 2, "TemplateEntryType");
-SField const sfTransactionResult = make::one(&sfTransactionResult, STI_UINT8, 3, "TransactionResult");
+SF_U8 const sfCloseResolution   = make::one<SF_U8::type>(&sfCloseResolution,   STI_UINT8, 1, "CloseResolution");
+SF_U8 const sfMethod            = make::one<SF_U8::type>(&sfMethod,            STI_UINT8, 2, "Method");
+SF_U8 const sfTransactionResult = make::one<SF_U8::type>(&sfTransactionResult, STI_UINT8, 3, "TransactionResult");
 
-SField const sfDividendState    = make::one(&sfDividendState,    STI_UINT8, 181, "DividendState");
-SField const sfDividendType     = make::one(&sfDividendType,     STI_UINT8, 182, "DividendType");
+SF_U8 const sfDividendState     = make::one<SF_U8::type>(&sfDividendState,     STI_UINT8, 181, "DividendState");
+SF_U8 const sfDividendType      = make::one<SF_U8::type>(&sfDividendType,      STI_UINT8, 182, "DividendType");
 
 // 16-bit integers
-SField const sfLedgerEntryType = make::one(&sfLedgerEntryType, STI_UINT16, 1, "LedgerEntryType", SField::sMD_Never);
-SField const sfTransactionType = make::one(&sfTransactionType, STI_UINT16, 2, "TransactionType");
+SF_U16 const sfLedgerEntryType = make::one<SF_U16::type>(&sfLedgerEntryType, STI_UINT16, 1, "LedgerEntryType", SField::sMD_Never);
+SF_U16 const sfTransactionType = make::one<SF_U16::type>(&sfTransactionType, STI_UINT16, 2, "TransactionType");
+SF_U16 const sfSignerWeight    = make::one<SF_U16::type>(&sfSignerWeight,    STI_UINT16, 3, "SignerWeight");
 
 // 32-bit integers (common)
-SField const sfFlags             = make::one(&sfFlags,             STI_UINT32,  2, "Flags");
-SField const sfSourceTag         = make::one(&sfSourceTag,         STI_UINT32,  3, "SourceTag");
-SField const sfSequence          = make::one(&sfSequence,          STI_UINT32,  4, "Sequence");
-SField const sfPreviousTxnLgrSeq = make::one(&sfPreviousTxnLgrSeq, STI_UINT32,  5, "PreviousTxnLgrSeq", SField::sMD_DeleteFinal);
-SField const sfLedgerSequence    = make::one(&sfLedgerSequence,    STI_UINT32,  6, "LedgerSequence");
-SField const sfCloseTime         = make::one(&sfCloseTime,         STI_UINT32,  7, "CloseTime");
-SField const sfParentCloseTime   = make::one(&sfParentCloseTime,   STI_UINT32,  8, "ParentCloseTime");
-SField const sfSigningTime       = make::one(&sfSigningTime,       STI_UINT32,  9, "SigningTime");
-SField const sfExpiration        = make::one(&sfExpiration,        STI_UINT32, 10, "Expiration");
-SField const sfTransferRate      = make::one(&sfTransferRate,      STI_UINT32, 11, "TransferRate");
-SField const sfWalletSize        = make::one(&sfWalletSize,        STI_UINT32, 12, "WalletSize");
-SField const sfOwnerCount        = make::one(&sfOwnerCount,        STI_UINT32, 13, "OwnerCount");
-SField const sfDestinationTag    = make::one(&sfDestinationTag,    STI_UINT32, 14, "DestinationTag");
+SF_U32 const sfFlags             = make::one<SF_U32::type>(&sfFlags,             STI_UINT32,  2, "Flags");
+SF_U32 const sfSourceTag         = make::one<SF_U32::type>(&sfSourceTag,         STI_UINT32,  3, "SourceTag");
+SF_U32 const sfSequence          = make::one<SF_U32::type>(&sfSequence,          STI_UINT32,  4, "Sequence");
+SF_U32 const sfPreviousTxnLgrSeq = make::one<SF_U32::type>(&sfPreviousTxnLgrSeq, STI_UINT32,  5, "PreviousTxnLgrSeq", SField::sMD_DeleteFinal);
+SF_U32 const sfLedgerSequence    = make::one<SF_U32::type>(&sfLedgerSequence,    STI_UINT32,  6, "LedgerSequence");
+SF_U32 const sfCloseTime         = make::one<SF_U32::type>(&sfCloseTime,         STI_UINT32,  7, "CloseTime");
+SF_U32 const sfParentCloseTime   = make::one<SF_U32::type>(&sfParentCloseTime,   STI_UINT32,  8, "ParentCloseTime");
+SF_U32 const sfSigningTime       = make::one<SF_U32::type>(&sfSigningTime,       STI_UINT32,  9, "SigningTime");
+SF_U32 const sfExpiration        = make::one<SF_U32::type>(&sfExpiration,        STI_UINT32, 10, "Expiration");
+SF_U32 const sfTransferRate      = make::one<SF_U32::type>(&sfTransferRate,      STI_UINT32, 11, "TransferRate");
+SF_U32 const sfWalletSize        = make::one<SF_U32::type>(&sfWalletSize,        STI_UINT32, 12, "WalletSize");
+SF_U32 const sfOwnerCount        = make::one<SF_U32::type>(&sfOwnerCount,        STI_UINT32, 13, "OwnerCount");
+SF_U32 const sfDestinationTag    = make::one<SF_U32::type>(&sfDestinationTag,    STI_UINT32, 14, "DestinationTag");
 
-SField const sfDividendLedger    = make::one(&sfDividendLedger,    STI_UINT32, 181, "DividendLedger");
-SField const sfReferenceHeight   = make::one(&sfReferenceHeight,   STI_UINT32, 182, "ReferenceHeight");
-SField const sfReleaseRate       = make::one(&sfReleaseRate,       STI_UINT32, 183, "ReleaseRate");
-SField const sfNextReleaseTime   = make::one(&sfNextReleaseTime,   STI_UINT32, 184, "NextReleaseTime");
+SF_U32 const sfDividendLedger    = make::one<SF_U32::type>(&sfDividendLedger,    STI_UINT32, 181, "DividendLedger");
+SF_U32 const sfReferenceHeight   = make::one<SF_U32::type>(&sfReferenceHeight,   STI_UINT32, 182, "ReferenceHeight");  // Deprecated: do not use
+SF_U32 const sfReleaseRate       = make::one<SF_U32::type>(&sfReleaseRate,       STI_UINT32, 183, "ReleaseRate");
+SF_U32 const sfNextReleaseTime   = make::one<SF_U32::type>(&sfNextReleaseTime,   STI_UINT32, 184, "NextReleaseTime");
 
 // 32-bit integers (uncommon)
-SField const sfHighQualityIn       = make::one(&sfHighQualityIn,       STI_UINT32, 16, "HighQualityIn");
-SField const sfHighQualityOut      = make::one(&sfHighQualityOut,      STI_UINT32, 17, "HighQualityOut");
-SField const sfLowQualityIn        = make::one(&sfLowQualityIn,        STI_UINT32, 18, "LowQualityIn");
-SField const sfLowQualityOut       = make::one(&sfLowQualityOut,       STI_UINT32, 19, "LowQualityOut");
-SField const sfQualityIn           = make::one(&sfQualityIn,           STI_UINT32, 20, "QualityIn");
-SField const sfQualityOut          = make::one(&sfQualityOut,          STI_UINT32, 21, "QualityOut");
-SField const sfStampEscrow         = make::one(&sfStampEscrow,         STI_UINT32, 22, "StampEscrow");
-SField const sfBondAmount          = make::one(&sfBondAmount,          STI_UINT32, 23, "BondAmount");
-SField const sfLoadFee             = make::one(&sfLoadFee,             STI_UINT32, 24, "LoadFee");
-SField const sfOfferSequence       = make::one(&sfOfferSequence,       STI_UINT32, 25, "OfferSequence");
-SField const sfFirstLedgerSequence = make::one(&sfFirstLedgerSequence, STI_UINT32, 26, "FirstLedgerSequence");  // Deprecated: do not use
-SField const sfLastLedgerSequence  = make::one(&sfLastLedgerSequence,  STI_UINT32, 27, "LastLedgerSequence");
-SField const sfTransactionIndex    = make::one(&sfTransactionIndex,    STI_UINT32, 28, "TransactionIndex");
-SField const sfOperationLimit      = make::one(&sfOperationLimit,      STI_UINT32, 29, "OperationLimit");
-SField const sfReferenceFeeUnits   = make::one(&sfReferenceFeeUnits,   STI_UINT32, 30, "ReferenceFeeUnits");
-SField const sfReserveBase         = make::one(&sfReserveBase,         STI_UINT32, 31, "ReserveBase");
-SField const sfReserveIncrement    = make::one(&sfReserveIncrement,    STI_UINT32, 32, "ReserveIncrement");
-SField const sfSetFlag             = make::one(&sfSetFlag,             STI_UINT32, 33, "SetFlag");
-SField const sfClearFlag           = make::one(&sfClearFlag,           STI_UINT32, 34, "ClearFlag");
+SF_U32 const sfHighQualityIn       = make::one<SF_U32::type>(&sfHighQualityIn,       STI_UINT32, 16, "HighQualityIn");
+SF_U32 const sfHighQualityOut      = make::one<SF_U32::type>(&sfHighQualityOut,      STI_UINT32, 17, "HighQualityOut");
+SF_U32 const sfLowQualityIn        = make::one<SF_U32::type>(&sfLowQualityIn,        STI_UINT32, 18, "LowQualityIn");
+SF_U32 const sfLowQualityOut       = make::one<SF_U32::type>(&sfLowQualityOut,       STI_UINT32, 19, "LowQualityOut");
+SF_U32 const sfQualityIn           = make::one<SF_U32::type>(&sfQualityIn,           STI_UINT32, 20, "QualityIn");
+SF_U32 const sfQualityOut          = make::one<SF_U32::type>(&sfQualityOut,          STI_UINT32, 21, "QualityOut");
+SF_U32 const sfStampEscrow         = make::one<SF_U32::type>(&sfStampEscrow,         STI_UINT32, 22, "StampEscrow");
+SF_U32 const sfBondAmount          = make::one<SF_U32::type>(&sfBondAmount,          STI_UINT32, 23, "BondAmount");
+SF_U32 const sfLoadFee             = make::one<SF_U32::type>(&sfLoadFee,             STI_UINT32, 24, "LoadFee");
+SF_U32 const sfOfferSequence       = make::one<SF_U32::type>(&sfOfferSequence,       STI_UINT32, 25, "OfferSequence");
+SF_U32 const sfFirstLedgerSequence = make::one<SF_U32::type>(&sfFirstLedgerSequence, STI_UINT32, 26, "FirstLedgerSequence");  // Deprecated: do not use
+SF_U32 const sfLastLedgerSequence  = make::one<SF_U32::type>(&sfLastLedgerSequence,  STI_UINT32, 27, "LastLedgerSequence");
+SF_U32 const sfTransactionIndex    = make::one<SF_U32::type>(&sfTransactionIndex,    STI_UINT32, 28, "TransactionIndex");
+SF_U32 const sfOperationLimit      = make::one<SF_U32::type>(&sfOperationLimit,      STI_UINT32, 29, "OperationLimit");
+SF_U32 const sfReferenceFeeUnits   = make::one<SF_U32::type>(&sfReferenceFeeUnits,   STI_UINT32, 30, "ReferenceFeeUnits");
+SF_U32 const sfReserveBase         = make::one<SF_U32::type>(&sfReserveBase,         STI_UINT32, 31, "ReserveBase");
+SF_U32 const sfReserveIncrement    = make::one<SF_U32::type>(&sfReserveIncrement,    STI_UINT32, 32, "ReserveIncrement");
+SF_U32 const sfSetFlag             = make::one<SF_U32::type>(&sfSetFlag,             STI_UINT32, 33, "SetFlag");
+SF_U32 const sfClearFlag           = make::one<SF_U32::type>(&sfClearFlag,           STI_UINT32, 34, "ClearFlag");
+SF_U32 const sfSignerQuorum        = make::one<SF_U32::type>(&sfSignerQuorum,        STI_UINT32, 35, "SignerQuorum");
+SF_U32 const sfCancelAfter         = make::one<SF_U32::type>(&sfCancelAfter,         STI_UINT32, 36, "CancelAfter");
+SF_U32 const sfFinishAfter         = make::one<SF_U32::type>(&sfFinishAfter,         STI_UINT32, 37, "FinishAfter");
+SF_U32 const sfSignerListID        = make::one<SF_U32::type>(&sfSignerListID,        STI_UINT32, 38, "SignerListID");
 
 // 64-bit integers
-SField const sfIndexNext     = make::one(&sfIndexNext,     STI_UINT64, 1, "IndexNext");
-SField const sfIndexPrevious = make::one(&sfIndexPrevious, STI_UINT64, 2, "IndexPrevious");
-SField const sfBookNode      = make::one(&sfBookNode,      STI_UINT64, 3, "BookNode");
-SField const sfOwnerNode     = make::one(&sfOwnerNode,     STI_UINT64, 4, "OwnerNode");
-SField const sfBaseFee       = make::one(&sfBaseFee,       STI_UINT64, 5, "BaseFee");
-SField const sfExchangeRate  = make::one(&sfExchangeRate,  STI_UINT64, 6, "ExchangeRate");
-SField const sfLowNode       = make::one(&sfLowNode,       STI_UINT64, 7, "LowNode");
-SField const sfHighNode      = make::one(&sfHighNode,      STI_UINT64, 8, "HighNode");
+SF_U64 const sfIndexNext     = make::one<SF_U64::type>(&sfIndexNext,     STI_UINT64, 1, "IndexNext");
+SF_U64 const sfIndexPrevious = make::one<SF_U64::type>(&sfIndexPrevious, STI_UINT64, 2, "IndexPrevious");
+SF_U64 const sfBookNode      = make::one<SF_U64::type>(&sfBookNode,      STI_UINT64, 3, "BookNode");
+SF_U64 const sfOwnerNode     = make::one<SF_U64::type>(&sfOwnerNode,     STI_UINT64, 4, "OwnerNode");
+SF_U64 const sfBaseFee       = make::one<SF_U64::type>(&sfBaseFee,       STI_UINT64, 5, "BaseFee");
+SF_U64 const sfExchangeRate  = make::one<SF_U64::type>(&sfExchangeRate,  STI_UINT64, 6, "ExchangeRate");
+SF_U64 const sfLowNode       = make::one<SF_U64::type>(&sfLowNode,       STI_UINT64, 7, "LowNode");
+SF_U64 const sfHighNode      = make::one<SF_U64::type>(&sfHighNode,      STI_UINT64, 8, "HighNode");
 
-SField const sfDividendCoinsVBC = make::one(&sfDividendCoinsVBC, STI_UINT64, 181, "DividendCoinsVBC");
-SField const sfDividendCoinsVBCRank = make::one(&sfDividendCoinsVBCRank, STI_UINT64, 182, "DividendCoinsVBCRank");
-SField const sfDividendCoinsVBCSprd = make::one(&sfDividendCoinsVBCSprd, STI_UINT64, 183, "DividendCoinsVBCSprd");
-SField const sfDividendVRank    = make::one(&sfDividendVRank,    STI_UINT64, 184, "DividendVRank");
-SField const sfDividendVSprd    = make::one(&sfDividendVSprd,    STI_UINT64, 185, "DividendVSprd");
-SField const sfDividendCoins = make::one(&sfDividendCoins, STI_UINT64, 186, "DividendCoins");
-SField const sfDividendTSprd    = make::one(&sfDividendTSprd,    STI_UINT64, 187, "DividendTSprd");
+SF_U64 const sfDividendCoinsVBC = make::one<SF_U64::type>(&sfDividendCoinsVBC, STI_UINT64, 181, "DividendCoinsVBC");
+SF_U64 const sfDividendCoinsVBCRank = make::one<SF_U64::type>(&sfDividendCoinsVBCRank, STI_UINT64, 182, "DividendCoinsVBCRank");
+SF_U64 const sfDividendCoinsVBCSprd = make::one<SF_U64::type>(&sfDividendCoinsVBCSprd, STI_UINT64, 183, "DividendCoinsVBCSprd");
+SF_U64 const sfDividendVRank    = make::one<SF_U64::type>(&sfDividendVRank,    STI_UINT64, 184, "DividendVRank");
+SF_U64 const sfDividendVSprd    = make::one<SF_U64::type>(&sfDividendVSprd,    STI_UINT64, 185, "DividendVSprd");
+SF_U64 const sfDividendCoins    = make::one<SF_U64::type>(&sfDividendCoins,    STI_UINT64, 186, "DividendCoins");
+SF_U64 const sfDividendTSprd    = make::one<SF_U64::type>(&sfDividendTSprd,    STI_UINT64, 187, "DividendTSprd");
 
 // 128-bit
-SField const sfEmailHash = make::one(&sfEmailHash, STI_HASH128, 1, "EmailHash");
-
-// 256-bit (common)
-SField const sfLedgerHash      = make::one(&sfLedgerHash,      STI_HASH256, 1, "LedgerHash");
-SField const sfParentHash      = make::one(&sfParentHash,      STI_HASH256, 2, "ParentHash");
-SField const sfTransactionHash = make::one(&sfTransactionHash, STI_HASH256, 3, "TransactionHash");
-SField const sfAccountHash     = make::one(&sfAccountHash,     STI_HASH256, 4, "AccountHash");
-SField const sfPreviousTxnID   = make::one(&sfPreviousTxnID,   STI_HASH256, 5, "PreviousTxnID", SField::sMD_DeleteFinal);
-SField const sfLedgerIndex     = make::one(&sfLedgerIndex,     STI_HASH256, 6, "LedgerIndex");
-SField const sfWalletLocator   = make::one(&sfWalletLocator,   STI_HASH256, 7, "WalletLocator");
-SField const sfRootIndex       = make::one(&sfRootIndex,       STI_HASH256, 8, "RootIndex", SField::sMD_Always);
-SField const sfAccountTxnID    = make::one(&sfAccountTxnID,    STI_HASH256, 9, "AccountTxnID");
-SField const sfDividendResultHash = make::one(&sfDividendResultHash, STI_HASH256, 181, "DividendResultHash");
-    
-// 256-bit (uncommon)
-SField const sfBookDirectory = make::one(&sfBookDirectory, STI_HASH256, 16, "BookDirectory");
-SField const sfInvoiceID     = make::one(&sfInvoiceID,     STI_HASH256, 17, "InvoiceID");
-SField const sfNickname      = make::one(&sfNickname,      STI_HASH256, 18, "Nickname");
-SField const sfAmendment     = make::one(&sfAmendment,     STI_HASH256, 19, "Amendment");
-SField const sfTicketID      = make::one(&sfTicketID,      STI_HASH256, 20, "TicketID");
+SF_U128 const sfEmailHash = make::one<SF_U128::type>(&sfEmailHash, STI_HASH128, 1, "EmailHash");
 
 // 160-bit (common)
-SField const sfTakerPaysCurrency = make::one(&sfTakerPaysCurrency, STI_HASH160, 1, "TakerPaysCurrency");
-SField const sfTakerPaysIssuer   = make::one(&sfTakerPaysIssuer,   STI_HASH160, 2, "TakerPaysIssuer");
-SField const sfTakerGetsCurrency = make::one(&sfTakerGetsCurrency, STI_HASH160, 3, "TakerGetsCurrency");
-SField const sfTakerGetsIssuer   = make::one(&sfTakerGetsIssuer,   STI_HASH160, 4, "TakerGetsIssuer");
+SF_U160 const sfTakerPaysCurrency = make::one<SF_U160::type>(&sfTakerPaysCurrency, STI_HASH160, 1, "TakerPaysCurrency");
+SF_U160 const sfTakerPaysIssuer   = make::one<SF_U160::type>(&sfTakerPaysIssuer,   STI_HASH160, 2, "TakerPaysIssuer");
+SF_U160 const sfTakerGetsCurrency = make::one<SF_U160::type>(&sfTakerGetsCurrency, STI_HASH160, 3, "TakerGetsCurrency");
+SF_U160 const sfTakerGetsIssuer   = make::one<SF_U160::type>(&sfTakerGetsIssuer,   STI_HASH160, 4, "TakerGetsIssuer");
+
+// 256-bit (common)
+SF_U256 const sfLedgerHash      = make::one<SF_U256::type>(&sfLedgerHash,      STI_HASH256, 1, "LedgerHash");
+SF_U256 const sfParentHash      = make::one<SF_U256::type>(&sfParentHash,      STI_HASH256, 2, "ParentHash");
+SF_U256 const sfTransactionHash = make::one<SF_U256::type>(&sfTransactionHash, STI_HASH256, 3, "TransactionHash");
+SF_U256 const sfAccountHash     = make::one<SF_U256::type>(&sfAccountHash,     STI_HASH256, 4, "AccountHash");
+SF_U256 const sfPreviousTxnID   = make::one<SF_U256::type>(&sfPreviousTxnID,   STI_HASH256, 5, "PreviousTxnID", SField::sMD_DeleteFinal);
+SF_U256 const sfLedgerIndex     = make::one<SF_U256::type>(&sfLedgerIndex,     STI_HASH256, 6, "LedgerIndex");
+SF_U256 const sfWalletLocator   = make::one<SF_U256::type>(&sfWalletLocator,   STI_HASH256, 7, "WalletLocator");
+SF_U256 const sfRootIndex       = make::one<SF_U256::type>(&sfRootIndex,       STI_HASH256, 8, "RootIndex", SField::sMD_Always);
+SF_U256 const sfAccountTxnID    = make::one<SF_U256::type>(&sfAccountTxnID,    STI_HASH256, 9, "AccountTxnID");
+
+SF_U256 const sfDividendHash    = make::one<SF_U256::type>(&sfDividendHash,    STI_HASH256, 181, "DividendHash");
+SF_U256 const sfDividendMarker  = make::one<SF_U256::type>(&sfDividendMarker,  STI_HASH256, 182, "DividendMarker");
+
+// 256-bit (uncommon)
+SF_U256 const sfBookDirectory = make::one<SF_U256::type>(&sfBookDirectory, STI_HASH256, 16, "BookDirectory");
+SF_U256 const sfInvoiceID     = make::one<SF_U256::type>(&sfInvoiceID,     STI_HASH256, 17, "InvoiceID");
+SF_U256 const sfNickname      = make::one<SF_U256::type>(&sfNickname,      STI_HASH256, 18, "Nickname");
+SF_U256 const sfAmendment     = make::one<SF_U256::type>(&sfAmendment,     STI_HASH256, 19, "Amendment");
+SF_U256 const sfTicketID      = make::one<SF_U256::type>(&sfTicketID,      STI_HASH256, 20, "TicketID");
+SF_U256 const sfDigest        = make::one<SF_U256::type>(&sfDigest,        STI_HASH256, 21, "Digest");
 
 // currency amount (common)
-SField const sfAmount      = make::one(&sfAmount,      STI_AMOUNT, 1, "Amount");
-SField const sfBalance     = make::one(&sfBalance,     STI_AMOUNT, 2, "Balance");
-SField const sfLimitAmount = make::one(&sfLimitAmount, STI_AMOUNT, 3, "LimitAmount");
-SField const sfTakerPays   = make::one(&sfTakerPays,   STI_AMOUNT, 4, "TakerPays");
-SField const sfTakerGets   = make::one(&sfTakerGets,   STI_AMOUNT, 5, "TakerGets");
-SField const sfLowLimit    = make::one(&sfLowLimit,    STI_AMOUNT, 6, "LowLimit");
-SField const sfHighLimit   = make::one(&sfHighLimit,   STI_AMOUNT, 7, "HighLimit");
-SField const sfFee         = make::one(&sfFee,         STI_AMOUNT, 8, "Fee");
-SField const sfSendMax     = make::one(&sfSendMax,     STI_AMOUNT, 9, "SendMax");
+SF_Amount const sfAmount      = make::one<SF_Amount::type>(&sfAmount,      STI_AMOUNT,  1, "Amount");
+SF_Amount const sfBalance     = make::one<SF_Amount::type>(&sfBalance,     STI_AMOUNT,  2, "Balance");
+SF_Amount const sfLimitAmount = make::one<SF_Amount::type>(&sfLimitAmount, STI_AMOUNT,  3, "LimitAmount");
+SF_Amount const sfTakerPays   = make::one<SF_Amount::type>(&sfTakerPays,   STI_AMOUNT,  4, "TakerPays");
+SF_Amount const sfTakerGets   = make::one<SF_Amount::type>(&sfTakerGets,   STI_AMOUNT,  5, "TakerGets");
+SF_Amount const sfLowLimit    = make::one<SF_Amount::type>(&sfLowLimit,    STI_AMOUNT,  6, "LowLimit");
+SF_Amount const sfHighLimit   = make::one<SF_Amount::type>(&sfHighLimit,   STI_AMOUNT,  7, "HighLimit");
+SF_Amount const sfFee         = make::one<SF_Amount::type>(&sfFee,         STI_AMOUNT,  8, "Fee");
+SF_Amount const sfSendMax     = make::one<SF_Amount::type>(&sfSendMax,     STI_AMOUNT,  9, "SendMax");
+SF_Amount const sfDeliverMin  = make::one<SF_Amount::type>(&sfDeliverMin,  STI_AMOUNT, 10, "DeliverMin");
 
-SField const sfBalanceVBC  = make::one(&sfBalanceVBC,  STI_AMOUNT, 181, "BalanceVBC");
+SF_Amount const sfBalanceVBC  = make::one<SF_Amount::type>(&sfBalanceVBC,  STI_AMOUNT, 181, "BalanceVBC");
+SF_Amount const sfReserve     = make::one<SF_Amount::type>(&sfReserve,     STI_AMOUNT, 182, "Reserve");
 
 // currency amount (uncommon)
-SField const sfMinimumOffer    = make::one(&sfMinimumOffer,    STI_AMOUNT, 16, "MinimumOffer");
-SField const sfRippleEscrow    = make::one(&sfRippleEscrow,    STI_AMOUNT, 17, "RippleEscrow");
-SField const sfDeliveredAmount = make::one(&sfDeliveredAmount, STI_AMOUNT, 18, "DeliveredAmount");
+SF_Amount const sfMinimumOffer    = make::one<SF_Amount::type>(&sfMinimumOffer,    STI_AMOUNT, 16, "MinimumOffer");
+SF_Amount const sfRippleEscrow    = make::one<SF_Amount::type>(&sfRippleEscrow,    STI_AMOUNT, 17, "RippleEscrow");
+SF_Amount const sfDeliveredAmount = make::one<SF_Amount::type>(&sfDeliveredAmount, STI_AMOUNT, 18, "DeliveredAmount");
 
-SField const sfReserve         = make::one(&sfReserve,         STI_AMOUNT, 182, "Reserve");
+// variable length (common)
+SF_Blob const sfPublicKey       = make::one<SF_Blob::type>(&sfPublicKey,     STI_VL,  1, "PublicKey");
+SF_Blob const sfSigningPubKey   = make::one<SF_Blob::type>(&sfSigningPubKey, STI_VL,  3, "SigningPubKey");
+SF_Blob const sfSignature       = make::one<SF_Blob::type>(&sfSignature,     STI_VL,  6, "Signature", SField::sMD_Default, SField::notSigning);
+SF_Blob const sfMessageKey      = make::one<SF_Blob::type>(&sfMessageKey,    STI_VL,  2, "MessageKey");
+SF_Blob const sfTxnSignature    = make::one<SF_Blob::type>(&sfTxnSignature,  STI_VL,  4, "TxnSignature", SField::sMD_Default, SField::notSigning);
+SF_Blob const sfDomain          = make::one<SF_Blob::type>(&sfDomain,        STI_VL,  7, "Domain");
+SF_Blob const sfFundCode        = make::one<SF_Blob::type>(&sfFundCode,      STI_VL,  8, "FundCode");
+SF_Blob const sfRemoveCode      = make::one<SF_Blob::type>(&sfRemoveCode,    STI_VL,  9, "RemoveCode");
+SF_Blob const sfExpireCode      = make::one<SF_Blob::type>(&sfExpireCode,    STI_VL, 10, "ExpireCode");
+SF_Blob const sfCreateCode      = make::one<SF_Blob::type>(&sfCreateCode,    STI_VL, 11, "CreateCode");
+SF_Blob const sfMemoType        = make::one<SF_Blob::type>(&sfMemoType,      STI_VL, 12, "MemoType");
+SF_Blob const sfMemoData        = make::one<SF_Blob::type>(&sfMemoData,      STI_VL, 13, "MemoData");
+SF_Blob const sfMemoFormat      = make::one<SF_Blob::type>(&sfMemoFormat,    STI_VL, 14, "MemoFormat");
 
-// variable length
-SField const sfPublicKey     = make::one(&sfPublicKey,     STI_VL,  1, "PublicKey");
-SField const sfMessageKey    = make::one(&sfMessageKey,    STI_VL,  2, "MessageKey");
-SField const sfSigningPubKey = make::one(&sfSigningPubKey, STI_VL,  3, "SigningPubKey");
-SField const sfTxnSignature  = make::one(&sfTxnSignature,  STI_VL,  4, "TxnSignature", SField::sMD_Default, false);
-SField const sfGenerator     = make::one(&sfGenerator,     STI_VL,  5, "Generator");
-SField const sfSignature     = make::one(&sfSignature,     STI_VL,  6, "Signature", SField::sMD_Default, false);
-SField const sfDomain        = make::one(&sfDomain,        STI_VL,  7, "Domain");
-SField const sfFundCode      = make::one(&sfFundCode,      STI_VL,  8, "FundCode");
-SField const sfRemoveCode    = make::one(&sfRemoveCode,    STI_VL,  9, "RemoveCode");
-SField const sfExpireCode    = make::one(&sfExpireCode,    STI_VL, 10, "ExpireCode");
-SField const sfCreateCode    = make::one(&sfCreateCode,    STI_VL, 11, "CreateCode");
-SField const sfMemoType      = make::one(&sfMemoType,      STI_VL, 12, "MemoType");
-SField const sfMemoData      = make::one(&sfMemoData,      STI_VL, 13, "MemoData");
-SField const sfMemoFormat    = make::one(&sfMemoFormat,    STI_VL, 14, "MemoFormat");
+// variable length (uncommon)
+//                                                                                   16 has not been used yet...
+SF_Blob const sfProof          = make::one<SF_Blob::type>(&sfProof,          STI_VL, 17, "Proof");
 
 // account
-SField const sfAccount     = make::one(&sfAccount,     STI_ACCOUNT, 1, "Account");
-SField const sfOwner       = make::one(&sfOwner,       STI_ACCOUNT, 2, "Owner");
-SField const sfDestination = make::one(&sfDestination, STI_ACCOUNT, 3, "Destination");
-SField const sfIssuer      = make::one(&sfIssuer,      STI_ACCOUNT, 4, "Issuer");
-SField const sfTarget      = make::one(&sfTarget,      STI_ACCOUNT, 7, "Target");
-SField const sfRegularKey  = make::one(&sfRegularKey,  STI_ACCOUNT, 8, "RegularKey");
+SF_Account const sfAccount     = make::one<SF_Account::type>(&sfAccount,     STI_ACCOUNT, 1, "Account");
+SF_Account const sfOwner       = make::one<SF_Account::type>(&sfOwner,       STI_ACCOUNT, 2, "Owner");
+SF_Account const sfDestination = make::one<SF_Account::type>(&sfDestination, STI_ACCOUNT, 3, "Destination");
+SF_Account const sfIssuer      = make::one<SF_Account::type>(&sfIssuer,      STI_ACCOUNT, 4, "Issuer");
+SF_Account const sfTarget      = make::one<SF_Account::type>(&sfTarget,      STI_ACCOUNT, 7, "Target");
+SF_Account const sfRegularKey  = make::one<SF_Account::type>(&sfRegularKey,  STI_ACCOUNT, 8, "RegularKey");
 
-SField const sfReferee     = make::one(&sfReferee,     STI_ACCOUNT, 181, "Referee");
-SField const sfReference   = make::one(&sfReference,   STI_ACCOUNT, 182, "Reference");
+SF_Account const sfReferee     = make::one<SF_Account::type>(&sfReferee,     STI_ACCOUNT, 181, "Referee");
+SF_Account const sfReference   = make::one<SF_Account::type>(&sfReference,   STI_ACCOUNT, 182, "Reference");
 
 // path set
 SField const sfPaths = make::one(&sfPaths, STI_PATHSET, 1, "Paths");
 
 // vector of 256-bit
-SField const sfIndexes    = make::one(&sfIndexes,    STI_VECTOR256, 1, "Indexes", SField::sMD_Never);
-SField const sfHashes     = make::one(&sfHashes,     STI_VECTOR256, 2, "Hashes");
-SField const sfAmendments = make::one(&sfAmendments, STI_VECTOR256, 3, "Amendments");
+SF_Vec256 const sfIndexes    = make::one<SF_Vec256::type>(&sfIndexes,    STI_VECTOR256, 1, "Indexes", SField::sMD_Never);
+SF_Vec256 const sfHashes     = make::one<SF_Vec256::type>(&sfHashes,     STI_VECTOR256, 2, "Hashes");
+SF_Vec256 const sfAmendments = make::one<SF_Vec256::type>(&sfAmendments, STI_VECTOR256, 3, "Amendments");
 
 // inner object
 // OBJECT/1 is reserved for end of object
@@ -269,17 +252,23 @@ SField const sfFinalFields         = make::one(&sfFinalFields,         STI_OBJEC
 SField const sfNewFields           = make::one(&sfNewFields,           STI_OBJECT,  8, "NewFields");
 SField const sfTemplateEntry       = make::one(&sfTemplateEntry,       STI_OBJECT,  9, "TemplateEntry");
 SField const sfMemo                = make::one(&sfMemo,                STI_OBJECT, 10, "Memo");
+SField const sfSignerEntry         = make::one(&sfSignerEntry,         STI_OBJECT, 11, "SignerEntry");
 
 SField const sfReferenceHolder     = make::one(&sfReferenceHolder,     STI_OBJECT, 181, "ReferenceHolder");
 SField const sfFeeShareTaker       = make::one(&sfFeeShareTaker,       STI_OBJECT, 182, "FeeShareTaker");
 SField const sfReleasePoint        = make::one(&sfReleasePoint,        STI_OBJECT, 183, "ReleasePoint");
 SField const sfEntry               = make::one(&sfEntry,               STI_OBJECT, 184, "Entry");
 
+// inner object (uncommon)
+SField const sfSigner              = make::one(&sfSigner,              STI_OBJECT, 16, "Signer");
+//                                                                                 17 has not been used yet...
+SField const sfMajority            = make::one(&sfMajority,            STI_OBJECT, 18, "Majority");
+
 // array of objects
 // ARRAY/1 is reserved for end of array
-SField const sfSigningAccounts = make::one(&sfSigningAccounts, STI_ARRAY, 2, "SigningAccounts");
-SField const sfTxnSignatures   = make::one(&sfTxnSignatures,   STI_ARRAY, 3, "TxnSignatures", SField::sMD_Default, false);
-SField const sfSignatures      = make::one(&sfSignatures,      STI_ARRAY, 4, "Signatures");
+// SField const sfSigningAccounts = make::one(&sfSigningAccounts, STI_ARRAY, 2, "SigningAccounts"); // Never been used.
+SField const sfSigners         = make::one(&sfSigners,         STI_ARRAY, 3, "Signers", SField::sMD_Default, SField::notSigning);
+SField const sfSignerEntries   = make::one(&sfSignerEntries,   STI_ARRAY, 4, "SignerEntries");
 SField const sfTemplate        = make::one(&sfTemplate,        STI_ARRAY, 5, "Template");
 SField const sfNecessary       = make::one(&sfNecessary,       STI_ARRAY, 6, "Necessary");
 SField const sfSufficient      = make::one(&sfSufficient,      STI_ARRAY, 7, "Sufficient");
@@ -292,8 +281,11 @@ SField const sfReleaseSchedule = make::one(&sfReleaseSchedule, STI_ARRAY, 183, "
 SField const sfAmounts         = make::one(&sfAmounts,         STI_ARRAY, 184, "Amounts");
 SField const sfLimits          = make::one(&sfLimits,          STI_ARRAY, 185, "Limits");
 
+// array of objects (uncommon)
+SField const sfMajorities      = make::one(&sfMajorities,      STI_ARRAY, 16, "Majorities");
+
 SField::SField (SerializedTypeID tid, int fv, const char* fn,
-                int meta, bool signing)
+                int meta, IsSigning signing)
     : fieldCode (field_code (tid, fv))
     , fieldType (tid)
     , fieldValue (fv)
@@ -301,8 +293,7 @@ SField::SField (SerializedTypeID tid, int fv, const char* fn,
     , fieldMeta (meta)
     , fieldNum (++num)
     , signingField (signing)
-    , rawJsonName (getName ())
-    , jsonName (rawJsonName.c_str ())
+    , jsonName (getName ())
 {
 }
 
@@ -312,9 +303,8 @@ SField::SField (int fc)
     , fieldValue (0)
     , fieldMeta (sMD_Never)
     , fieldNum (++num)
-    , signingField (true)
-    , rawJsonName (getName ())
-    , jsonName (rawJsonName.c_str ())
+    , signingField (IsSigning::yes)
+    , jsonName (getName ())
 {
 }
 
@@ -322,19 +312,20 @@ SField::SField (int fc)
 // This is naturally done with no extra expense
 // from getField(int code).
 SField::SField (SerializedTypeID tid, int fv)
-        : fieldCode (field_code (tid, fv)), fieldType (tid), fieldValue (fv),
-          fieldMeta (sMD_Default),
-          fieldNum (++num),
-          signingField (true),
-          jsonName (nullptr)
+        : fieldCode (field_code (tid, fv))
+        , fieldType (tid)
+        , fieldValue (fv)
+        , fieldMeta (sMD_Default)
+        , fieldNum (++num)
+        , signingField (IsSigning::yes)
 {
     fieldName = std::to_string (tid) + '/' + std::to_string (fv);
-    rawJsonName = getName ();
-    jsonName = Json::StaticString (rawJsonName.c_str ());
+    jsonName = getName ();
     assert ((fv != 1) || ((tid != STI_ARRAY) && (tid != STI_OBJECT)));
 }
 
-SField::ref SField::getField (int code)
+SField const&
+SField::getField (int code)
 {
     auto it = knownCodeToField.find (code);
 
@@ -390,7 +381,7 @@ SField::ref SField::getField (int code)
     }
 }
 
-int SField::compare (SField::ref f1, SField::ref f2)
+int SField::compare (SField const& f1, SField const& f2)
 {
     // -1 = f1 comes before f2, 0 = illegal combination, 1 = f1 comes after f2
     if ((f1.fieldCode <= 0) || (f2.fieldCode <= 0))
@@ -417,7 +408,8 @@ std::string SField::getName () const
             std::to_string(fieldValue);
 }
 
-SField::ref SField::getField (std::string const& fieldName)
+SField const&
+SField::getField (std::string const& fieldName)
 {
     for (auto const & fieldPair : knownCodeToField)
     {

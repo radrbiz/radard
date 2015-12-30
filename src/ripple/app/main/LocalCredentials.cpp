@@ -18,17 +18,23 @@
 //==============================================================================
 
 #include <BeastConfig.h>
-#include <ripple/app/data/DatabaseCon.h>
+#include <ripple/core/DatabaseCon.h>
 #include <ripple/app/main/Application.h>
 #include <ripple/app/main/LocalCredentials.h>
-#include <ripple/app/peers/UniqueNodeList.h>
+#include <ripple/app/misc/UniqueNodeList.h>
+#include <ripple/basics/contract.h>
 #include <ripple/basics/Log.h>
 #include <ripple/basics/StringUtilities.h>
-#include <ripple/basics/make_SSLContext.h>
 #include <ripple/core/Config.h>
+#include <boost/optional.hpp>
 #include <iostream>
 
 namespace ripple {
+
+LocalCredentials::LocalCredentials(Application& app)
+    : app_ (app)
+{
+}
 
 void LocalCredentials::start ()
 {
@@ -41,40 +47,40 @@ void LocalCredentials::start ()
         nodeIdentityCreate ();
 
         if (!nodeIdentityLoad ())
-            throw std::runtime_error ("unable to retrieve new node identity.");
+            Throw<std::runtime_error> ("unable to retrieve new node identity.");
     }
 
-    if (!getConfig ().QUIET)
+    if (!app_.config().QUIET)
         std::cerr << "NodeIdentity: " << mNodePublicKey.humanNodePublic () << std::endl;
 
-    getApp().getUNL ().start ();
+    app_.getUNL ().start ();
 }
 
 // Retrieve network identity.
 bool LocalCredentials::nodeIdentityLoad ()
 {
-    auto db = getApp().getWalletDB ().getDB ();
-    auto sl (getApp().getWalletDB ().lock ());
+    auto db = app_.getWalletDB ().checkoutDb ();
     bool        bSuccess    = false;
 
-    if (db->executeSQL ("SELECT * FROM NodeIdentity;") && db->startIterRows ())
+    boost::optional<std::string> pubKO, priKO;
+    soci::statement st = (db->prepare <<
+                          "SELECT PublicKey, PrivateKey "
+                          "FROM NodeIdentity;",
+                          soci::into(pubKO),
+                          soci::into(priKO));
+    st.execute ();
+    while (st.fetch ())
     {
-        std::string strPublicKey, strPrivateKey;
+        mNodePublicKey.setNodePublic (pubKO.value_or(""));
+        mNodePrivateKey.setNodePrivate (priKO.value_or(""));
 
-        db->getStr ("PublicKey", strPublicKey);
-        db->getStr ("PrivateKey", strPrivateKey);
-
-        mNodePublicKey.setNodePublic (strPublicKey);
-        mNodePrivateKey.setNodePrivate (strPrivateKey);
-
-        db->endIterRows ();
         bSuccess    = true;
     }
 
-    if (getConfig ().NODE_PUB.isValid () && getConfig ().NODE_PRIV.isValid ())
+    if (app_.config().NODE_PUB.isValid () && app_.config().NODE_PRIV.isValid ())
     {
-        mNodePublicKey = getConfig ().NODE_PUB;
-        mNodePrivateKey = getConfig ().NODE_PRIV;
+        mNodePublicKey = app_.config().NODE_PUB;
+        mNodePrivateKey = app_.config().NODE_PRIV;
     }
 
     return bSuccess;
@@ -83,7 +89,7 @@ bool LocalCredentials::nodeIdentityLoad ()
 // Create and store a network identity.
 bool LocalCredentials::nodeIdentityCreate ()
 {
-    if (!getConfig ().QUIET)
+    if (!app_.config().QUIET)
         std::cerr << "NodeIdentity: Creating." << std::endl;
 
     //
@@ -93,72 +99,20 @@ bool LocalCredentials::nodeIdentityCreate ()
     RippleAddress   naNodePublic    = RippleAddress::createNodePublic (naSeed);
     RippleAddress   naNodePrivate   = RippleAddress::createNodePrivate (naSeed);
 
-    // Make new key.
-    std::string strDh512 (getRawDHParams (512));
-
-    std::string strDh1024 = strDh512;
-
     //
     // Store the node information
     //
-    auto db = getApp().getWalletDB ().getDB ();
+    auto db = app_.getWalletDB ().checkoutDb ();
 
-    auto sl (getApp().getWalletDB ().lock ());
-    db->executeSQL (str (boost::format ("INSERT INTO NodeIdentity (PublicKey,PrivateKey,Dh512,Dh1024) VALUES ('%s','%s',%s,%s);")
-                         % naNodePublic.humanNodePublic ()
-                         % naNodePrivate.humanNodePrivate ()
-                         % sqlEscape (strDh512)
-                         % sqlEscape (strDh1024)));
-    // XXX Check error result.
+    *db << str (boost::format (
+        "INSERT INTO NodeIdentity (PublicKey,PrivateKey) VALUES ('%s','%s');")
+            % naNodePublic.humanNodePublic ()
+            % naNodePrivate.humanNodePrivate ());
 
-    if (!getConfig ().QUIET)
+    if (!app_.config().QUIET)
         std::cerr << "NodeIdentity: Created." << std::endl;
 
     return true;
-}
-
-bool LocalCredentials::dataDelete (std::string const& strKey)
-{
-    auto db = getApp().getRpcDB ().getDB ();
-
-    auto sl (getApp().getRpcDB ().lock ());
-
-    return db->executeSQL (str (boost::format ("DELETE FROM RPCData WHERE Key=%s;")
-                                % sqlEscape (strKey)));
-}
-
-bool LocalCredentials::dataFetch (std::string const& strKey, std::string& strValue)
-{
-    auto db = getApp().getRpcDB ().getDB ();
-
-    auto sl (getApp().getRpcDB ().lock ());
-
-    bool        bSuccess    = false;
-
-    if (db->executeSQL (str (boost::format ("SELECT Value FROM RPCData WHERE Key=%s;")
-                             % sqlEscape (strKey))) && db->startIterRows ())
-    {
-        Blob vucData    = db->getBinary ("Value");
-        strValue.assign (vucData.begin (), vucData.end ());
-
-        db->endIterRows ();
-
-        bSuccess    = true;
-    }
-
-    return bSuccess;
-}
-
-bool LocalCredentials::dataStore (std::string const& strKey, std::string const& strValue)
-{
-    auto db = getApp().getRpcDB ().getDB ();
-
-    auto sl (getApp().getRpcDB ().lock ());
-
-    return (db->executeSQL (str (boost::format ("REPLACE INTO RPCData (Key, Value) VALUES (%s,%s);")
-                                 % sqlEscape (strKey)
-                                 % sqlEscape (strValue)
-                                )));
 }
 
 } // ripple

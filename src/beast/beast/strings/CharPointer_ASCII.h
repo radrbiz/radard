@@ -21,8 +21,8 @@
 */
 //==============================================================================
 
-#ifndef BEAST_CHARPOINTER_ASCII_H_INCLUDED
-#define BEAST_CHARPOINTER_ASCII_H_INCLUDED
+#ifndef BEAST_STRINGS_CHARPOINTER_ASCII_H_INCLUDED
+#define BEAST_STRINGS_CHARPOINTER_ASCII_H_INCLUDED
 
 #include <beast/Config.h>
 
@@ -45,7 +45,7 @@ namespace beast {
 class CharPointer_ASCII
 {
 public:
-    typedef char CharType;
+    using CharType = char;
 
     inline explicit CharPointer_ASCII (const CharType* const rawPointer) noexcept
         : data (const_cast <CharType*> (rawPointer))

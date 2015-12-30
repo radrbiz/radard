@@ -18,22 +18,11 @@
 //==============================================================================
 
 #include <BeastConfig.h>
+#include <ripple/basics/Slice.h>
+#include <ripple/basics/strHex.h>
 #include <algorithm>
-    
+
 namespace ripple {
-
-char charHex (int iDigit)
-{
-    if (iDigit >= 0)
-    {
-        if(iDigit < 10)
-            return '0' + iDigit;
-        if(iDigit < 16)
-            return 'A' - 10 + iDigit;
-    }
-
-    return 0;
-}
 
 int charUnHex (unsigned char c)
 {
@@ -61,6 +50,12 @@ int charUnHex (unsigned char c)
     static HexTab xtab;
 
     return xtab[c];
+}
+
+std::string
+strHex(Slice const& slice)
+{
+    return strHex(slice.data(), slice.size());
 }
 
 }

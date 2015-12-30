@@ -19,6 +19,7 @@
 
 #include <BeastConfig.h>
 #include <ripple/net/RPCSub.h>
+#include <ripple/basics/contract.h>
 #include <ripple/basics/Log.h>
 #include <ripple/basics/StringUtilities.h>
 #include <ripple/json/to_string.h>
@@ -30,12 +31,11 @@ namespace ripple {
 // Subscription object for JSON-RPC
 class RPCSubImp
     : public RPCSub
-    , public beast::LeakChecked <RPCSub>
 {
 public:
     RPCSubImp (InfoSub::Source& source, boost::asio::io_service& io_service,
         JobQueue& jobQueue, std::string const& strUrl, std::string const& strUsername,
-            std::string const& strPassword)
+             std::string const& strPassword, Logs& logs)
         : RPCSub (source)
         , m_io_service (io_service)
         , m_jobQueue (jobQueue)
@@ -44,28 +44,24 @@ public:
         , mUsername (strUsername)
         , mPassword (strPassword)
         , mSending (false)
+        , j_ (logs.journal ("RPCSub"))
+        , logs_ (logs)
     {
         std::string strScheme;
 
         if (!parseUrl (strUrl, strScheme, mIp, mPort, mPath))
-        {
-            throw std::runtime_error ("Failed to parse url.");
-        }
+            Throw<std::runtime_error> ("Failed to parse url.");
         else if (strScheme == "https")
-        {
-            mSSL    = true;
-        }
+            mSSL = true;
         else if (strScheme != "http")
-        {
-            throw std::runtime_error ("Only http and https is supported.");
-        }
+            Throw<std::runtime_error> ("Only http and https is supported.");
 
-        mSeq    = 1;
+        mSeq = 1;
 
         if (mPort < 0)
             mPort   = mSSL ? 443 : 80;
 
-        WriteLog (lsINFO, RPCSub) <<
+        JLOG (j_.info) <<
             "RPCCall::fromNetwork sub: ip=" << mIp <<
             " port=" << mPort <<
             " ssl= "<< (mSSL ? "yes" : "no") <<
@@ -83,11 +79,12 @@ public:
         if (mDeque.size () >= eventQueueMax)
         {
             // Drop the previous event.
-            WriteLog (lsWARNING, RPCSub) << "RPCCall::fromNetwork drop";
+            JLOG (j_.warning) << "RPCCall::fromNetwork drop";
             mDeque.pop_back ();
         }
 
-        WriteLog (broadcast ? lsDEBUG : lsINFO, RPCSub) <<
+        auto& jm = broadcast ? j_.debug : j_.info;
+        JLOG (jm) <<
             "RPCCall::fromNetwork push: " << jvObj;
 
         mDeque.push_back (std::make_pair (mSeq++, jvObj));
@@ -97,10 +94,12 @@ public:
             // Start a sending thread.
             mSending    = true;
 
-            WriteLog (lsINFO, RPCSub) << "RPCCall::fromNetwork start";
+            JLOG (j_.info) << "RPCCall::fromNetwork start";
 
             m_jobQueue.addJob (
-                jtCLIENT, "RPCSub::sendThread", std::bind (&RPCSubImp::sendThread, this));
+                jtCLIENT, "RPCSub::sendThread", [this] (Job&) {
+                    sendThread();
+                });
         }
     }
 
@@ -155,7 +154,7 @@ private:
                 // XXX Might not need this in a try.
                 try
                 {
-                    WriteLog (lsINFO, RPCSub) << "RPCCall::fromNetwork: " << mIp;
+                    JLOG (j_.info) << "RPCCall::fromNetwork: " << mIp;
 
                     RPCCall::fromNetwork (
                         m_io_service,
@@ -163,11 +162,13 @@ private:
                         mUsername, mPassword,
                         mPath, "event",
                         jvEvent,
-                        mSSL);
+                        mSSL,
+                        true,
+                        logs_);
                 }
                 catch (const std::exception& e)
                 {
-                    WriteLog (lsINFO, RPCSub) << "RPCCall::fromNetwork exception: " << e.what ();
+                    JLOG (j_.info) << "RPCCall::fromNetwork exception: " << e.what ();
                 }
             }
         }
@@ -175,7 +176,6 @@ private:
     }
 
 private:
-// VFALCO TODO replace this macro with a language constant
     enum
     {
         eventQueueMax = 32
@@ -197,6 +197,9 @@ private:
     bool                    mSending;                   // Sending threead is active.
 
     std::deque<std::pair<int, Json::Value> >    mDeque;
+
+    beast::Journal j_;
+    Logs& logs_;
 };
 
 //------------------------------------------------------------------------------
@@ -206,14 +209,15 @@ RPCSub::RPCSub (InfoSub::Source& source)
 {
 }
 
-RPCSub::pointer RPCSub::New (InfoSub::Source& source,
-    boost::asio::io_service& io_service, JobQueue& jobQueue,
-        std::string const& strUrl, std::string const& strUsername,
-        std::string const& strPassword)
+std::shared_ptr<RPCSub> make_RPCSub (
+    InfoSub::Source& source, boost::asio::io_service& io_service,
+    JobQueue& jobQueue, std::string const& strUrl,
+    std::string const& strUsername, std::string const& strPassword,
+    Logs& logs)
 {
-    return std::make_shared <RPCSubImp> (std::ref (source),
+    return std::make_shared<RPCSubImp> (std::ref (source),
         std::ref (io_service), std::ref (jobQueue),
-            strUrl, strUsername, strPassword);
+            strUrl, strUsername, strPassword, logs);
 }
 
 } // ripple

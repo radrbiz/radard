@@ -19,6 +19,7 @@
 
 #include <BeastConfig.h>
 #include <ripple/app/main/CollectorManager.h>
+#include <memory>
 
 namespace ripple {
 
@@ -30,17 +31,17 @@ public:
     beast::insight::Collector::ptr m_collector;
     std::unique_ptr <beast::insight::Groups> m_groups;
 
-    CollectorManagerImp (beast::StringPairArray const& params,
+    CollectorManagerImp (Section const& params,
         beast::Journal journal)
         : m_journal (journal)
     {
-        std::string const& server (params ["server"].toStdString());
+        std::string const& server  = get<std::string> (params, "server");
 
         if (server == "statsd")
         {
             beast::IP::Endpoint const address (beast::IP::Endpoint::from_string (
-                params ["address"].toStdString ()));
-            std::string const& prefix (params ["prefix"].toStdString ());
+                get<std::string> (params, "address")));
+            std::string const& prefix (get<std::string> (params, "prefix"));
 
             m_collector = beast::insight::StatsDCollector::New (address, prefix, journal);
         }
@@ -56,12 +57,12 @@ public:
     {
     }
 
-    beast::insight::Collector::ptr const& collector ()
+    beast::insight::Collector::ptr const& collector () override
     {
         return m_collector;
     }
 
-    beast::insight::Group::ptr const& group (std::string const& name)
+    beast::insight::Group::ptr const& group (std::string const& name) override
     {
         return m_groups->get (name);
     }
@@ -73,10 +74,10 @@ CollectorManager::~CollectorManager ()
 {
 }
 
-CollectorManager* CollectorManager::New (beast::StringPairArray const& params,
+std::unique_ptr<CollectorManager> CollectorManager::New(Section const& params,
     beast::Journal journal)
 {
-    return new CollectorManagerImp (params, journal);
+    return std::make_unique<CollectorManagerImp>(params, journal);
 }
 
 }

@@ -74,11 +74,11 @@ bool CanonicalTXSet::Key::operator>= (Key const& rhs)const
     return mTXid >= rhs.mTXid;
 }
 
-void CanonicalTXSet::push_back (STTx::ref txn)
+void CanonicalTXSet::insert (std::shared_ptr<STTx const> const& txn)
 {
     uint256 effectiveAccount = mSetHash;
 
-    effectiveAccount ^= to256 (txn->getSourceAccount ().getAccountID ());
+    effectiveAccount ^= to256 (txn->getAccountID(sfAccount));
 
     mMap.insert (std::make_pair (
                      Key (effectiveAccount, txn->getSequence (), txn->getTransactionID ()),

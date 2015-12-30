@@ -21,7 +21,7 @@
 #include <ripple/protocol/STBase.h>
 #include <boost/checked_delete.hpp>
 #include <cassert>
-#include <beast/cxx14/memory.h> // <memory>
+#include <memory>
 
 namespace ripple {
 
@@ -30,7 +30,7 @@ STBase::STBase()
 {
 }
 
-STBase::STBase (SField::ref n)
+STBase::STBase (SField const& n)
     : fName(&n)
 {
     assert(fName);
@@ -126,22 +126,16 @@ STBase::isDefault() const
 }
 
 void
-STBase::setFName (SField::ref n)
+STBase::setFName (SField const& n)
 {
     fName = &n;
     assert (fName);
 }
 
-SField::ref
+SField const&
 STBase::getFName() const
 {
     return *fName;
-}
-
-std::unique_ptr<STBase>
-STBase::clone() const
-{
-    return std::unique_ptr<STBase> (duplicate());
 }
 
 void
@@ -151,27 +145,7 @@ STBase::addFieldID (Serializer& s) const
     s.addFieldID (fName->fieldType, fName->fieldValue);
 }
 
-std::unique_ptr <STBase>
-STBase::deserialize (SField::ref name)
-{
-    return std::make_unique<STBase>(name);
-}
-
 //------------------------------------------------------------------------------
-
-STBase*
-new_clone (const STBase& s)
-{
-    STBase* const copy (s.clone ().release ());
-    assert (typeid (*copy) == typeid (s));
-    return copy;
-}
-
-void
-delete_clone (const STBase* s)
-{
-    boost::checked_delete (s);
-}
 
 std::ostream&
 operator<< (std::ostream& out, const STBase& t)

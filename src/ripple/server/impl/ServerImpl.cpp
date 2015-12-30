@@ -18,10 +18,12 @@
 //==============================================================================
 
 #include <BeastConfig.h>
+#include <ripple/basics/contract.h>
 #include <ripple/server/impl/ServerImpl.h>
 #include <ripple/server/impl/Peer.h>
 #include <beast/chrono/chrono_io.h>
 #include <boost/chrono/chrono_io.hpp>
+#include <boost/utility/in_place_factory.hpp>
 #include <cassert>
 #include <ctime>
 #include <iomanip>
@@ -59,7 +61,7 @@ void
 ServerImpl::ports (std::vector<Port> const& ports)
 {
     if (closed())
-        throw std::logic_error("ports() on closed HTTP::Server");
+        Throw<std::logic_error> ("ports() on closed HTTP::Server");
     for(auto const& _ : ports)
         if (! _.websockets())
             std::make_shared<Door>(

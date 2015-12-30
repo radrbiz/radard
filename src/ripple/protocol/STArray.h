@@ -22,7 +22,6 @@
 
 #include <ripple/basics/CountedObject.h>
 #include <ripple/protocol/STObject.h>
-#include <boost/ptr_container/ptr_vector.hpp>
 
 namespace ripple {
 
@@ -30,144 +29,119 @@ class STArray final
     : public STBase
     , public CountedObject <STArray>
 {
+private:
+    using list_type = std::vector<STObject>;
+
+    enum
+    {
+        reserveSize = 8
+    };
+
+    list_type v_;
+
 public:
+    // Read-only iteration
+    class Items;
+
     static char const* getCountedObjectName () { return "STArray"; }
 
-    typedef boost::ptr_vector<STObject>    vector;
+    using size_type = list_type::size_type;
+    using iterator = list_type::iterator;
+    using const_iterator = list_type::const_iterator;
 
-    typedef vector::iterator               iterator;
-    typedef vector::const_iterator         const_iterator;
-    typedef vector::reverse_iterator       reverse_iterator;
-    typedef vector::const_reverse_iterator const_reverse_iterator;
-    typedef vector::size_type              size_type;
+    STArray();
+    STArray (STArray&&);
+    STArray (STArray const&) = default;
+    STArray (SField const& f, int n);
+    STArray (SerialIter& sit, SField const& f);
+    explicit STArray (int n);
+    explicit STArray (SField const& f);
+    STArray& operator= (STArray const&) = default;
+    STArray& operator= (STArray&&);
 
-public:
-    STArray ()
+    STBase*
+    copy (std::size_t n, void* buf) const override
     {
-        ;
-    }
-    explicit STArray (int n)
-    {
-        value.reserve (n);
-    }
-    explicit STArray (SField::ref f) : STBase (f)
-    {
-        ;
-    }
-    STArray (SField::ref f, int n) : STBase (f)
-    {
-        value.reserve (n);
-    }
-    STArray (SField::ref f, const vector & v) : STBase (f), value (v)
-    {
-        ;
-    }
-    explicit STArray (vector & v) : value (v)
-    {
-        ;
+        return emplace(n, buf, *this);
     }
 
-    virtual ~STArray () { }
-
-    static std::unique_ptr<STBase>
-    deserialize (SerializerIterator & sit, SField::ref name);
-
-    const vector& getValue () const
+    STBase*
+    move (std::size_t n, void* buf) override
     {
-        return value;
-    }
-    vector& getValue ()
-    {
-        return value;
+        return emplace(n, buf, std::move(*this));
     }
 
-    // VFALCO NOTE as long as we're married to boost why not use
-    //             boost::iterator_facade?
-    //
-    // vector-like functions
-    void push_back (const STObject & object)
+    STObject& operator[] (std::size_t j)
     {
-        value.push_back (object.oClone ().release ());
+        return v_[j];
     }
-    STObject& operator[] (int j)
+
+    STObject const& operator[] (std::size_t j) const
     {
-        return value[j];
+        return v_[j];
     }
-    const STObject& operator[] (int j) const
+
+    STObject& back() { return v_.back(); }
+
+    STObject const& back() const { return v_.back(); }
+
+    template <class... Args>
+    void
+    emplace_back(Args&&... args)
     {
-        return value[j];
+        v_.emplace_back(std::forward<Args>(args)...);
     }
+
+    void push_back (STObject const& object)
+    {
+        v_.push_back(object);
+    }
+
+    void push_back (STObject&& object)
+    {
+        v_.push_back(std::move(object));
+    }
+
     iterator begin ()
     {
-        return value.begin ();
+        return v_.begin ();
     }
-    const_iterator begin () const
-    {
-        return value.begin ();
-    }
+
     iterator end ()
     {
-        return value.end ();
+        return v_.end ();
     }
+
+    const_iterator begin () const
+    {
+        return v_.begin ();
+    }
+
     const_iterator end () const
     {
-        return value.end ();
+        return v_.end ();
     }
+
     size_type size () const
     {
-        return value.size ();
+        return v_.size ();
     }
-    reverse_iterator rbegin ()
-    {
-        return value.rbegin ();
-    }
-    const_reverse_iterator rbegin () const
-    {
-        return value.rbegin ();
-    }
-    reverse_iterator rend ()
-    {
-        return value.rend ();
-    }
-    const_reverse_iterator rend () const
-    {
-        return value.rend ();
-    }
-    iterator erase (iterator pos)
-    {
-        return value.erase (pos);
-    }
-    STObject& front ()
-    {
-        return value.front ();
-    }
-    const STObject& front () const
-    {
-        return value.front ();
-    }
-    STObject& back ()
-    {
-        return value.back ();
-    }
-    const STObject& back () const
-    {
-        return value.back ();
-    }
-    void pop_back ()
-    {
-        value.pop_back ();
-    }
+
     bool empty () const
     {
-        return value.empty ();
+        return v_.empty ();
     }
     void clear ()
     {
-        value.clear ();
+        v_.clear ();
     }
-    void swap (STArray & a)
+    void reserve (std::size_t n)
     {
-        value.swap (a.value);
+        v_.reserve (n);
+    }
+    void swap (STArray & a) noexcept
+    {
+        v_.swap (a.v_);
     }
 
     virtual std::string getFullText () const override;
@@ -178,13 +152,13 @@ public:
 
     void sort (bool (*compare) (const STObject & o1, const STObject & o2));
 
-    bool operator== (const STArray & s)
+    bool operator== (const STArray & s) const
     {
-        return value == s.value;
+        return v_ == s.v_;
     }
-    bool operator!= (const STArray & s)
+    bool operator!= (const STArray & s) const
     {
-        return value != s.value;
+        return v_ != s.v_;
     }
 
     virtual SerializedTypeID getSType () const override
@@ -194,17 +168,8 @@ public:
     virtual bool isEquivalent (const STBase & t) const override;
     virtual bool isDefault () const override
     {
-        return value.empty ();
+        return v_.empty ();
     }
-
-private:
-    virtual STArray* duplicate () const override
-    {
-        return new STArray (*this);
-    }
-
-private:
-    vector value;
 };
 
 } // ripple

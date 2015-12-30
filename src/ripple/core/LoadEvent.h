@@ -17,8 +17,8 @@
 */
 //==============================================================================
 
-#ifndef RIPPLE_LOADEVENT_H
-#define RIPPLE_LOADEVENT_H
+#ifndef RIPPLE_CORE_LOADEVENT_H_INCLUDED
+#define RIPPLE_CORE_LOADEVENT_H_INCLUDED
 
 #include <beast/chrono/RelativeTime.h>
 #include <memory>
@@ -41,8 +41,8 @@ public:
     //
     //             Why both kinds of containers?
     //
-    typedef std::shared_ptr <LoadEvent> pointer;
-    typedef std::unique_ptr <LoadEvent>            autoptr;
+    using pointer = std::shared_ptr <LoadEvent>;
+    using autoptr = std::unique_ptr <LoadEvent>;
 
 public:
     // VFALCO TODO remove the dependency on LoadMonitor. Is that possible?

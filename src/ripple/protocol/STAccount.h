@@ -20,71 +20,97 @@
 #ifndef RIPPLE_PROTOCOL_STACCOUNT_H_INCLUDED
 #define RIPPLE_PROTOCOL_STACCOUNT_H_INCLUDED
 
-#include <ripple/protocol/RippleAddress.h>
-#include <ripple/protocol/STBlob.h>
+#include <ripple/protocol/AccountID.h>
+#include <ripple/protocol/STBase.h>
 #include <string>
 
 namespace ripple {
 
-class STAccount : public STBlob
+class STAccount final
+    : public STBase
 {
+private:
+    // The original implementation of STAccount kept the value in an STBlob.
+    // But an STAccount is always 160 bits, so we can store it with less
+    // overhead in a ripple::uint160.  However, so the serialized format of the
+    // STAccount stays unchanged, we serialize and deserialize like an STBlob.
+    uint160 value_;
+    bool default_;
+
 public:
-    STAccount (Blob const& v) : STBlob (v)
+    using value_type = AccountID;
+
+    STAccount ();
+    STAccount (SField const& n);
+    STAccount (SField const& n, Buffer&& v);
+    STAccount (SerialIter& sit, SField const& name);
+    STAccount (SField const& n, AccountID const& v);
+
+    STBase*
+    copy (std::size_t n, void* buf) const override
     {
-        ;
-    }
-    STAccount (SField::ref n, Blob const& v) : STBlob (n, v)
-    {
-        ;
-    }
-    STAccount (SField::ref n, Account const& v);
-    STAccount (SField::ref n) : STBlob (n)
-    {
-        ;
-    }
-    STAccount ()
-    {
-        ;
-    }
-    static std::unique_ptr<STBase> deserialize (SerializerIterator& sit, SField::ref name)
-    {
-        return std::unique_ptr<STBase> (construct (sit, name));
+        return emplace (n, buf, *this);
     }
 
-    SerializedTypeID getSType () const
+    STBase*
+    move (std::size_t n, void* buf) override
+    {
+        return emplace (n, buf, std::move(*this));
+    }
+
+    SerializedTypeID getSType () const override
     {
         return STI_ACCOUNT;
     }
-    std::string getText () const;
 
-    RippleAddress getValueNCA () const;
-    void setValueNCA (RippleAddress const& nca);
+    std::string getText () const override;
 
-    template <typename Tag>
-    void setValueH160 (base_uint<160, Tag> const& v)
+    void
+    add (Serializer& s) const override
     {
-        peekValue ().clear ();
-        peekValue ().insert (peekValue ().end (), v.begin (), v.end ());
-        assert (peekValue ().size () == (160 / 8));
+        assert (fName->isBinary ());
+        assert (fName->fieldType == STI_ACCOUNT);
+
+        // Preserve the serialization behavior of an STBlob:
+        //  o If we are default (all zeros) serialize as an empty blob.
+        //  o Otherwise serialize 160 bits.
+        int const size = isDefault() ? 0 : uint160::bytes;
+        s.addVL (value_.data(), size);
     }
 
-    template <typename Tag>
-    bool getValueH160 (base_uint<160, Tag>& v) const
+    bool
+    isEquivalent (const STBase& t) const override
     {
-        auto success = isValueH160 ();
-        if (success)
-            memcpy (v.begin (), & (peekValue ().front ()), (160 / 8));
-        return success;
+        auto const* const tPtr = dynamic_cast<STAccount const*>(&t);
+        return tPtr && (default_ == tPtr->default_) && (value_ == tPtr->value_);
     }
 
-    bool isValueH160 () const;
-
-private:
-    virtual STAccount* duplicate () const
+    bool
+    isDefault () const override
     {
-        return new STAccount (*this);
+        return default_;
     }
-    static STAccount* construct (SerializerIterator&, SField::ref);
+
+    STAccount&
+    operator= (AccountID const& value)
+    {
+        setValue (value);
+        return *this;
+    }
+
+    AccountID
+    value() const noexcept
+    {
+        AccountID result;
+        result.copyFrom (value_);
+        return result;
+    }
+
+    void setValue (AccountID const& v)
+    {
+        value_.copyFrom (v);
+        default_ = false;
+    }
 };
 
 } // ripple

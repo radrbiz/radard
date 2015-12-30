@@ -24,6 +24,7 @@
 #include <beast/unit_test/suite.h>
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/optional.hpp>
+#include <boost/utility/in_place_factory.hpp>
 #include <chrono>
 #include <stdexcept>
 #include <thread>
@@ -102,13 +103,6 @@ public:
             return true;
         }
 
-        void
-        onLegacyPeerHello (std::unique_ptr<beast::asio::ssl_bundle>&& ssl_bundle,
-            boost::asio::const_buffer buffer,
-                boost::asio::ip::tcp::endpoint remote_address) override
-        {
-        }
-
         Handoff
         onHandoff (Session& session,
             std::unique_ptr <beast::asio::ssl_bundle>&& bundle,
@@ -143,7 +137,7 @@ public:
         }
 
         void
-        onStopped (Server& server)
+        onStopped (Server& server) override
         {
         }
     };
@@ -222,7 +216,7 @@ public:
     test_request()
     {
         boost::asio::io_service ios;
-        typedef boost::asio::ip::tcp::socket socket;
+        using socket = boost::asio::ip::tcp::socket;
         socket s (ios);
 
         if (! connect (s, "127.0.0.1", testPort))
@@ -254,7 +248,7 @@ public:
     test_keepalive()
     {
         boost::asio::io_service ios;
-        typedef boost::asio::ip::tcp::socket socket;
+        using socket = boost::asio::ip::tcp::socket;
         socket s (ios);
 
         if (! connect (s, "127.0.0.1", testPort))

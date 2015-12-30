@@ -17,8 +17,8 @@
 */
 //==============================================================================
 
-#ifndef BEAST_NUDB_FORMAT_H_INCLUDED
-#define BEAST_NUDB_FORMAT_H_INCLUDED
+#ifndef BEAST_NUDB_DETAIL_FORMAT_H_INCLUDED
+#define BEAST_NUDB_DETAIL_FORMAT_H_INCLUDED
 
 #include <beast/nudb/common.h>
 #include <beast/nudb/detail/buffer.h>
@@ -31,7 +31,7 @@
 #include <cstring>
 #include <memory>
 #include <stdexcept>
-#include <beast/cxx14/type_traits.h> // <type_traits>
+#include <type_traits>
 
 namespace beast {
 namespace nudb {
@@ -152,7 +152,7 @@ hash (void const* key,
     std::size_t key_size, std::size_t salt)
 {
     Hasher h (salt);
-    h.append (key, key_size);
+    h (key, key_size);
     return make_hash<hash_t>(static_cast<
         typename Hasher::result_type>(h));
 }
@@ -164,7 +164,7 @@ std::size_t
 pepper (std::size_t salt)
 {
     Hasher h (salt);
-    h.append (&salt, sizeof(salt));
+    h (&salt, sizeof(salt));
     return static_cast<std::size_t>(h);
 }
 
@@ -398,12 +398,12 @@ template <class File>
 void
 write (File& f, key_file_header const& kh)
 {
+    buffer buf;
+    buf.reserve (kh.block_size);
     if (kh.block_size < key_file_header::size)
         throw std::logic_error(
             "nudb: block size too small");
-    buffer buf(kh.block_size);
-    std::fill(buf.get(),
-        buf.get() + buf.size(), 0);
+    std::fill(buf.get(), buf.get() + buf.size(), 0);
     ostream os (buf.get(), buf.size());
     write (os, kh);
     f.write (0, buf.get(), buf.size());

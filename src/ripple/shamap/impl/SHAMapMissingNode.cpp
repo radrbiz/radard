@@ -26,22 +26,27 @@ namespace ripple {
 std::ostream&
 operator<< (std::ostream& out, const SHAMapMissingNode& mn)
 {
-    switch (mn.getMapType ())
+    switch (mn.mType)
     {
-    case smtTRANSACTION:
-        out << "Missing/TXN(" << mn.getNodeHash () << ")";
+    case SHAMapType::TRANSACTION:
+        out << "Missing/TXN(";
         break;
 
-    case smtSTATE:
-        out << "Missing/STA(" << mn.getNodeHash () << ")";
+    case SHAMapType::STATE:
+        out << "Missing/STA(";
         break;
 
-    case smtFREE:
+    case SHAMapType::FREE:
     default:
-        out << "Missing/" << mn.getNodeHash ();
+        out << "Missing/(";
         break;
     };
 
+    if (mn.mNodeHash == zero)
+        out << "id : " << mn.mNodeID;
+    else
+        out << "hash : " << mn.mNodeHash;
+    out << ")";
     return out;
 }
 

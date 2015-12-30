@@ -20,12 +20,15 @@
 #ifndef RIPPLE_PROTOCOL_STBASE_H_INCLUDED
 #define RIPPLE_PROTOCOL_STBASE_H_INCLUDED
 
+#include <ripple/basics/contract.h>
 #include <ripple/protocol/SField.h>
 #include <ripple/protocol/Serializer.h>
 #include <ostream>
+#include <memory>
 #include <string>
 #include <typeinfo>
-
+#include <utility>
+#include <type_traits>
 namespace ripple {
 
 // VFALCO TODO fix this restriction on copy assignment.
@@ -60,7 +63,7 @@ public:
     STBase();
 
     explicit
-    STBase (SField::ref n);
+    STBase (SField const& n);
 
     virtual ~STBase() = default;
 
@@ -69,13 +72,27 @@ public:
     bool operator== (const STBase& t) const;
     bool operator!= (const STBase& t) const;
 
+    virtual
+    STBase*
+    copy (std::size_t n, void* buf) const
+    {
+        return emplace(n, buf, *this);
+    }
+
+    virtual
+    STBase*
+    move (std::size_t n, void* buf)
+    {
+        return emplace(n, buf, std::move(*this));
+    }
+
     template <class D>
     D&
     downcast()
     {
         D* ptr = dynamic_cast<D*> (this);
         if (ptr == nullptr)
-            throw std::bad_cast();
+            Throw<std::bad_cast> ();
         return *ptr;
     }
 
@@ -85,7 +102,7 @@ public:
     {
         D const * ptr = dynamic_cast<D const*> (this);
         if (ptr == nullptr)
-            throw std::bad_cast();
+            Throw<std::bad_cast> ();
         return *ptr;
     }
 
@@ -121,39 +138,30 @@ public:
         This sets the name.
     */
     void
-    setFName (SField::ref n);
+    setFName (SField const& n);
 
-    SField::ref
+    SField const&
     getFName() const;
-
-    std::unique_ptr<STBase>
-    clone() const;
 
     void
     addFieldID (Serializer& s) const;
 
-    static
-    std::unique_ptr <STBase>
-    deserialize (SField::ref name);
-
 protected:
-    SField::ptr fName;
+    SField const* fName;
 
-private:
-    // VFALCO TODO Return std::unique_ptr <STBase>
-    virtual
+    template <class T>
+    static
     STBase*
-    duplicate() const
+    emplace(std::size_t n, void* buf, T&& val)
     {
-        return new STBase (*fName);
+        using U = std::decay_t<T>;
+        if (sizeof(U) > n)
+            return new U(std::forward<T>(val));
+        return new(buf) U(std::forward<T>(val));
     }
 };
 
 //------------------------------------------------------------------------------
-
-STBase* new_clone (const STBase& s);
-
-void delete_clone (const STBase* s);
 
 std::ostream& operator<< (std::ostream& out, const STBase& t);
 

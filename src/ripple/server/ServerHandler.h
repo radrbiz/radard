@@ -23,11 +23,10 @@
 #include <ripple/basics/BasicConfig.h>
 #include <ripple/server/Port.h>
 #include <ripple/overlay/Overlay.h>
-#include <ripple/rpc/Yield.h>
 #include <beast/utility/Journal.h>
 #include <beast/utility/PropertyStream.h>
-#include <beast/cxx14/memory.h> // <memory>
 #include <boost/asio/ip/address.hpp>
+#include <memory>
 #include <vector>
 
 namespace ripple {
@@ -47,9 +46,9 @@ public:
         // Memberspace
         struct client_t
         {
-            bool secure;
+            bool secure = false;
             std::string ip;
-            std::uint16_t port;
+            std::uint16_t port = 0;
             std::string user;
             std::string password;
             std::string admin_user;
@@ -67,7 +66,6 @@ public:
         };
 
         overlay_t overlay;
-        RPC::YieldStrategy yieldStrategy;
 
         void
         makeContexts();

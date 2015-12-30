@@ -35,15 +35,23 @@ namespace ripple {
 // Used as the type of a transaction or the type of a ledger entry.
 enum LedgerEntryType
 {
+    /** Special type, anything
+        This is used when the type in the Keylet is unknown,
+        such as when building metadata.
+    */
+    ltANY = -3,
+
+    /** Special type, anything not a directory
+        This is used when the type in the Keylet is unknown,
+        such as when iterating
+    */
+    ltCHILD             = -2,
+
     ltINVALID           = -1,
 
+    //---------------------------------------------------------------------------
+
     ltACCOUNT_ROOT      = 'a',
-
-    /// Describes an asset issuance
-    ltASSET             = 't',
-
-    /// Describes an asset holding
-    ltASSET_STATE       = 'S',
 
     /** Directory node.
 
@@ -55,21 +63,23 @@ enum LedgerEntryType
         (There's a little more information than this, see the template)
     */
     ltDIR_NODE          = 'd',
-    
+
     ltDIVIDEND          = 'D',
 
-    ltGENERATOR_MAP     = 'g',
+    ltRIPPLE_STATE      = 'r',
 
-    /// References hold by referee.
     ltREFER             = 'R',
 
-    /** Describes a trust line.
-    */
-    ltRIPPLE_STATE      = 'r',
+    /// Describes an asset holding
+    ltASSET_STATE       = 'S',
+
+    /// Describes an asset issuance
+    ltASSET             = 't',
 
     ltTICKET            = 'T',
 
-    /* Deprecated. */
+    ltSIGNER_LIST       = 'N',
+
     ltOFFER             = 'o',
 
     ltLEDGER_HASHES     = 'h',
@@ -77,6 +87,8 @@ enum LedgerEntryType
     ltAMENDMENTS        = 'f',
 
     ltFEE_SETTINGS      = 's',
+
+    ltSUSPAY            = 'u',
 
     // No longer used or supported. Left here to prevent accidental
     // reassignment of the ledger type.
@@ -100,6 +112,7 @@ enum LedgerNameSpace
     spaceBookDir        = 'B',  // Directory of order books.
     spaceContract       = 'c',
     spaceSkipList       = 's',
+    spaceSusPay         = 'u',
     spaceAmendment      = 'f',
     spaceFee            = 'e',
     spaceTicket         = 'T',
@@ -107,6 +120,7 @@ enum LedgerNameSpace
     spaceRefer          = 'R',
     spaceAsset          = 't',
     spaceAssetState     = 'S',
+    spaceSignerList     = 'N',
 
     // No longer used or supported. Left here to reserve the space and
     // avoid accidental reuse of the space.
@@ -126,7 +140,7 @@ enum LedgerSpecificFlags
     lsfDisableMaster    = 0x00100000,   // True, force regular key
     lsfNoFreeze         = 0x00200000,   // True, cannot freeze ripple states
     lsfGlobalFreeze     = 0x00400000,   // True, all assets frozen
-	lsfDisallowVBC		= 0x00800000,   // True, to disallow sending VBC.
+    lsfDefaultRipple    = 0x00800000,   // True, trust lines allow rippling by default
 
     // ltOFFER
     lsfPassive          = 0x00010000,

@@ -17,8 +17,8 @@
 */
 //==============================================================================
 
-#ifndef BEAST_TYPE_TRAITS_MAYBE_CONST_H_INCLUDED
-#define BEAST_TYPE_TRAITS_MAYBE_CONST_H_INCLUDED
+#ifndef BEAST_UTILITY_MAYBE_CONST_H_INCLUDED
+#define BEAST_UTILITY_MAYBE_CONST_H_INCLUDED
 
 #include <type_traits>
 
@@ -28,9 +28,9 @@ namespace beast {
 template <bool IsConst, class T>
 struct maybe_const
 {
-    typedef typename std::conditional <IsConst,
+    using type = typename std::conditional <IsConst,
         typename std::remove_const <T>::type const,
-        typename std::remove_const <T>::type>::type type;
+        typename std::remove_const <T>::type>::type;
 };
 
 /** Alias for omitting `typename`. */

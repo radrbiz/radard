@@ -21,8 +21,8 @@
 */
 //==============================================================================
 
-#ifndef BEAST_SMARTPTR_SHAREDPTR_H_INCLUDED
-#define BEAST_SMARTPTR_SHAREDPTR_H_INCLUDED
+#ifndef BEAST_SMART_PTR_SHAREDPTR_H_INCLUDED
+#define BEAST_SMART_PTR_SHAREDPTR_H_INCLUDED
 
 #include <beast/Config.h>
 #include <beast/smart_ptr/SharedObject.h>
@@ -48,13 +48,13 @@ namespace beast {
     reference-countable class by implementing a pair of methods called
     incReferenceCount() and decReferenceCount().
 
-    When using this class, you'll probably want to create a typedef to
+    When using this class, you'll probably want to create a using MyClassPtr = to
     abbreviate the full templated name - e.g.
 
     @code
-    
-    typedef SharedPtr <MyClass> MyClassPtr;
-    
+
+    using MyClassPtr = SharedPtr <MyClass>;
+
     @endcode
 
     @see SharedObject, SharedObjectArray
@@ -63,10 +63,10 @@ template <class T>
 class SharedPtr
 {
 public:
-    typedef T value_type;
+    using value_type = T;
 
     /** The class being referenced by this container. */
-    typedef T ReferencedType;
+    using ReferencedType = T;
 
     /** Construct a container pointing to nothing. */
     SharedPtr () noexcept

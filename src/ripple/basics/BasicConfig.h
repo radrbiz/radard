@@ -20,9 +20,11 @@
 #ifndef RIPPLE_BASICS_BASICCONFIG_H_INCLUDED
 #define RIPPLE_BASICS_BASICCONFIG_H_INCLUDED
 
+#include <ripple/basics/contract.h>
 #include <beast/container/const_container.h>
 #include <beast/utility/ci_char_traits.h>
 #include <boost/lexical_cast.hpp>
+#include <boost/optional.hpp>
 #include <map>
 #include <ostream>
 #include <string>
@@ -76,6 +78,38 @@ public:
         return values_;
     }
 
+    /**
+     * Set the legacy value for this section.
+     */
+    void
+    legacy (std::string value)
+    {
+        if (lines_.empty ())
+            lines_.emplace_back (std::move (value));
+        else
+        {
+            assert (lines_.size () == 1);
+            lines_[0] = std::move (value);
+        }
+    }
+
+    /**
+     * Get the legacy value for this section.
+     *
+     * @return The retrieved value. A section with an empty legacy value returns
+               an empty string.
+     */
+    std::string
+    legacy () const
+    {
+        if (lines_.empty ())
+            return "";
+        else if (lines_.size () > 1)
+            Throw<std::runtime_error> (
+                "A legacy value must have exactly one line. Section: " + name_);
+        return lines_[0];
+    }
+
     /** Set a key/value pair.
         The previous value is discarded.
     */
@@ -107,6 +141,16 @@ public:
     std::pair <std::string, bool>
     find (std::string const& name) const;
 
+    template <class T>
+    boost::optional<T>
+    get (std::string const& name) const
+    {
+        auto const iter = cont().find(name);
+        if (iter == cont().end())
+            return boost::none;
+        return boost::lexical_cast<T>(iter->second);
+    }
+
     friend
     std::ostream&
     operator<< (std::ostream&, Section const& section);
@@ -132,11 +176,20 @@ public:
         If the section does not exist, an empty section is returned.
     */
     /** @{ */
+    Section&
+    section (std::string const& name);
+
     Section const&
     section (std::string const& name) const;
 
     Section const&
     operator[] (std::string const& name) const
+    {
+        return section(name);
+    }
+
+    Section&
+    operator[] (std::string const& name)
     {
         return section(name);
     }
@@ -150,6 +203,34 @@ public:
     overwrite (std::string const& section, std::string const& key,
         std::string const& value);
 
+    /** Remove all the key/value pairs from the section.
+     */
+    void
+    deprecatedClearSection (std::string const& section);
+
+    /**
+     *  Set a value that is not a key/value pair.
+     *
+     *  The value is stored as the section's first value and may be retrieved
+     *  through section::legacy.
+     *
+     *  @param section Name of the section to modify.
+     *  @param value Contents of the legacy value.
+     */
+    void
+    legacy(std::string const& section, std::string value);
+
+    /**
+     *  Get the legacy value of a section. A section with a
+     *  single-line value may be retrieved as a legacy value.
+     *
+     *  @param sectionName Retrieve the contents of this section's
+     *         legacy value.
+     *  @return Contents of the legacy value.
+     */
+    std::string
+    legacy(std::string const& sectionName) const;
+
     friend
     std::ostream&
     operator<< (std::ostream& ss, BasicConfig const& c);
@@ -157,15 +238,6 @@ public:
 protected:
     void
     build (IniFileSections const& ifs);
-
-    /** Insert a legacy single section as a key/value pair.
-        Does nothing if the section does not exist, or does not contain
-        a single line that is not a key/value pair.
-        @deprecated
-    */
-    void
-    remap (std::string const& legacy_section,
-        std::string const& key, std::string const& new_section);
 };
 
 //------------------------------------------------------------------------------
@@ -186,7 +258,7 @@ set (T& target, std::string const& name, Section const& section)
         target = boost::lexical_cast <T> (result.first);
         return true;
     }
-    catch(...)
+    catch (boost::bad_lexical_cast&)
     {
     }
     return false;
@@ -210,7 +282,7 @@ set (T& target, T const& defaultValue,
         target = boost::lexical_cast <T> (result.first);
         return true;
     }
-    catch(...)
+    catch (boost::bad_lexical_cast&)
     {
         target = defaultValue;
     }
@@ -234,10 +306,62 @@ get (Section const& section,
     {
         return boost::lexical_cast <T> (result.first);
     }
-    catch(...)
+    catch (boost::bad_lexical_cast&)
     {
     }
     return defaultValue;
+}
+
+inline
+std::string
+get (Section const& section,
+    std::string const& name, const char* defaultValue)
+{
+    auto const result = section.find (name);
+    if (! result.second)
+        return defaultValue;
+    try
+    {
+        return boost::lexical_cast <std::string> (result.first);
+    }
+    catch(std::exception const&)
+    {
+    }
+    return defaultValue;
+}
+
+template <class T>
+bool
+get_if_exists (Section const& section,
+    std::string const& name, T& v)
+{
+    auto const result = section.find (name);
+    if (! result.second)
+        return false;
+    try
+    {
+        v = boost::lexical_cast <T> (result.first);
+        return true;
+    }
+    catch (boost::bad_lexical_cast&)
+    {
+    }
+    return false;
+}
+
+template <>
+inline
+bool
+get_if_exists<bool> (Section const& section,
+    std::string const& name, bool& v)
+{
+    int intVal = 0;
+    if (get_if_exists (section, name, intVal))
+    {
+        v = bool (intVal);
+        return true;
+    }
+    return false;
 }
 
 } // ripple

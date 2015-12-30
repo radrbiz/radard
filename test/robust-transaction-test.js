@@ -8,7 +8,7 @@ var Server      = require('./server').Server;
 var testutils   = require('./testutils');
 var config      = testutils.init_config();
 
-var make_suite = process.env.TRAVIS != null ? suite.skip : suite;
+var make_suite = process.env.CI ? suite.skip : suite;
 make_suite('Robust transaction submission', function() {
   var $ = { };
 
@@ -53,52 +53,38 @@ make_suite('Robust transaction submission', function() {
         testutils.create_accounts($.remote, 'root', '20000.0', [ 'alice', 'bob' ], callback);
       },
 
-      function setRequireDestTag(callback) {
-        self.what = 'Set RequireDestTag';
-
-        var tx = $.remote.transaction().account_set('alice');
-        tx.set_flags('RequireDestTag');
-
-        tx.once('submitted', function(m) {
-
-          assert.strictEqual('tesSUCCESS', m.engine_result);
-        });
-
-        tx.once('final', function() {
-          callback();
-        });
-
-        tx.submit();
-
-        testutils.ledger_wait($.remote, tx);
-      },
-
       function sendInvalidTransaction(callback) {
         self.what = 'Send transaction without a destination tag';
 
         var tx = $.remote.transaction().payment({
           from: 'root',
           to: 'alice',
-          amount: Amount.from_human('1XRP')
+          amount: Amount.from_human('1 XRP')
         });
 
         tx.once('submitted', function(m) {
-          assert.strictEqual('tefDST_TAG_NEEDED', m.engine_result);
+          assert.strictEqual('tefMAX_LEDGER', m.engine_result);
+        });
+        tx.once('error', function(m) {
+          assert.strictEqual('tejMaxLedger', m.engine_result);
         });
 
+        // Standalone mode starts with the open ledger as 3, so there's no way
+        // for this to be anything other than tefMAX_LEDGER.
+        tx.lastLedger(1);
         tx.submit();
 
         //Invoke callback immediately
-        callback();
+        callback(null, tx);
       },
 
-      function sendValidTransaction(callback) {
+      function sendValidTransaction(previousTx, callback) {
         self.what = 'Send normal transaction which should succeed';
 
         var tx = $.remote.transaction().payment({
           from:    'root',
           to:      'bob',
-          amount:  Amount.from_human('1XRP')
+          amount:  Amount.from_human('1 XRP')
         });
 
         tx.on('submitted', function(m) {
@@ -114,8 +100,9 @@ make_suite('Robust transaction submission', function() {
         tx.once('submitted', function(m) {
           assert.strictEqual('terPRE_SEQ', m.engine_result);
         });
-
         tx.once('final', function() {
+          assert(previousTx.finalized,
+            "Expected lastLedger 1 transaction to be finalized");
           callback();
         });
 
@@ -133,12 +120,12 @@ make_suite('Robust transaction submission', function() {
 
       function verifyBalance(callback) {
         self.what = 'Verify balance';
-        testutils.verify_balance($.remote, 'bob', '20001000000', callback);
+        testutils.verify_balance($.remote, 'bob', '20000999988', callback);
       }
 
     ]
 
-    async.series(steps, function(err) {
+    async.waterfall(steps, function(err) {
       assert(!err, self.what + ': ' + err);
       assert(self.resubmitted, 'Transaction failed to resubmit');
       done();
@@ -178,7 +165,7 @@ make_suite('Robust transaction submission', function() {
         var tx = $.remote.transaction().payment({
           from: 'root',
           to: 'alice',
-          amount: Amount.from_human('1XRP')
+          amount: Amount.from_human('1 XRP')
         });
 
         tx.submit();
@@ -218,7 +205,7 @@ make_suite('Robust transaction submission', function() {
 
       function verifyBalance(callback) {
         self.what = 'Verify balance';
-        testutils.verify_balance($.remote, 'alice', '20001000000', callback);
+        testutils.verify_balance($.remote, 'alice', '20000999988', callback);
       }
 
     ]
@@ -249,7 +236,7 @@ make_suite('Robust transaction submission', function() {
 
       function verifyBalance(callback) {
         self.what = 'Verify balance';
-        testutils.verify_balance($.remote, 'alice', '20000000000', callback);
+        testutils.verify_balance($.remote, 'alice', '19999999988', callback);
       },
 
       function submitTransaction(callback) {
@@ -258,7 +245,7 @@ make_suite('Robust transaction submission', function() {
         var tx = $.remote.transaction().payment({
           from: 'root',
           to: 'alice',
-          amount: Amount.from_human('1XRP')
+          amount: Amount.from_human('1 XRP')
         });
 
         tx.once('submitted', function(m) {
@@ -301,7 +288,7 @@ make_suite('Robust transaction submission', function() {
             if (++ledgers === 3) {
               callback();
             } else {
-              setTimeout(nextLedger, process.env.TRAVIS ? 400 : 100 );
+              setTimeout(nextLedger, process.env.CI ? 400 : 100 );
             }
           });
           $.remote.ledger_accept();
@@ -317,7 +304,7 @@ make_suite('Robust transaction submission', function() {
 
       function verifyBalance(callback) {
         self.what = 'Verify balance';
-        testutils.verify_balance($.remote, 'alice', '20001000000', callback);
+        testutils.verify_balance($.remote, 'alice', '20000999988', callback);
       }
 
     ]
@@ -351,7 +338,7 @@ make_suite('Robust transaction submission', function() {
         var tx = $.remote.transaction().payment({
           from: 'root',
           to: 'alice',
-          amount: Amount.from_human('1XRP')
+          amount: Amount.from_human('1 XRP')
         });
 
         var timed_out = false;
@@ -381,7 +368,7 @@ make_suite('Robust transaction submission', function() {
 
       function verifyBalance(callback) {
         self.what = 'Verify balance';
-        testutils.verify_balance($.remote, 'alice', '20001000000', callback);
+        testutils.verify_balance($.remote, 'alice', '20000999988', callback);
       }
 
     ]

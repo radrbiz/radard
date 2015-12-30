@@ -17,8 +17,10 @@
 */
 //==============================================================================
 
-#ifndef RIPPLE_CONFIGSECTIONS_H_INCLUDED
-#define RIPPLE_CONFIGSECTIONS_H_INCLUDED
+#ifndef RIPPLE_CORE_CONFIGSECTIONS_H_INCLUDED
+#define RIPPLE_CORE_CONFIGSECTIONS_H_INCLUDED
+
+#include <string>
 
 namespace ripple {
 
@@ -26,25 +28,22 @@ namespace ripple {
 struct ConfigSection
 {
     static std::string nodeDatabase ()       { return "node_db"; }
-    static std::string tempNodeDatabase ()   { return "temp_db"; }
     static std::string importNodeDatabase () { return "import_db"; }
     static std::string transactionDatabase () { return "transaction_db"; }
+    static std::string dividendAccount ()    { return "dividend_account";}
 };
 
 // VFALCO TODO Rename and replace these macros with variables.
-#define SECTION_ACCOUNT_PROBE_MAX       "account_probe_max"
+#define SECTION_AMENDMENTS              "amendments"
 #define SECTION_CLUSTER_NODES           "cluster_nodes"
-#define SECTION_DATABASE_PATH           "database_path"
 #define SECTION_DEBUG_LOGFILE           "debug_logfile"
 #define SECTION_ELB_SUPPORT             "elb_support"
 #define SECTION_FEE_DEFAULT             "fee_default"
 #define SECTION_FEE_OFFER               "fee_offer"
-#define SECTION_FEE_OPERATION           "fee_operation"
 #define SECTION_FEE_ACCOUNT_RESERVE     "fee_account_reserve"
 #define SECTION_FEE_OWNER_RESERVE       "fee_owner_reserve"
 #define SECTION_FETCH_DEPTH             "fetch_depth"
 #define SECTION_LEDGER_HISTORY          "ledger_history"
-#define SECTION_LEDGER_HISTORY_INDEX    "ledger_history_index"
 #define SECTION_INSIGHT                 "insight"
 #define SECTION_IPS                     "ips"
 #define SECTION_IPS_FIXED               "ips_fixed"
@@ -57,13 +56,7 @@ struct ConfigSection
 #define SECTION_PATH_SEARCH_MAX         "path_search_max"
 #define SECTION_PEER_PRIVATE            "peer_private"
 #define SECTION_PEERS_MAX               "peers_max"
-#define SECTION_RPC_ADMIN_ALLOW         "rpc_admin_allow"
 #define SECTION_RPC_STARTUP             "rpc_startup"
-#define SECTION_SMS_FROM                "sms_from"
-#define SECTION_SMS_KEY                 "sms_key"
-#define SECTION_SMS_SECRET              "sms_secret"
-#define SECTION_SMS_TO                  "sms_to"
-#define SECTION_SMS_URL                 "sms_url"
 #define SECTION_SNTP                    "sntp_servers"
 #define SECTION_SSL_VERIFY              "ssl_verify"
 #define SECTION_SSL_VERIFY_FILE         "ssl_verify_file"

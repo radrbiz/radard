@@ -19,15 +19,17 @@
 
 #include <BeastConfig.h>
 #include <ripple/app/ledger/AccountStateSF.h>
+#include <ripple/app/ledger/LedgerMaster.h>
+#include <ripple/app/ledger/TransactionMaster.h>
 #include <ripple/app/main/Application.h>
 #include <ripple/app/misc/NetworkOPs.h>
-#include <ripple/app/tx/TransactionMaster.h>
 #include <ripple/nodestore/Database.h>
 #include <ripple/protocol/HashPrefix.h>
 
 namespace ripple {
 
-AccountStateSF::AccountStateSF()
+AccountStateSF::AccountStateSF(Application& app)
+    : app_ (app)
 {
 }
 
@@ -40,7 +42,7 @@ void AccountStateSF::gotNode (bool fromFilter,
     // VFALCO SHAMapSync filters should be passed the SHAMap, the
     //        SHAMap should provide an accessor to get the injected Database,
     //        and this should use that Database instad of getNodeStore
-    getApp().getNodeStore ().store (
+    app_.getNodeStore ().store (
         hotACCOUNT_NODE, std::move (nodeData), nodeHash);
 }
 
@@ -48,7 +50,7 @@ bool AccountStateSF::haveNode (SHAMapNodeID const& id,
                                uint256 const& nodeHash,
                                Blob& nodeData)
 {
-    return getApp().getOPs ().getFetchPack (nodeHash, nodeData);
+    return app_.getLedgerMaster ().getFetchPack (nodeHash, nodeData);
 }
 
 } // ripple

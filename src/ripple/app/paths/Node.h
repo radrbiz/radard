@@ -17,8 +17,8 @@
 */
 //==============================================================================
 
-#ifndef RIPPLE_APP_PATH_NODE_H
-#define RIPPLE_APP_PATH_NODE_H
+#ifndef RIPPLE_APP_PATHS_NODE_H_INCLUDED
+#define RIPPLE_APP_PATHS_NODE_H_INCLUDED
 
 #include <ripple/app/paths/NodeDirectory.h>
 #include <ripple/app/paths/Types.h>
@@ -29,7 +29,7 @@ namespace path {
 
 struct Node
 {
-    typedef std::vector<Node> List;
+    using List = std::vector<Node>;
 
     inline bool isAccount() const
     {
@@ -42,7 +42,7 @@ struct Node
 
     std::uint16_t uFlags;       // --> From path.
 
-    Account account_;           // --> Accounts: Receiving/sending account.
+    AccountID account_;           // --> Accounts: Receiving/sending account.
 
     Issue issue_;               // --> Accounts: Receive and send, Offers: send.
                                 // --- For offer's next has currency out.
@@ -87,7 +87,7 @@ struct Node
     unsigned int uEntry;
     uint256 offerIndex_;
     SLE::pointer sleOffer;
-    Account offerOwnerAccount_;
+    AccountID offerOwnerAccount_;
 
     // Do we need to refresh saOfferFunds, saTakerPays, & saTakerGets?
     bool bFundsDirty;

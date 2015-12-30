@@ -22,15 +22,13 @@
 
 #include <beast/hash/hash_append.h>
 #include <beast/hash/xxhasher.h>
-#include <beast/cxx14/utility.h> // <utility>
-#include <beast/cxx14/type_traits.h> // <type_traits>
-#include <beast/utility/noexcept.h>
-#include <beast/utility/static_initializer.h>
 
 #include <cstdint>
 #include <functional>
 #include <mutex>
+#include <utility>
 #include <random>
+#include <type_traits>
 #include <unordered_map>
 #include <unordered_set>
 
@@ -66,9 +64,9 @@ make_seed_pair() noexcept
         // state_t(state_t const&) = delete;
         // state_t& operator=(state_t const&) = delete;
     };
-    static beast::static_initializer <state_t> state;
-    std::lock_guard <std::mutex> lock (state->mutex);
-    return {state->dist(state->gen), state->dist(state->gen)};
+    static state_t state;
+    std::lock_guard <std::mutex> lock (state.mutex);
+    return {state.dist(state.gen), state.dist(state.gen)};
 }
 
 }
@@ -87,10 +85,8 @@ private:
     detail::seed_pair const&
     init_seed_pair()
     {
-        static beast::static_initializer <detail::seed_pair,
-            basic_hardened_hash> const p (
-                detail::make_seed_pair<>());
-        return *p;
+        static detail::seed_pair const p = detail::make_seed_pair<>();
+        return p;
     }
 
 public:

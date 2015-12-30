@@ -17,13 +17,15 @@
 */
 //==============================================================================
 
-#ifndef RIPPLE_RIPPLELINECACHE_H
-#define RIPPLE_RIPPLELINECACHE_H
+#ifndef RIPPLE_APP_PATHS_RIPPLELINECACHE_H_INCLUDED
+#define RIPPLE_APP_PATHS_RIPPLELINECACHE_H_INCLUDED
 
+#include <ripple/app/ledger/Ledger.h>
 #include <ripple/app/paths/RippleState.h>
 #include <ripple/basics/hardened_hash.h>
 #include <cstddef>
 #include <memory>
+#include <mutex>
 #include <vector>
 
 namespace ripple {
@@ -32,34 +34,33 @@ namespace ripple {
 class RippleLineCache
 {
 public:
-    typedef std::vector <RippleState::pointer> RippleStateVector;
-    typedef std::shared_ptr <RippleLineCache> pointer;
-    typedef pointer const& ref;
+    using RippleStateVector = std::vector <RippleState::pointer>;
+    using pointer = std::shared_ptr <RippleLineCache>;
+    using ref = pointer const&;
 
-    explicit RippleLineCache (Ledger::ref l);
+    explicit RippleLineCache (std::shared_ptr <ReadView const> const& l);
 
-    Ledger::ref getLedger () // VFALCO TODO const?
+    std::shared_ptr <ReadView const> const&
+    getLedger () // VFALCO TODO const?
     {
         return mLedger;
     }
 
     std::vector<RippleState::pointer> const&
-    getRippleLines (Account const& accountID);
+    getRippleLines (AccountID const& accountID);
 
 private:
-    typedef RippleMutex LockType;
-    typedef std::lock_guard <LockType> ScopedLockType;
-    LockType mLock;
+    std::mutex mLock;
 
     ripple::hardened_hash<> hasher_;
-    Ledger::pointer mLedger;
+    std::shared_ptr <ReadView const> mLedger;
 
     struct AccountKey
     {
-        Account account_;
+        AccountID account_;
         std::size_t hash_value_;
 
-        AccountKey (Account const& account, std::size_t hash)
+        AccountKey (AccountID const& account, std::size_t hash)
             : account_ (account)
             , hash_value_ (hash)
         { }

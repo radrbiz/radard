@@ -24,28 +24,10 @@
 #include <ripple/basics/Blob.h>
 #include <ripple/basics/strHex.h>
 #include <boost/format.hpp>
-#include <beast/module/core/text/StringPairArray.h>
 #include <sstream>
 #include <string>
 
 namespace ripple {
-
-extern std::string urlEncode (std::string const& strSrc);
-
-// NIKB TODO remove this function - it's only used for some logging in the UNL
-//           code which can be trivially rewritten.
-template<class Iterator>
-std::string strJoin (Iterator first, Iterator last, std::string strSeperator)
-{
-    std::ostringstream  ossValues;
-
-    for (Iterator start = first; first != last; first++)
-    {
-        ossValues << str (boost::format ("%s%s") % (start == first ? "" : strSeperator) % *first);
-    }
-
-    return ossValues.str ();
-}
 
 // NIKB TODO Remove the need for all these overloads. Move them out of here.
 inline const std::string strHex (std::string const& strSrc)
@@ -110,16 +92,6 @@ bool parseIpPort (std::string const& strSource, std::string& strIP, int& iPort);
 
 bool parseUrl (std::string const& strUrl, std::string& strScheme,
                std::string& strDomain, int& iPort, std::string& strPath);
-
-/** Create a Parameters from a String.
-
-    Parameter strings have the format:
-
-    <key>=<value>['|'<key>=<value>]
-*/
-extern beast::StringPairArray
-parseDelimitedKeyValueString (
-    beast::String s, beast::beast_wchar delimiter='|');
 
 } // ripple
 

@@ -20,12 +20,16 @@
 #ifndef RIPPLE_PROTOCOL_INDEXES_H_INCLUDED
 #define RIPPLE_PROTOCOL_INDEXES_H_INCLUDED
 
+#include <ripple/protocol/Keylet.h>
 #include <ripple/protocol/LedgerFormats.h>
+#include <ripple/protocol/Protocol.h>
+#include <ripple/protocol/PublicKey.h>
 #include <ripple/protocol/RippleAddress.h>
 #include <ripple/protocol/Serializer.h>
 #include <ripple/protocol/UintTypes.h>
 #include <ripple/basics/base_uint.h>
 #include <ripple/protocol/Book.h>
+#include <cstdint>
 
 namespace ripple {
 
@@ -48,28 +52,19 @@ uint256
 getLedgerFeeIndex ();
 
 uint256
-getAccountRootIndex (Account const& account);
+getAccountRootIndex (AccountID const& account);
 
 uint256
-getAccountRootIndex (const RippleAddress & account);
-
-uint256
-getAccountReferIndex (Account const& account);
-
-uint256
-getLedgerDividendIndex ();
-
-uint256
-getGeneratorIndex (Account const& uGeneratorID);
+getGeneratorIndex (AccountID const& uGeneratorID);
 
 uint256
 getBookBase (Book const& book);
 
 uint256
-getOfferIndex (Account const& account, std::uint32_t uSequence);
+getOfferIndex (AccountID const& account, std::uint32_t uSequence);
 
 uint256
-getOwnerDirIndex (Account const& account);
+getOwnerDirIndex (AccountID const& account);
 
 uint256
 getDirNodeIndex (uint256 const& uDirRoot, const std::uint64_t uNodeIndex);
@@ -85,25 +80,233 @@ std::uint64_t
 getQuality (uint256 const& uBase);
 
 uint256
-getTicketIndex (Account const& account, std::uint32_t uSequence);
+getTicketIndex (AccountID const& account, std::uint32_t uSequence);
 
 uint256
-getRippleStateIndex (Account const& a, Account const& b, Currency const& currency);
+getRippleStateIndex (AccountID const& a, AccountID const& b, Currency const& currency);
 
 uint256
-getRippleStateIndex (Account const& a, Issue const& issue);
+getRippleStateIndex (AccountID const& a, Issue const& issue);
 
 uint256
-getAssetIndex (Account const& a, Currency const& currency);
+getSignerListIndex (AccountID const& account);
+
+//------------------------------------------------------------------------------
+
+/* VFALCO TODO
+    For each of these operators that take just the uin256 and
+    only attach the LedgerEntryType, we can comment out that
+    operator to see what breaks, and those call sites are
+    candidates for having the Keylet either passed in a a
+    parameter, or having a data member that stores the keylet.
+*/
+
+/** Keylet computation funclets. */
+namespace keylet {
+
+/** AccountID root */
+struct account_t
+{
+    Keylet operator()(AccountID const& id) const;
+};
+static account_t const account {};
+
+/** The amendment table */
+struct amendments_t
+{
+    Keylet operator()() const;
+};
+static amendments_t const amendments {};
+
+/** Any item that can be in an owner dir. */
+Keylet child (uint256 const& key);
+
+/** Skip list */
+struct skip_t
+{
+    Keylet operator()() const;
+
+    Keylet operator()(LedgerIndex ledger) const;
+};
+static skip_t const skip {};
+
+/** The ledger fees */
+struct fees_t
+{
+    // VFALCO This could maybe be constexpr
+    Keylet operator()() const;
+};
+static fees_t const fees {};
+
+/** The beginning of an order book */
+struct book_t
+{
+    Keylet operator()(Book const& b) const;
+};
+static book_t const book {};
+
+/** A trust line */
+struct line_t
+{
+    Keylet operator()(AccountID const& id0,
+        AccountID const& id1, Currency const& currency) const;
+
+    Keylet operator()(AccountID const& id,
+        Issue const& issue) const;
+
+    Keylet operator()(uint256 const& key) const
+    {
+        return { ltRIPPLE_STATE, key };
+    }
+};
+static line_t const line {};
+
+/** An offer from an account */
+struct offer_t
+{
+    Keylet operator()(AccountID const& id,
+        std::uint32_t seq) const;
+
+    Keylet operator()(uint256 const& key) const
+    {
+        return { ltOFFER, key };
+    }
+};
+static offer_t const offer {};
+
+/** The initial directory page for a specific quality */
+struct quality_t
+{
+    Keylet operator()(Keylet const& k,
+        std::uint64_t q) const;
+};
+static quality_t const quality {};
+
+/** The directry for the next lower quality */
+struct next_t
+{
+    Keylet operator()(Keylet const& k) const;
+};
+static next_t const next {};
+
+/** A ticket belonging to an account */
+struct ticket_t
+{
+    Keylet operator()(AccountID const& id,
+        std::uint32_t seq) const;
+
+    Keylet operator()(uint256 const& key) const
+    {
+        return { ltTICKET, key };
+    }
+};
+static ticket_t const ticket {};
+
+/** A SignerList */
+struct signers_t
+{
+    Keylet operator()(AccountID const& id) const;
+
+    Keylet operator()(uint256 const& key) const
+    {
+        return { ltSIGNER_LIST, key };
+    }
+};
+static signers_t const signers {};
+
+/** A Dividend object */
+struct dividend_t
+{
+    Keylet operator()() const;
+};
+static dividend_t const dividend {};
+
+/** A reference list belonging to an account */
+struct refer_t
+{
+    Keylet operator()(AccountID const& id) const;
+
+    Keylet operator()(uint256 const& key) const
+    {
+        return { ltREFER, key };
+    }
+};
+static refer_t const refer {};
+
+/** An asset belonging to an account */
+struct asset_t
+{
+    Keylet operator()(AccountID const& id, Currency const& currency) const;
+
+    Keylet operator()(Issue const& issue) const;
+
+    Keylet operator()(uint256 const& key) const
+    {
+        return { ltASSET, key };
+    }
+};
+static asset_t const asset {};
+
+/** An asset state belonging to an account */
+struct asset_state_t
+{
+    Keylet operator()(AccountID const& id0,
+        AccountID const& id1, Currency const& currency) const;
+
+    Keylet operator()(AccountID const& id,
+        Issue const& issue) const;
+
+    Keylet operator()(uint256 const& key) const
+    {
+        return { ltASSET_STATE, key };
+    }
+};
+static asset_state_t const asset_state {};
+
+//------------------------------------------------------------------------------
+
+/** Any ledger entry */
+Keylet unchecked(uint256 const& key);
+
+/** The root page of an account's directory */
+Keylet ownerDir (AccountID const& id);
+
+/** A page in a directory */
+/** @{ */
+Keylet page (uint256 const& root, std::uint64_t index);
+Keylet page (Keylet const& root, std::uint64_t index);
+/** @} */
+
+// DEPRECATED
+inline
+Keylet page (uint256 const& key)
+{
+    return { ltDIR_NODE, key };
+}
+
+/** A SuspendedPayment */
+Keylet
+susPay (AccountID const& source, std::uint32_t seq);
+
+} // keylet
+
+uint256
+getAccountReferIndex (AccountID const& account);
+
+uint256
+getLedgerDividendIndex ();
+
+uint256
+getAssetIndex (AccountID const& a, Currency const& currency);
 
 uint256
 getAssetIndex (Issue const& issue);
 
 uint256
-getAssetStateIndex (Account const& a, Account const& b, Currency const& currency);
+getAssetStateIndex (AccountID const& a, AccountID const& b, Currency const& currency);
 
 uint256
-getAssetStateIndex (Account const& a, Issue const& issue);
+getAssetStateIndex (AccountID const& a, Issue const& issue);
 
 }
 

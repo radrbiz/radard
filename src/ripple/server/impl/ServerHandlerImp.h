@@ -21,37 +21,42 @@
 #define RIPPLE_SERVER_SERVERHANDLERIMP_H_INCLUDED
 
 #include <ripple/core/Job.h>
+#include <ripple/core/JobCoro.h>
+#include <ripple/json/Output.h>
 #include <ripple/server/ServerHandler.h>
 #include <ripple/server/Session.h>
-#include <ripple/rpc/Output.h>
 #include <ripple/rpc/RPCHandler.h>
+#include <ripple/app/main/CollectorManager.h>
 
 namespace ripple {
 
 // Private implementation
 class ServerHandlerImp
     : public ServerHandler
-    , public beast::LeakChecked <ServerHandlerImp>
     , public HTTP::Handler
 {
 private:
+    Application& app_;
     Resource::Manager& m_resourceManager;
     beast::Journal m_journal;
-    JobQueue& m_jobQueue;
     NetworkOPs& m_networkOPs;
     std::unique_ptr<HTTP::Server> m_server;
     Setup setup_;
+    JobQueue& m_jobQueue;
+    beast::insight::Counter rpc_requests_;
+    beast::insight::Event rpc_size_;
+    beast::insight::Event rpc_time_;
 
 public:
-    ServerHandlerImp (Stoppable& parent, boost::asio::io_service& io_service,
-        JobQueue& jobQueue, NetworkOPs& networkOPs,
-            Resource::Manager& resourceManager);
+    ServerHandlerImp (Application& app, Stoppable& parent,
+        boost::asio::io_service& io_service, JobQueue& jobQueue,
+            NetworkOPs& networkOPs, Resource::Manager& resourceManager,
+                CollectorManager& cm);
 
     ~ServerHandlerImp();
 
 private:
-    using Output = RPC::Output;
-    using Yield = RPC::Yield;
+    using Output = Json::Output;
 
     void
     setup (Setup const& setup, beast::Journal journal) override;
@@ -80,11 +85,6 @@ private:
     onAccept (HTTP::Session& session,
         boost::asio::ip::tcp::endpoint endpoint) override;
 
-    void
-    onLegacyPeerHello (std::unique_ptr<beast::asio::ssl_bundle>&& ssl_bundle,
-        boost::asio::const_buffer buffer,
-            boost::asio::ip::tcp::endpoint remote_address) override;
-
     Handoff
     onHandoff (HTTP::Session& session,
         std::unique_ptr <beast::asio::ssl_bundle>&& bundle,
@@ -108,11 +108,14 @@ private:
     //--------------------------------------------------------------------------
 
     void
-    processSession (std::shared_ptr<HTTP::Session> const&, Yield const&);
+    processSession (std::shared_ptr<HTTP::Session> const&,
+        std::shared_ptr<JobCoro> jobCoro);
 
     void
     processRequest (HTTP::Port const& port, std::string const& request,
-        beast::IP::Endpoint const& remoteIPAddress, Output, Yield);
+        beast::IP::Endpoint const& remoteIPAddress, Output&&,
+        std::shared_ptr<JobCoro> jobCoro,
+        std::string forwardedFor, std::string user);
 
     //
     // PropertyStream

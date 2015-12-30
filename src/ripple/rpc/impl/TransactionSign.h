@@ -20,104 +20,103 @@
 #ifndef RIPPLE_RPC_TRANSACTIONSIGN_H_INCLUDED
 #define RIPPLE_RPC_TRANSACTIONSIGN_H_INCLUDED
 
+#include <ripple/app/misc/NetworkOPs.h>
+#include <ripple/server/Role.h>
+#include <ripple/ledger/ApplyView.h>
+
 namespace ripple {
+
+// Forward declarations
+class Application;
+class LoadFeeTrack;
+class Transaction;
+
 namespace RPC {
 
-namespace RPCDetail {
-// A class that allows these methods to be called with or without a
-// real NetworkOPs instance.  This allows for unit testing.
-class LedgerFacade
+/** Fill in the fee on behalf of the client.
+    This is called when the client does not explicitly specify the fee.
+    The client may also put a ceiling on the amount of the fee. This ceiling
+    is expressed as a multiplier based on the current ledger's fee schedule.
+
+    JSON fields
+
+    "Fee"   The fee paid by the transaction. Omitted when the client
+            wants the fee filled in.
+
+    "fee_mult_max"  A multiplier applied to the current ledger's transaction
+                    fee that caps the maximum the fee server should auto fill.
+                    If this optional field is not specified, then a default
+                    multiplier is used.
+
+    @param tx       The JSON corresponding to the transaction to fill in.
+    @param ledger   A ledger for retrieving the current fee schedule.
+    @param roll     Identifies if this is called by an administrative endpoint.
+
+    @return         A JSON object containing the error results, if any
+*/
+Json::Value checkFee (
+    Json::Value& request,
+    Role const role,
+    bool doAutoFill,
+    Config const& config,
+    LoadFeeTrack const& feeTrack,
+    std::shared_ptr<ReadView const>& ledger);
+
+// Return a std::function<> that calls NetworkOPs::processTransaction.
+using ProcessTransactionFn =
+    std::function<void (std::shared_ptr<Transaction>& transaction,
+        bool bUnlimited, bool bLocal, NetworkOPs::FailHard failType)>;
+
+inline ProcessTransactionFn getProcessTxnFn (NetworkOPs& netOPs)
 {
-private:
-    NetworkOPs* const netOPs_;
-    Ledger::pointer ledger_;
-    RippleAddress accountID_;
-    AccountState::pointer accountState_;
-
-public:
-    // Enum used to construct a Facade for unit tests.
-    enum NoNetworkOPs{
-        noNetOPs
+    return [&netOPs](std::shared_ptr<Transaction>& transaction,
+        bool bUnlimited, bool bLocal, NetworkOPs::FailHard failType)
+    {
+        netOPs.processTransaction(transaction, bUnlimited, bLocal, failType);
     };
-
-    LedgerFacade () = delete;
-    LedgerFacade (LedgerFacade const&) = delete;
-    LedgerFacade& operator= (LedgerFacade const&) = delete;
-
-    // For use in non unit testing circumstances.
-    explicit LedgerFacade (NetworkOPs& netOPs)
-    : netOPs_ (&netOPs)
-    { }
-
-    // For testTransactionRPC unit tests.
-    explicit LedgerFacade (NoNetworkOPs noOPs)
-    : netOPs_ (nullptr) { }
-
-    // For testAutoFillFees unit tests.
-    LedgerFacade (NoNetworkOPs noOPs, Ledger::pointer ledger)
-    : netOPs_ (nullptr)
-    , ledger_ (ledger)
-    { }
-
-    void snapshotAccountState (RippleAddress const& accountID);
-
-    bool isValidAccount () const;
-
-    std::uint32_t getSeq () const;
-
-    bool findPathsForOneIssuer (
-        RippleAddress const& dstAccountID,
-        Issue const& srcIssue,
-        STAmount const& dstAmount,
-        int searchLevel,
-        unsigned int const maxPaths,
-        STPathSet& pathsOut,
-        STPath& fullLiquidityPath) const;
-
-    Transaction::pointer submitTransactionSync (
-        Transaction::ref tpTrans,
-        bool bAdmin,
-        bool bLocal,
-        bool bFailHard,
-        bool bSubmit);
-
-    std::uint64_t scaleFeeBase (std::uint64_t fee) const;
-
-    std::uint64_t scaleFeeLoad (std::uint64_t fee, bool bAdmin) const;
-
-    bool hasAccountRoot () const;
-    bool isAccountExist (const Account& account) const;
-
-    bool accountMasterDisabled () const;
-
-    bool accountMatchesRegularKey (Account account) const;
-
-    int getValidatedLedgerAge () const;
-
-    bool isLoadedCluster () const;
-};
-
-} // namespace RPCDetail
-
+}
 
 /** Returns a Json::objectValue. */
 Json::Value transactionSign (
-    Json::Value params,
-    bool bSubmit,
-    bool bFailHard,
-    RPCDetail::LedgerFacade& ledgerFacade,
-    Role role);
+    Json::Value params,  // Passed by value so it can be modified locally.
+    NetworkOPs::FailHard failType,
+    Role role,
+    int validatedLedgerAge,
+    Application& app,
+    std::shared_ptr<ReadView const> ledger,
+    ApplyFlags flags = tapNONE);
 
-inline Json::Value transactionSign (
-    Json::Value params,
-    bool bSubmit,
-    bool bFailHard,
-    NetworkOPs& netOPs,
-    Role role)
-{
-    RPCDetail::LedgerFacade ledgerFacade (netOPs);
-    return transactionSign (params, bSubmit, bFailHard, ledgerFacade, role);
-}
+/** Returns a Json::objectValue. */
+Json::Value transactionSubmit (
+    Json::Value params,  // Passed by value so it can be modified locally.
+    NetworkOPs::FailHard failType,
+    Role role,
+    int validatedLedgerAge,
+    Application& app,
+    std::shared_ptr<ReadView const> ledger,
+    ProcessTransactionFn const& processTransaction,
+    ApplyFlags flags = tapNONE);
+
+/** Returns a Json::objectValue. */
+Json::Value transactionSignFor (
+    Json::Value params,  // Passed by value so it can be modified locally.
+    NetworkOPs::FailHard failType,
+    Role role,
+    int validatedLedgerAge,
+    Application& app,
+    std::shared_ptr<ReadView const> ledger,
+    ApplyFlags flags = tapNONE);
+
+/** Returns a Json::objectValue. */
+Json::Value transactionSubmitMultiSigned (
+    Json::Value params,  // Passed by value so it can be modified locally.
+    NetworkOPs::FailHard failType,
+    Role role,
+    int validatedLedgerAge,
+    Application& app,
+    std::shared_ptr<ReadView const> ledger,
+    ProcessTransactionFn const& processTransaction,
+    ApplyFlags flags = tapNONE);
 
 } // RPC
 } // ripple

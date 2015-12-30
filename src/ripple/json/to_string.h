@@ -17,10 +17,9 @@
 */
 //==============================================================================
 
-#ifndef JSON_TO_STRING_H_INCLUDED
-#define JSON_TO_STRING_H_INCLUDED
+#ifndef RIPPLE_JSON_TO_STRING_H_INCLUDED
+#define RIPPLE_JSON_TO_STRING_H_INCLUDED
 
-#include <ripple/json/json_config.h>
 #include <string>
 #include <ostream>
 
@@ -30,6 +29,9 @@ class Value;
 
 /** Writes a Json::Value to an std::string. */
 std::string to_string (Value const&);
+
+/** Writes a Json::Value to an std::string. */
+std::string pretty (Value const&);
 
 /** Output using the StyledStreamWriter. @see Json::operator>>(). */
 std::ostream& operator<< (std::ostream&, const Value& root);

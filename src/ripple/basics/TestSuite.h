@@ -17,8 +17,8 @@
 */
 //==============================================================================
 
-#ifndef RIPPLED_RIPPLE_BASICS_TESTSUITE_H
-#define RIPPLED_RIPPLE_BASICS_TESTSUITE_H
+#ifndef RIPPLE_BASICS_TESTSUITE_H_INCLUDED
+#define RIPPLE_BASICS_TESTSUITE_H_INCLUDED
 
 #include <beast/unit_test/suite.h>
 #include <string>
@@ -42,6 +42,24 @@ public:
             return false;
         }
         pass ();
+        return true;
+
+    }
+
+    template <class S, class T>
+    bool expectNotEquals(S actual, T expected, std::string const& message = "")
+    {
+        if (actual == expected)
+        {
+            std::stringstream ss;
+            if (!message.empty())
+                ss << message << "\n";
+            ss << "Actual: " << actual << "\n"
+                << "Expected anything but: " << expected;
+            fail(ss.str());
+            return false;
+        }
+        pass();
         return true;
 
     }
@@ -92,7 +110,8 @@ public:
         try
         {
             f();
-        } catch (...)
+        }
+        catch (std::exception const&)
         {
             success = true;
         }

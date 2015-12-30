@@ -37,7 +37,7 @@
 #include <sstream>
 #include <stdexcept>
 #include <thread>
-#include <beast/cxx14/type_traits.h> // <type_traits>
+#include <type_traits>
 #include <utility>
 
 #ifndef NODESTORE_TIMING_DO_VERIFY
@@ -107,12 +107,12 @@ public:
     }
 
     // Returns the n-th complete NodeObject
-    NodeObject::Ptr
+    std::shared_ptr<NodeObject>
     obj (std::size_t n)
     {
         gen_.seed(n+1);
         uint256 key;
-        auto const data = 
+        auto const data =
             static_cast<std::uint8_t*>(&*key.begin());
         *data = prefix_;
         rngcpy (data + 1, key.size() - 1, gen_);
@@ -312,12 +312,12 @@ public:
             parallel_for<Body>(params.items,
                 params.threads, std::ref(*this), std::ref(*backend));
         }
-        catch(...)
+        catch (std::exception const&)
         {
         #if NODESTORE_TIMING_DO_VERIFY
             backend->verify();
         #endif
-            throw;
+            Throw();
         }
         backend->close();
     }
@@ -356,11 +356,11 @@ public:
             {
                 try
                 {
-                    NodeObject::Ptr obj;
-                    NodeObject::Ptr result;
+                    std::shared_ptr<NodeObject> obj;
+                    std::shared_ptr<NodeObject> result;
                     obj = seq1_.obj(dist_(gen_));
                     backend_.fetch(obj->getHash().data(), &result);
-                    suite_.expect (result && result->isCloneOf(obj));
+                    suite_.expect (result && isSame(result, obj));
                 }
                 catch(std::exception const& e)
                 {
@@ -373,12 +373,12 @@ public:
             parallel_for_id<Body>(params.items, params.threads,
                 std::ref(*this), std::ref(params), std::ref(*backend));
         }
-        catch(...)
+        catch (std::exception const&)
         {
         #if NODESTORE_TIMING_DO_VERIFY
             backend->verify();
         #endif
-            throw;
+            Throw();
         }
         backend->close();
     }
@@ -420,7 +420,7 @@ public:
                 try
                 {
                     auto const key = seq2_.key(i);
-                    NodeObject::Ptr result;
+                    std::shared_ptr<NodeObject> result;
                     backend_.fetch(key.data(), &result);
                     suite_.expect (! result);
                 }
@@ -436,12 +436,12 @@ public:
             parallel_for_id<Body>(params.items, params.threads,
                 std::ref(*this), std::ref(params), std::ref(*backend));
         }
-        catch(...)
+        catch (std::exception const&)
         {
         #if NODESTORE_TIMING_DO_VERIFY
             backend->verify();
         #endif
-            throw;
+            Throw();
         }
         backend->close();
     }
@@ -489,17 +489,17 @@ public:
                     if (rand_(gen_) < missingNodePercent)
                     {
                         auto const key = seq2_.key(dist_(gen_));
-                        NodeObject::Ptr result;
+                        std::shared_ptr<NodeObject> result;
                         backend_.fetch(key.data(), &result);
                         suite_.expect (! result);
                     }
                     else
                     {
-                        NodeObject::Ptr obj;
-                        NodeObject::Ptr result;
+                        std::shared_ptr<NodeObject> obj;
+                        std::shared_ptr<NodeObject> result;
                         obj = seq1_.obj(dist_(gen_));
                         backend_.fetch(obj->getHash().data(), &result);
-                        suite_.expect (result && result->isCloneOf(obj));
+                        suite_.expect (result && isSame(result, obj));
                     }
                 }
                 catch(std::exception const& e)
@@ -508,18 +508,18 @@ public:
                 }
             }
         };
-        
+
         try
         {
             parallel_for_id<Body>(params.items, params.threads,
                 std::ref(*this), std::ref(params), std::ref(*backend));
         }
-        catch(...)
+        catch (std::exception const&)
         {
         #if NODESTORE_TIMING_DO_VERIFY
             backend->verify();
         #endif
-            throw;
+            Throw();
         }
         backend->close();
     }
@@ -572,15 +572,15 @@ public:
                     if (rand_(gen_) < 200)
                     {
                         // historical lookup
-                        NodeObject::Ptr obj;
-                        NodeObject::Ptr result;
+                        std::shared_ptr<NodeObject> obj;
+                        std::shared_ptr<NodeObject> result;
                         auto const j = older_(gen_);
                         obj = seq1_.obj(j);
-                        NodeObject::Ptr result1;
+                        std::shared_ptr<NodeObject> result1;
                         backend_.fetch(obj->getHash().data(), &result);
                         suite_.expect (result != nullptr,
                             "object " + std::to_string(j) + " missing");
-                        suite_.expect (result->isCloneOf(obj),
+                        suite_.expect (isSame(result, obj),
                             "object " + std::to_string(j) + " not a clone");
                     }
 
@@ -594,12 +594,13 @@ public:
                         case 0:
                         {
                             // fetch recent
-                            NodeObject::Ptr obj;
-                            NodeObject::Ptr result;
+                            std::shared_ptr<NodeObject> obj;
+                            std::shared_ptr<NodeObject> result;
                             auto const j = recent_(gen_);
                             obj = seq1_.obj(j);
                             backend_.fetch(obj->getHash().data(), &result);
-                            suite_.expect(! result || result->isCloneOf(obj));
+                            suite_.expect(! result ||
+                                isSame(result, obj));
                             break;
                         }
 
@@ -625,12 +626,12 @@ public:
             parallel_for_id<Body>(params.items, params.threads,
                 std::ref(*this), std::ref(params), std::ref(*backend));
         }
-        catch(...)
+        catch (std::exception const&)
         {
         #if NODESTORE_TIMING_DO_VERIFY
             backend->verify();
         #endif
-            throw;
+            Throw();
         }
         backend->close();
     }

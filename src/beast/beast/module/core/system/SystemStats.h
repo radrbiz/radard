@@ -21,57 +21,33 @@
 */
 //==============================================================================
 
-#ifndef BEAST_SYSTEMSTATS_H_INCLUDED
-#define BEAST_SYSTEMSTATS_H_INCLUDED
+#ifndef BEAST_MODULE_CORE_SYSTEM_SYSTEMSTATS_H_INCLUDED
+#define BEAST_MODULE_CORE_SYSTEM_SYSTEMSTATS_H_INCLUDED
 
 namespace beast
 {
 
 //==============================================================================
-/**
-    Contains methods for finding out about the current hardware and OS configuration.
+bool hasMMX() noexcept; /**< Returns true if Intel MMX instructions are available. */
+bool hasSSE() noexcept; /**< Returns true if Intel SSE instructions are available. */
+bool hasSSE2() noexcept; /**< Returns true if Intel SSE2 instructions are available. */
+bool hasSSE3() noexcept; /**< Returns true if Intel SSE2 instructions are available. */
+bool has3DNow() noexcept; /**< Returns true if AMD 3DNOW instructions are available. */
+bool hasSSE4() noexcept; /**< Returns true if Intel SSE4 instructions are available. */
+bool hasAVX() noexcept; /**< Returns true if Intel AVX instructions are available. */
+bool hasAVX2() noexcept; /**< Returns true if Intel AVX2 instructions are available. */
+
+//==============================================================================
+/** Returns the host-name of the computer. */
+std::string getComputerName();
+
+//==============================================================================
+/** Returns a backtrace of the current call-stack.
+    The usefulness of the result will depend on the level of debug symbols
+    that are available in the executable.
 */
-namespace SystemStats
-{
-    //==============================================================================
-    /** Returns the current version of BEAST,
-        See also the BEAST_VERSION, BEAST_MAJOR_VERSION and BEAST_MINOR_VERSION macros.
-    */
-    std::string getBeastVersion();
-
-    //==============================================================================
-    /** Returns the host-name of the computer. */
-    std::string getComputerName();
-
-    //==============================================================================
-    bool hasMMX() noexcept; /**< Returns true if Intel MMX instructions are available. */
-    bool hasSSE() noexcept; /**< Returns true if Intel SSE instructions are available. */
-    bool hasSSE2() noexcept; /**< Returns true if Intel SSE2 instructions are available. */
-    bool hasSSE3() noexcept; /**< Returns true if Intel SSE2 instructions are available. */
-    bool has3DNow() noexcept; /**< Returns true if AMD 3DNOW instructions are available. */
-    bool hasSSE4() noexcept; /**< Returns true if Intel SSE4 instructions are available. */
-    bool hasAVX() noexcept; /**< Returns true if Intel AVX instructions are available. */
-    bool hasAVX2() noexcept; /**< Returns true if Intel AVX2 instructions are available. */
-
-    //==============================================================================
-    /** Returns a backtrace of the current call-stack.
-        The usefulness of the result will depend on the level of debug symbols
-        that are available in the executable.
-    */
-    std::vector <std::string>
-    getStackBacktrace();
-
-    /** A void() function type, used by setApplicationCrashHandler(). */
-    typedef void (*CrashHandlerFunction)();
-
-    /** Sets up a global callback function that will be called if the application
-        executes some kind of illegal instruction.
-
-        You may want to call getStackBacktrace() in your handler function, to find out
-        where the problem happened and log it, etc.
-    */
-    void setApplicationCrashHandler (CrashHandlerFunction);
-};
+std::vector <std::string>
+getStackBacktrace();
 
 } // beast
 

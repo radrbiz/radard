@@ -17,8 +17,8 @@
 */
 //==============================================================================
 
-#ifndef BEAST_CORE_THREAD_DETAIL_SCOPEDLOCK_H_INCLUDED
-#define BEAST_CORE_THREAD_DETAIL_SCOPEDLOCK_H_INCLUDED
+#ifndef BEAST_MODULE_CORE_THREAD_DETAIL_SCOPEDLOCK_H_INCLUDED
+#define BEAST_MODULE_CORE_THREAD_DETAIL_SCOPEDLOCK_H_INCLUDED
 
 #include <beast/module/beast_core/thread/MutexTraits.h>
 
@@ -47,7 +47,7 @@ public:
     {
         if (m_lock_count > 0)
             unlock ();
-    }    
+    }
 
     inline void lock (char const* fileName, int lineNumber) noexcept
     {
@@ -233,7 +233,7 @@ public:
         m_mutex.unlock ();
         --m_lock_count;
     }
-  
+
 private:
     Mutex const& m_mutex;
     int m_lock_count;

@@ -21,19 +21,9 @@
 #define RIPPLE_BASICS_MAKE_SSLCONTEXT_H_INCLUDED
 
 #include <boost/asio/ssl/context.hpp>
-#include <beast/utility/noexcept.h>
 #include <string>
 
 namespace ripple {
-
-/** Retrieve raw DH parameters.
-    This is in the format expected by the OpenSSL function d2i_DHparams.
-    The vector is binary. An empty vector means the key size is unsupported.
-    @note The string may contain nulls in the middle. Use size() to
-            determine the actual size.
-*/
-std::string
-getRawDHParams(int keySize);
 
 /** Create a self-signed SSL context that allows anonymous Diffie Hellman. */
 std::shared_ptr<boost::asio::ssl::context>

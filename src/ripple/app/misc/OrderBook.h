@@ -17,18 +17,18 @@
 */
 //==============================================================================
 
-#ifndef RIPPLE_ORDERBOOK_H
-#define RIPPLE_ORDERBOOK_H
+#ifndef RIPPLE_APP_MISC_ORDERBOOK_H_INCLUDED
+#define RIPPLE_APP_MISC_ORDERBOOK_H_INCLUDED
 
 namespace ripple {
 
 /** Describes a serialized ledger entry for an order book. */
-class OrderBook : beast::LeakChecked <OrderBook>
+class OrderBook
 {
 public:
-    typedef std::shared_ptr <OrderBook> pointer;
-    typedef std::shared_ptr <OrderBook> const& ref;
-    typedef std::vector<pointer> List;
+    using pointer = std::shared_ptr <OrderBook>;
+    using ref = std::shared_ptr <OrderBook> const&;
+    using List = std::vector<pointer>;
 
     /** Construct from a currency specification.
 
@@ -61,12 +61,12 @@ public:
         return mBook.out.currency;
     }
 
-    Account const& getIssuerIn () const
+    AccountID const& getIssuerIn () const
     {
         return mBook.in.account;
     }
 
-    Account const& getIssuerOut () const
+    AccountID const& getIssuerOut () const
     {
         return mBook.out.account;
     }

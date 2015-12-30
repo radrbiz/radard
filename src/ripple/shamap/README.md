@@ -72,6 +72,8 @@ be modified must be copied before they are placed in the mutable map.
 
 ## SHAMap Thread Safety ##
 
+*This description is obsolete and needs to be rewritten.*
+
 SHAMaps can be thread safe, depending on how they are used.  The SHAMap
 uses a SyncUnorderedMap for its storage.  The SyncUnorderedMap has three
 thread-safe methods:
@@ -114,10 +116,10 @@ The `fetchNodeExternalNT()` method goes through three phases:
     in the historic data stored by the data base.  The call to
     to `fetch(hash)` does that work for us.
 
- 3. Finally, if mLedgerSeq is non-zero and we did't locate the node in the
+ 3. Finally, if ledgerSeq_ is non-zero and we did't locate the node in the
     historic data, then we call a MissingNodeHandler.
 
-    The non-zero mLedgerSeq indicates that the SHAMap is a complete map that
+    The non-zero ledgerSeq_ indicates that the SHAMap is a complete map that
     belongs to a historic ledger with the given (non-zero) sequence number.
     So, if all expected data is always present, the MissingNodeHandler should
     never be executed.

@@ -37,13 +37,13 @@ namespace detail {
 template <typename T, typename U>
 struct CopyConst
 {
-    typedef typename std::remove_const <U>::type type;
+    using type = typename std::remove_const <U>::type;
 };
 
 template <typename T, typename U>
 struct CopyConst <T const, U>
 {
-    typedef typename std::remove_const <U>::type const type;
+    using type = typename std::remove_const <U>::type const;
 };
 /** @} */
 
@@ -55,7 +55,7 @@ template <typename T, typename Tag>
 class ListNode
 {
 private:
-    typedef T value_type;
+    using value_type = T;
 
     friend class List<T, Tag>;
 
@@ -73,11 +73,11 @@ class ListIterator : public std::iterator <
     std::bidirectional_iterator_tag, std::size_t>
 {
 public:
-    typedef typename detail::CopyConst <
-        N, typename N::value_type>::type value_type;
-    typedef value_type* pointer;
-    typedef value_type& reference;
-    typedef std::size_t size_type;
+    using value_type = typename detail::CopyConst <
+        N, typename N::value_type>::type;
+    using pointer = value_type*;
+    using reference = value_type&;
+    using size_type = std::size_t;
 
     ListIterator (N* node = nullptr) noexcept
         : m_node (node)
@@ -160,91 +160,91 @@ private:
 }
 
 /** Intrusive doubly linked list.
-  
+
     This intrusive List is a container similar in operation to std::list in the
     Standard Template Library (STL). Like all @ref intrusive containers, List
     requires you to first derive your class from List<>::Node:
-  
+
     @code
-  
+
     struct Object : List <Object>::Node
     {
         explicit Object (int value) : m_value (value)
         {
         }
-  
+
         int m_value;
     };
-  
+
     @endcode
-  
+
     Now we define the list, and add a couple of items.
-  
+
     @code
-  
+
     List <Object> list;
-  
+
     list.push_back (* (new Object (1)));
     list.push_back (* (new Object (2)));
-  
+
     @endcode
-  
+
     For compatibility with the standard containers, push_back() expects a
     reference to the object. Unlike the standard container, however, push_back()
     places the actual object in the list and not a copy-constructed duplicate.
-  
+
     Iterating over the list follows the same idiom as the STL:
-  
+
     @code
-  
+
     for (List <Object>::iterator iter = list.begin(); iter != list.end; ++iter)
         std::cout << iter->m_value;
-  
+
     @endcode
-  
+
     You can even use BOOST_FOREACH, or range based for loops:
-  
+
     @code
-  
+
     BOOST_FOREACH (Object& object, list)  // boost only
         std::cout << object.m_value;
-  
+
     for (Object& object : list)           // C++11 only
         std::cout << object.m_value;
-  
+
     @endcode
-  
+
     Because List is mostly STL compliant, it can be passed into STL algorithms:
     e.g. `std::for_each()` or `std::find_first_of()`.
-  
+
     In general, objects placed into a List should be dynamically allocated
     although this cannot be enforced at compile time. Since the caller provides
     the storage for the object, the caller is also responsible for deleting the
     object. An object still exists after being removed from a List, until the
     caller deletes it. This means an element can be moved from one List to
     another with practically no overhead.
-  
+
     Unlike the standard containers, an object may only exist in one list at a
     time, unless special preparations are made. The Tag template parameter is
     used to distinguish between different list types for the same object,
     allowing the object to exist in more than one list simultaneously.
-  
+
     For example, consider an actor system where a global list of actors is
     maintained, so that they can each be periodically receive processing
     time. We wish to also maintain a list of the subset of actors that require
     a domain-dependent update. To achieve this, we declare two tags, the
     associated list types, and the list element thusly:
-  
+
     @code
-  
+
     struct Actor;         // Forward declaration required
-  
+
     struct ProcessTag { };
     struct UpdateTag { };
-  
-    typedef List <Actor, ProcessTag> ProcessList;
-    typedef List <Actor, UpdateTag> UpdateList;
-  
+
+    using ProcessList = List <Actor, ProcessTag>;
+    using UpdateList = List <Actor, UpdateTag>;
+
     // Derive from both node types so we can be in each list at once.
     //
     struct Actor : ProcessList::Node, UpdateList::Node
@@ -252,33 +252,33 @@ private:
         bool process ();    // returns true if we need an update
         void update ();
     };
-  
+
     @endcode
-  
+
     @tparam T The base type of element which the list will store
                     pointers to.
-  
+
     @tparam Tag An optional unique type name used to distinguish lists and nodes,
                 when the object can exist in multiple lists simultaneously.
-  
+
     @ingroup beast_core intrusive
 */
 template <typename T, typename Tag = void>
 class List
 {
 public:
-    typedef typename detail::ListNode <T, Tag> Node;
+    using Node = typename detail::ListNode <T, Tag>;
 
-    typedef T                    value_type;
-    typedef value_type*          pointer;
-    typedef value_type&          reference;
-    typedef value_type const*    const_pointer;
-    typedef value_type const&    const_reference;
-    typedef std::size_t          size_type;
-    typedef std::ptrdiff_t       difference_type;
+    using value_type      = T;
+    using pointer         = value_type*;
+    using reference       = value_type&;
+    using const_pointer   = value_type const*;
+    using const_reference = value_type const&;
+    using size_type       = std::size_t;
+    using difference_type = std::ptrdiff_t;
 
-    typedef detail::ListIterator <Node>       iterator;
-    typedef detail::ListIterator <Node const> const_iterator;
+    using iterator       = detail::ListIterator <Node>;
+    using const_iterator = detail::ListIterator <Node const>;
 
     /** Create an empty list. */
     List ()

@@ -17,51 +17,49 @@
 */
 //==============================================================================
 
-#ifndef RIPPLE_SHAMAPMISSINGNODE_H
-#define RIPPLE_SHAMAPMISSINGNODE_H
+#ifndef RIPPLE_SHAMAP_SHAMAPMISSINGNODE_H_INCLUDED
+#define RIPPLE_SHAMAP_SHAMAPMISSINGNODE_H_INCLUDED
 
 #include <ripple/basics/base_uint.h>
-    
+#include <ripple/shamap/SHAMapTreeNode.h>
+#include <iosfwd>
+#include <stdexcept>
+
 namespace ripple {
 
-enum SHAMapType
+enum class SHAMapType
 {
-    smtTRANSACTION  = 1,    // A tree of transactions
-    smtSTATE        = 2,    // A tree of state nodes
-    smtFREE         = 3,    // A tree not part of a ledger
+    TRANSACTION  = 1,    // A tree of transactions
+    STATE        = 2,    // A tree of state nodes
+    FREE         = 3,    // A tree not part of a ledger
 };
 
-class SHAMapMissingNode : public std::runtime_error
+class SHAMapMissingNode
+    : public std::runtime_error
 {
+private:
+    SHAMapType mType;
+    SHAMapHash mNodeHash;
+    uint256    mNodeID;
 public:
     SHAMapMissingNode (SHAMapType t,
-                       uint256 const& nodeHash)
+                       SHAMapHash const& nodeHash)
         : std::runtime_error ("SHAMapMissingNode")
         , mType (t)
         , mNodeHash (nodeHash)
     {
     }
 
-    virtual ~SHAMapMissingNode () throw ()
+    SHAMapMissingNode (SHAMapType t,
+                       uint256 const& nodeID)
+        : std::runtime_error ("SHAMapMissingNode")
+        , mType (t)
+        , mNodeID (nodeID)
     {
     }
 
-    SHAMapType getMapType () const
-    {
-        return mType;
-    }
-
-    uint256 const& getNodeHash () const
-    {
-        return mNodeHash;
-    }
-
-private:
-    SHAMapType mType;
-    uint256 mNodeHash;
+    friend std::ostream& operator<< (std::ostream&, SHAMapMissingNode const&);
 };
-
-extern std::ostream& operator<< (std::ostream&, SHAMapMissingNode const&);
 
 } // ripple
 

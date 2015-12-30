@@ -21,8 +21,8 @@
 */
 //==============================================================================
 
-#ifndef BEAST_ARRAY_H_INCLUDED
-#define BEAST_ARRAY_H_INCLUDED
+#ifndef BEAST_MODULE_CORE_CONTAINERS_ARRAY_H_INCLUDED
+#define BEAST_MODULE_CORE_CONTAINERS_ARRAY_H_INCLUDED
 
 #include <beast/module/core/containers/ArrayAllocationBase.h>
 #include <beast/module/core/containers/ElementComparator.h>
@@ -57,7 +57,7 @@ template <typename ElementType,
 class Array
 {
 private:
-    typedef ElementType ParameterType;
+    using ParameterType = ElementType;
 
 public:
     //==============================================================================
@@ -727,7 +727,7 @@ public:
 
         if (isPositiveAndBelow (indexToRemove, numUsed))
         {
-            bassert (data.elements != nullptr); 
+            bassert (data.elements != nullptr);
             ElementType removed (data.elements[indexToRemove]);
             removeInternal (indexToRemove);
             return removed;
@@ -1021,7 +1021,7 @@ public:
     inline const TypeOfCriticalSectionToUse& getLock() const noexcept      { return data; }
 
     /** Returns the type of scoped lock to use for locking this array */
-    typedef typename TypeOfCriticalSectionToUse::ScopedLockType ScopedLockType;
+    using ScopedLockType = typename TypeOfCriticalSectionToUse::ScopedLockType;
 
 
 private:

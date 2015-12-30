@@ -20,13 +20,13 @@
 #include <beast/asio/IPAddressConversion.h>
 #include <beast/asio/placeholders.h>
 #include <beast/intrusive/List.h>
-#include <beast/threads/SharedData.h>
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/optional.hpp>
 #include <cassert>
 #include <climits>
 #include <deque>
 #include <functional>
+#include <mutex>
 #include <set>
 #include <sstream>
 #include <thread>
@@ -192,13 +192,6 @@ private:
         max_packet_size = 1472
     };
 
-    struct StateType
-    {
-        List <StatsDMetricBase> metrics;
-    };
-
-    typedef SharedData <StateType> State;
-
     Journal m_journal;
     IP::Endpoint m_address;
     std::string m_prefix;
@@ -208,7 +201,8 @@ private:
     boost::asio::deadline_timer m_timer;
     boost::asio::ip::udp::socket m_socket;
     std::deque <std::string> m_data;
-    State m_state;
+    std::recursive_mutex metricsLock_;
+    List <StatsDMetricBase> metrics_;
 
     // Must come last for order of init
     std::thread m_thread;
@@ -288,14 +282,14 @@ public:
 
     void add (StatsDMetricBase& metric)
     {
-        State::Access state (m_state);
-        state->metrics.push_back (metric);
+        std::lock_guard<std::recursive_mutex> _(metricsLock_);
+        metrics_.push_back (metric);
     }
 
     void remove (StatsDMetricBase& metric)
     {
-        State::Access state (m_state);
-        state->metrics.erase (state->metrics.iterator_to (metric));
+        std::lock_guard<std::recursive_mutex> _(metricsLock_);
+        metrics_.erase (metrics_.iterator_to (metric));
     }
 
     //--------------------------------------------------------------------------
@@ -322,7 +316,10 @@ public:
                 std::move (buffer))));
     }
 
-    void on_send (boost::system::error_code ec, std::size_t)
+    // The keepAlive parameter makes sure the buffers sent to
+    // boost::asio::async_send do not go away until the call is finished
+    void on_send (std::shared_ptr<std::deque<std::string>> /*keepAlive*/,
+                  boost::system::error_code ec, std::size_t)
     {
         if (ec == boost::asio::error::operation_aborted)
             return;
@@ -354,6 +351,9 @@ public:
     // Send what we have
     void send_buffers ()
     {
+        if (m_data.empty ())
+            return;
+
         // Break up the array of strings into blocks
         // that each fit into one UDP packet.
         //
@@ -361,7 +361,12 @@ public:
         std::vector <boost::asio::const_buffer> buffers;
         buffers.reserve (m_data.size ());
         std::size_t size (0);
-        for (auto const& s : m_data)
+
+        auto keepAlive =
+            std::make_shared<std::deque<std::string>>(std::move (m_data));
+        m_data.clear ();
+
+        for (auto const& s : *keepAlive)
         {
             std::size_t const length (s.size ());
             assert (! s.empty ());
@@ -371,7 +376,7 @@ public:
                 log (buffers);
 #endif
                 m_socket.async_send (buffers, std::bind (
-                    &StatsDCollectorImp::on_send, this,
+                    &StatsDCollectorImp::on_send, this, keepAlive,
                         beast::asio::placeholders::error,
                             beast::asio::placeholders::bytes_transferred));
                 buffers.clear ();
@@ -388,11 +393,10 @@ public:
             log (buffers);
 #endif
             m_socket.async_send (buffers, std::bind (
-                &StatsDCollectorImp::on_send, this,
+                &StatsDCollectorImp::on_send, this, keepAlive,
                     beast::asio::placeholders::error,
                         beast::asio::placeholders::bytes_transferred));
         }
-        m_data.clear ();
     }
 
     void set_timer ()
@@ -415,11 +419,10 @@ public:
             return;
         }
 
-        State::Access state (m_state);
+        std::lock_guard<std::recursive_mutex> _(metricsLock_);
 
-        for (List <StatsDMetricBase>::iterator iter (state->metrics.begin());
-            iter != state->metrics.end(); ++iter)
-            iter->do_process();
+        for (auto& m : metrics_)
+            m.do_process();
 
         send_buffers ();
 
@@ -606,7 +609,7 @@ void StatsDGaugeImpl::flush ()
 void StatsDGaugeImpl::do_set (GaugeImpl::value_type value)
 {
     m_value = value;
-    
+
     if (m_value != m_last_value)
     {
         m_last_value = m_value;
@@ -631,7 +634,7 @@ void StatsDGaugeImpl::do_increment (GaugeImpl::difference_type amount)
     {
         GaugeImpl::value_type const d (
             static_cast <GaugeImpl::value_type> (-amount));
-        value = (d >= value) ? 0 : value - d; 
+        value = (d >= value) ? 0 : value - d;
     }
 
     do_set (value);

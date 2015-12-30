@@ -17,10 +17,11 @@
 */
 //==============================================================================
 
-#ifndef RIPPLE_LOADMONITOR_H_INCLUDED
-#define RIPPLE_LOADMONITOR_H_INCLUDED
+#ifndef RIPPLE_CORE_LOADMONITOR_H_INCLUDED
+#define RIPPLE_CORE_LOADMONITOR_H_INCLUDED
 
 #include <ripple/core/LoadEvent.h>
+#include <beast/utility/Journal.h>
 #include <chrono>
 #include <mutex>
 
@@ -33,7 +34,8 @@ namespace ripple {
 class LoadMonitor
 {
 public:
-    LoadMonitor ();
+    explicit
+    LoadMonitor (beast::Journal j);
 
     void addCount ();
 
@@ -67,8 +69,8 @@ private:
 
     void update ();
 
-    typedef std::mutex LockType;
-    typedef std::lock_guard <LockType> ScopedLockType;
+    using LockType = std::mutex;
+    using ScopedLockType = std::lock_guard <LockType>;
     LockType mLock;
 
     std::uint64_t mCounts;
@@ -78,6 +80,7 @@ private:
     std::uint64_t mTargetLatencyAvg;
     std::uint64_t mTargetLatencyPk;
     int           mLastUpdate;
+    beast::Journal j_;
 };
 
 } // ripple

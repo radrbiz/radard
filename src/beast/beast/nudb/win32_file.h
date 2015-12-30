@@ -17,8 +17,8 @@
 */
 //==============================================================================
 
-#ifndef BEAST_NUDB_WIN32_FILE_H_INCLUDED
-#define BEAST_NUDB_WIN32_FILE_H_INCLUDED
+#ifndef BEAST_NUDB_DETAIL_WIN32_FILE_H_INCLUDED
+#define BEAST_NUDB_DETAIL_WIN32_FILE_H_INCLUDED
 
 #include <beast/nudb/common.h>
 #include <cassert>
@@ -33,6 +33,9 @@
 #endif
 
 #if BEAST_NUDB_WIN32_FILE
+#pragma push_macro("NOMINMAX")
+#pragma push_macro("UNICODE")
+#pragma push_macro("STRICT")
 # ifndef NOMINMAX
 #  define NOMINMAX
 # endif
@@ -42,10 +45,13 @@
 # ifndef STRICT
 #  define STRICT
 # endif
+# ifndef WIN32_LEAN_AND_MEAN
+#  define WIN32_LEAN_AND_MEAN
+# endif
 # include <Windows.h>
-# undef NOMINMAX
-# undef UNICODE
-# undef STRICT
+#pragma pop_macro("STRICT")
+#pragma pop_macro("UNICODE")
+#pragma pop_macro("NOMINMAX")
 #endif
 
 namespace beast {

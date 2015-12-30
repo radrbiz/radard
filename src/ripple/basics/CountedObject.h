@@ -20,7 +20,6 @@
 #ifndef RIPPLE_BASICS_COUNTEDOBJECT_H_INCLUDED
 #define RIPPLE_BASICS_COUNTEDOBJECT_H_INCLUDED
 
-#include <beast/utility/LeakChecked.h>
 #include <atomic>
 #include <string>
 #include <utility>
@@ -34,8 +33,8 @@ class CountedObjects
 public:
     static CountedObjects& getInstance ();
 
-    typedef std::pair <std::string, int> Entry;
-    typedef std::vector <Entry> List;
+    using Entry = std::pair <std::string, int>;
+    using List = std::vector <Entry>;
 
     List getCounts (int minimumThreshold) const;
 
@@ -100,7 +99,7 @@ private:
     @ingroup ripple_basics
 */
 template <class Object>
-class CountedObject : beast::LeakChecked <CountedObject <Object> >
+class CountedObject
 {
 public:
     CountedObject ()
@@ -133,9 +132,10 @@ private:
     };
 
 private:
-    static Counter& getCounter ()
+    static Counter& getCounter()
     {
-        return beast::StaticObject <Counter>::get();
+        static Counter c;
+        return c;
     }
 };
 

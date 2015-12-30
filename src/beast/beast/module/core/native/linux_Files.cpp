@@ -23,38 +23,6 @@
 
 namespace beast
 {
-
-enum
-{
-    U_ISOFS_SUPER_MAGIC = 0x9660,   // linux/iso_fs.h
-    U_MSDOS_SUPER_MAGIC = 0x4d44,   // linux/msdos_fs.h
-    U_NFS_SUPER_MAGIC = 0x6969,     // linux/nfs_fs.h
-    U_SMB_SUPER_MAGIC = 0x517B      // linux/smb_fs.h
-};
-
-//==============================================================================
-bool File::copyInternal (const File& dest) const
-{
-    FileInputStream in (*this);
-
-    if (dest.deleteFile())
-    {
-        {
-            FileOutputStream out (dest);
-
-            if (out.failedToOpen())
-                return false;
-
-            if (out.writeFromInputStream (in, -1) == getSize())
-                return true;
-        }
-
-        dest.deleteFile();
-    }
-
-    return false;
-}
-
 //==============================================================================
 static File resolveXDGFolder (const char* const type, const char* const fallbackFolder)
 {
@@ -88,9 +56,6 @@ static File resolveXDGFolder (const char* const type, const char* const fallback
     return File (fallbackFolder);
 }
 
-const char* const* beast_argv = nullptr;
-int beast_argc = 0;
-
 File File::getSpecialLocation (const SpecialLocationType type)
 {
     switch (type)
@@ -98,13 +63,12 @@ File File::getSpecialLocation (const SpecialLocationType type)
         case userHomeDirectory:
         {
             const char* homeDir = getenv ("HOME");
-
-            if (const char* homeDir = getenv ("HOME"))
+            if (homeDir)
                 return File (CharPointer_UTF8 (homeDir));
 
             if (struct passwd* const pw = getpwuid (getuid()))
                 return File (CharPointer_UTF8 (pw->pw_dir));
-            
+
             return File (CharPointer_UTF8 (homeDir));
         }
 
@@ -201,8 +165,8 @@ private:
     DIR* dir;
 };
 
-DirectoryIterator::NativeIterator::NativeIterator (const File& directory, const String& wildCard)
-    : pimpl (new DirectoryIterator::NativeIterator::Pimpl (directory, wildCard))
+DirectoryIterator::NativeIterator::NativeIterator (const File& directory, const String& wildCard_)
+    : pimpl (new DirectoryIterator::NativeIterator::Pimpl (directory, wildCard_))
 {
 }
 

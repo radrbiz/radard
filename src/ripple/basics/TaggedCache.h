@@ -58,16 +58,16 @@ template <
 class TaggedCache
 {
 public:
-    typedef Mutex mutex_type;
+    using mutex_type = Mutex;
     // VFALCO DEPRECATED The caller can just use std::unique_lock <type>
-    typedef std::unique_lock <mutex_type> ScopedLockType;
-    typedef std::lock_guard <mutex_type> lock_guard;
-    typedef Key key_type;
-    typedef T mapped_type;
+    using ScopedLockType = std::unique_lock <mutex_type>;
+    using lock_guard = std::lock_guard <mutex_type>;
+    using key_type = Key;
+    using mapped_type = T;
     // VFALCO TODO Use std::shared_ptr, std::weak_ptr
-    typedef std::weak_ptr <mapped_type> weak_mapped_ptr;
-    typedef std::shared_ptr <mapped_type> mapped_ptr;
-    typedef beast::abstract_clock <std::chrono::steady_clock> clock_type;
+    using weak_mapped_ptr = std::weak_ptr <mapped_type>;
+    using mapped_ptr = std::shared_ptr <mapped_type>;
+    using clock_type = beast::abstract_clock <std::chrono::steady_clock>;
 
 public:
     // VFALCO TODO Change expiration_seconds to clock_type::duration
@@ -127,13 +127,13 @@ public:
             m_name << " target age set to " << m_target_age;
     }
 
-    int getCacheSize ()
+    int getCacheSize () const
     {
         lock_guard lock (m_mutex);
         return m_cache_count;
     }
 
-    int getTrackSize ()
+    int getTrackSize () const
     {
         lock_guard lock (m_mutex);
         return m_cache.size ();
@@ -542,8 +542,8 @@ private:
         void touch (clock_type::time_point const& now) { last_access = now; }
     };
 
-    typedef hardened_hash_map <key_type, Entry, Hash, KeyEqual> cache_type;
-    typedef typename cache_type::iterator cache_iterator;
+    using cache_type = hardened_hash_map <key_type, Entry, Hash, KeyEqual>;
+    using cache_iterator = typename cache_type::iterator;
 
     beast::Journal m_journal;
     clock_type& m_clock;

@@ -18,22 +18,23 @@
 //==============================================================================
 
 #include <BeastConfig.h>
-#include <ripple/app/book/Types.h>
+#include <ripple/ledger/PaymentSandbox.h>
 #include <ripple/protocol/STAmount.h>
 #include <ripple/protocol/Indexes.h>
 
 namespace ripple {
 
-STAmount creditLimit (
-    LedgerEntrySet& ledger,
-    Account const& account,
-    Account const& issuer,
+STAmount
+creditLimit (
+    ReadView const& view,
+    AccountID const& account,
+    AccountID const& issuer,
     Currency const& currency)
 {
     STAmount result ({currency, account});
 
-    auto sleRippleState = ledger.entryCache (ltRIPPLE_STATE,
-        getRippleStateIndex (account, issuer, currency));
+    auto sleRippleState = view.read(
+        keylet::line(account, issuer, currency));
 
     if (sleRippleState)
     {
@@ -48,20 +49,21 @@ STAmount creditLimit (
 }
 
 STAmount creditBalance (
-    LedgerEntrySet& ledger,
-    Account const& account,
-    Account const& issuer,
-    Currency const& currency)
+    PaymentSandbox& view,
+    AccountID const& account,
+    AccountID const& issuer,
+    Currency const& currency,
+        beast::Journal j)
 {
     STAmount result ({currency, account});
 
-    auto sleRippleState = ledger.entryCache (ltRIPPLE_STATE,
-        getRippleStateIndex (account, issuer, currency));
+    auto sleRippleState = view.peek(
+        keylet::line(account, issuer, currency));
 
     if (sleRippleState)
     {
         if (assetCurrency() == currency)
-            ledger.assetRelease(account, issuer, currency, sleRippleState);
+            assetRelease(view, account, issuer, currency, sleRippleState, j);
 
         result = sleRippleState->getFieldAmount (sfBalance);
         if (account < issuer)

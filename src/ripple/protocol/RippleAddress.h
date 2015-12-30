@@ -20,9 +20,13 @@
 #ifndef RIPPLE_PROTOCOL_RIPPLEADDRESS_H_INCLUDED
 #define RIPPLE_PROTOCOL_RIPPLEADDRESS_H_INCLUDED
 
+#include <ripple/basics/base_uint.h>
 #include <ripple/crypto/Base58Data.h>
 #include <ripple/crypto/ECDSACanonical.h>
+#include <ripple/crypto/KeyType.h>
+#include <ripple/json/json_value.h>
 #include <ripple/protocol/RipplePublicKey.h>
+#include <ripple/protocol/tokens.h>
 #include <ripple/protocol/UInt160.h>
 #include <ripple/protocol/UintTypes.h>
 
@@ -36,22 +40,22 @@ namespace ripple {
 class RippleAddress : private CBase58Data
 {
 private:
-    typedef enum
-    {
-        VER_NONE                = 1,
-        VER_NODE_PUBLIC         = 28,
-        VER_NODE_PRIVATE        = 32,
-        VER_ACCOUNT_ID          = 0,
-        VER_ACCOUNT_PUBLIC      = 35,
-        VER_ACCOUNT_PRIVATE     = 34,
-        VER_FAMILY_GENERATOR    = 41,
-        VER_FAMILY_SEED         = 33,
-    } VersionEncoding;
-
     bool    mIsValid;
 
 public:
     RippleAddress ();
+
+    void const*
+    data() const noexcept
+    {
+        return vchData.data();
+    }
+
+    std::size_t
+    size() const noexcept
+    {
+        return vchData.size();
+    }
 
     // For public and private key, checks if they are legal.
     bool isValid () const
@@ -62,10 +66,8 @@ public:
     void clear ();
     bool isSet () const;
 
-    static void clearCache ();
-
     /** Returns the public key.
-        Precondition: version == VER_NODE_PUBLIC
+        Precondition: version == TOKEN_NODE_PUBLIC
     */
     RipplePublicKey
     toPublicKey() const;
@@ -105,20 +107,6 @@ public:
     static RippleAddress createNodePrivate (RippleAddress const& naSeed);
 
     //
-    // Accounts IDs
-    //
-    Account getAccountID () const;
-
-    std::string humanAccountID () const;
-
-    bool setAccountID (
-        std::string const& strAccountID,
-        Base58::Alphabet const& alphabet = Base58::getRippleAlphabet());
-    void setAccountID (Account const& hash160In);
-
-    static RippleAddress createAccountID (Account const& uiAccountID);
-
-    //
     // Accounts Public
     //
     Blob const& getAccountPublic () const;
@@ -129,7 +117,7 @@ public:
     void setAccountPublic (Blob const& vPublic);
     void setAccountPublic (RippleAddress const& generator, int seq);
 
-    bool accountPublicVerify (uint256 const& uHash, Blob const& vucSig,
+    bool accountPublicVerify (Blob const& message, Blob const& vucSig,
                               ECDSA mustBeFullyCanonical) const;
 
     static RippleAddress createAccountPublic (Blob const& vPublic)
@@ -159,7 +147,7 @@ public:
     void setAccountPrivate (RippleAddress const& naGenerator,
                             RippleAddress const& naSeed, int seq);
 
-    bool accountPrivateSign (uint256 const& uHash, Blob& vucSig) const;
+    Blob accountPrivateSign (Blob const& message) const;
 
     // Encrypt a message.
     Blob accountPrivateEncrypt (
@@ -271,6 +259,22 @@ operator>=(RippleAddress const& lhs, RippleAddress const& rhs)
 {
     return !(lhs < rhs);
 }
+
+struct KeyPair
+{
+    RippleAddress secretKey;
+    RippleAddress publicKey;
+};
+
+uint256 keyFromSeed (uint128 const& seed);
+
+RippleAddress getSeedFromRPC (Json::Value const& params);
+
+KeyPair generateKeysFromSeed (KeyType keyType, RippleAddress const& seed);
+
+// DEPRECATED
+AccountID
+calcAccountID (RippleAddress const& publicKey);
 
 } // ripple
 

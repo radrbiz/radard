@@ -20,7 +20,7 @@
 #ifndef RIPPLE_PEERFINDER_MAKE_MANAGER_H_INCLUDED
 #define RIPPLE_PEERFINDER_MAKE_MANAGER_H_INCLUDED
 
-#include <ripple/peerfinder/Manager.h>
+#include <ripple/peerfinder/PeerfinderManager.h>
 #include <boost/asio/io_service.hpp>
 #include <memory>
 
@@ -30,8 +30,7 @@ namespace PeerFinder {
 /** Create a new Manager. */
 std::unique_ptr<Manager>
 make_Manager (beast::Stoppable& parent, boost::asio::io_service& io_service,
-    beast::File const& pathToDbFileOrDirectory,
-        clock_type& clock, beast::Journal journal);
+        clock_type& clock, beast::Journal journal, BasicConfig const& config);
 
 }
 }

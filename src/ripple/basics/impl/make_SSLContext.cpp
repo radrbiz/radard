@@ -18,11 +18,11 @@
 //==============================================================================
 
 #include <BeastConfig.h>
+#include <ripple/basics/chrono.h>
+#include <ripple/basics/contract.h>
 #include <ripple/basics/make_SSLContext.h>
-#include <ripple/basics/seconds_clock.h>
 #include <beast/container/aged_unordered_set.h>
 #include <beast/module/core/diagnostic/FatalError.h>
-#include <beast/utility/static_initializer.h>
 #include <cstdint>
 #include <sstream>
 #include <stdexcept>
@@ -75,32 +75,28 @@ using custom_delete_unique_ptr = std::unique_ptr <T, custom_delete <T>>;
 
 // RSA
 
-typedef custom_delete_unique_ptr <RSA> rsa_ptr;
+using rsa_ptr = custom_delete_unique_ptr <RSA>;
 
 static rsa_ptr rsa_generate_key (int n_bits)
 {
     RSA* rsa = RSA_generate_key (n_bits, RSA_F4, nullptr, nullptr);
 
     if (rsa == nullptr)
-    {
-        throw std::runtime_error ("RSA_generate_key failed");
-    }
+        Throw<std::runtime_error> ("RSA_generate_key failed");
 
     return rsa_ptr (rsa);
 }
 
 // EVP_PKEY
 
-typedef custom_delete_unique_ptr <EVP_PKEY> evp_pkey_ptr;
+using evp_pkey_ptr = custom_delete_unique_ptr <EVP_PKEY>;
 
 static evp_pkey_ptr evp_pkey_new()
 {
     EVP_PKEY* evp_pkey = EVP_PKEY_new();
 
     if (evp_pkey == nullptr)
-    {
-        throw std::runtime_error ("EVP_PKEY_new failed");
-    }
+        Throw<std::runtime_error> ("EVP_PKEY_new failed");
 
     return evp_pkey_ptr (evp_pkey);
 }
@@ -108,31 +104,27 @@ static evp_pkey_ptr evp_pkey_new()
 static void evp_pkey_assign_rsa (EVP_PKEY* evp_pkey, rsa_ptr&& rsa)
 {
     if (! EVP_PKEY_assign_RSA (evp_pkey, rsa.get()))
-    {
-        throw std::runtime_error ("EVP_PKEY_assign_RSA failed");
-    }
+        Throw<std::runtime_error> ("EVP_PKEY_assign_RSA failed");
 
     rsa.release();
 }
 
 // X509
 
-typedef custom_delete_unique_ptr <X509> x509_ptr;
+using x509_ptr = custom_delete_unique_ptr <X509>;
 
 static x509_ptr x509_new()
 {
     X509* x509 = X509_new();
 
     if (x509 == nullptr)
-    {
-        throw std::runtime_error ("X509_new failed");
-    }
+        Throw<std::runtime_error> ("X509_new failed");
 
     X509_set_version (x509, NID_X509);
 
     int const margin =                    60 * 60;  //      3600, one hour
     int const length = 10 * 365.25 * 24 * 60 * 60;  // 315576000, ten years
-    
+
     X509_gmtime_adj (X509_get_notBefore (x509), -margin);
     X509_gmtime_adj (X509_get_notAfter  (x509),  length);
 
@@ -147,25 +139,19 @@ static void x509_set_pubkey (X509* x509, EVP_PKEY* evp_pkey)
 static void x509_sign (X509* x509, EVP_PKEY* evp_pkey)
 {
     if (! X509_sign (x509, evp_pkey, EVP_sha1()))
-    {
-        throw std::runtime_error ("X509_sign failed");
-    }
+        Throw<std::runtime_error> ("X509_sign failed");
 }
 
 static void ssl_ctx_use_certificate (SSL_CTX* const ctx, x509_ptr& cert)
 {
     if (SSL_CTX_use_certificate (ctx, cert.release()) <= 0)
-    {
-        throw std::runtime_error ("SSL_CTX_use_certificate failed");
-    }
+        Throw<std::runtime_error> ("SSL_CTX_use_certificate failed");
 }
 
 static void ssl_ctx_use_privatekey (SSL_CTX* const ctx, evp_pkey_ptr& key)
 {
     if (SSL_CTX_use_PrivateKey (ctx, key.release()) <= 0)
-    {
-        throw std::runtime_error ("SSL_CTX_use_PrivateKey failed");
-    }
+        Throw<std::runtime_error> ("SSL_CTX_use_PrivateKey failed");
 }
 
 // track when SSL connections have last negotiated
@@ -175,7 +161,7 @@ struct StaticData
     beast::aged_unordered_set <SSL const*> set;
 
     StaticData()
-        : set (ripple::get_seconds_clock ())
+        : set (ripple::stopwatch())
         { }
 };
 
@@ -194,14 +180,112 @@ make_DH(std::string const& params)
     return dh_ptr(dh);
 }
 
+/** Retrieve the raw DH parameters for the requested key size.
+
+    The result is in the binary format expected by the OpenSSL function
+    d2i_DHparams and may contain nulls. Use size to determine the actual size.
+
+    If the result is empty, the key size is unsupported. As of June 11, 2015,
+    OpenSSL never passes anything other than 512 or 1024.
+*/
+static
+std::string
+getRawDHParams (int keySize)
+{
+    std::string params;
+
+    switch (keySize)
+    {
+    case 512:
+    {
+        // These are the DH parameters that OpenCoin has chosen for Ripple
+        //
+        std::uint8_t const raw512 [] = {
+            0x30, 0x46, 0x02, 0x41, 0x00, 0x98, 0x15, 0xd2, 0xd0, 0x08, 0x32, 0xda,
+            0xaa, 0xac, 0xc4, 0x71, 0xa3, 0x1b, 0x11, 0xf0, 0x6c, 0x62, 0xb2, 0x35,
+            0x8a, 0x10, 0x92, 0xc6, 0x0a, 0xa3, 0x84, 0x7e, 0xaf, 0x17, 0x29, 0x0b,
+            0x70, 0xef, 0x07, 0x4f, 0xfc, 0x9d, 0x6d, 0x87, 0x99, 0x19, 0x09, 0x5b,
+            0x6e, 0xdb, 0x57, 0x72, 0x4a, 0x7e, 0xcd, 0xaf, 0xbd, 0x3a, 0x97, 0x55,
+            0x51, 0x77, 0x5a, 0x34, 0x7c, 0xe8, 0xc5, 0x71, 0x63, 0x02, 0x01, 0x02
+        };
+
+        params.resize (sizeof (raw512));
+        std::copy (raw512, raw512 + sizeof (raw512), params.begin ());
+        break;
+    }
+
+    case 1024:
+    {
+        // These are the DH parameters that Ripple Labs has chosen for Ripple
+        //
+        std::uint8_t const raw1024 [] = {
+            0x30, 0x81, 0x87, 0x02, 0x81, 0x81, 0x00, 0x86, 0xb1, 0x85, 0x36, 0x3d,
+            0xbc, 0x0b, 0x03, 0xa5, 0xde, 0x53, 0x23, 0x4c, 0x59, 0xd4, 0x2b, 0x2e,
+            0x88, 0xdf, 0x83, 0x8e, 0xab, 0xe9, 0xc9, 0x0f, 0x20, 0x5c, 0x3e, 0x8d,
+            0x0e, 0x2c, 0xff, 0xcf, 0x3a, 0xfa, 0x71, 0x67, 0xb2, 0x90, 0xb5, 0x9e,
+            0x13, 0x9f, 0xa3, 0x70, 0xb2, 0xdf, 0x8d, 0xa4, 0x91, 0xfb, 0x26, 0xe0,
+            0x95, 0xd2, 0xf9, 0x3b, 0xa5, 0x1f, 0xe4, 0x88, 0x0f, 0x65, 0xfc, 0x8e,
+            0x58, 0x47, 0x8c, 0x77, 0x93, 0x8c, 0x2d, 0x2a, 0xfa, 0x50, 0xb4, 0xc5,
+            0x29, 0xba, 0x65, 0xc4, 0x39, 0xeb, 0x8a, 0xc5, 0x93, 0x39, 0xf9, 0x3c,
+            0x15, 0x1e, 0x95, 0x82, 0x0d, 0x02, 0xff, 0x92, 0x4c, 0xc5, 0x07, 0x76,
+            0x62, 0xaf, 0xdc, 0xc0, 0x96, 0x95, 0xcf, 0x61, 0x51, 0x17, 0x7c, 0x02,
+            0x81, 0xdb, 0xc2, 0x6b, 0x07, 0x03, 0x96, 0x39, 0xcc, 0xde, 0xc9, 0xcd,
+            0x5d, 0x77, 0x3b, 0x02, 0x01, 0x02
+        };
+        params.resize (sizeof (raw1024));
+        std::copy (raw1024, raw1024 + sizeof (raw1024), params.begin ());
+        break;
+    }
+
+    case 2048:
+    {
+        // These are the DH parameters that Ripple Labs has chosen for Ripple
+        //
+        std::uint8_t const raw2048 [] = {
+            0x30, 0x82, 0x01, 0x08, 0x02, 0x82, 0x01, 0x01, 0x00, 0x8f, 0xca, 0x66,
+            0x85, 0x33, 0xcb, 0xcf, 0x36, 0x27, 0xb2, 0x4c, 0xb8, 0x50, 0xb8, 0xf9,
+            0x53, 0xf8, 0xb9, 0x2d, 0x1c, 0xa2, 0xad, 0x86, 0x58, 0x29, 0x3b, 0x88,
+            0x3e, 0xf5, 0x65, 0xb8, 0xda, 0x22, 0xf4, 0x8b, 0x21, 0x12, 0x18, 0xf7,
+            0x16, 0xcd, 0x7c, 0xc7, 0x3a, 0x2d, 0x61, 0xb7, 0x11, 0xf6, 0xb0, 0x65,
+            0xa0, 0x5b, 0xa4, 0x06, 0x95, 0x28, 0xa4, 0x4f, 0x76, 0xc0, 0xeb, 0xfa,
+            0x95, 0xdf, 0xbf, 0x19, 0x90, 0x64, 0x8f, 0x60, 0xd5, 0x36, 0xba, 0xab,
+            0x0d, 0x5a, 0x5c, 0x94, 0xd5, 0xf7, 0x32, 0xd6, 0x2a, 0x76, 0x77, 0x83,
+            0x10, 0xc4, 0x2f, 0x10, 0x96, 0x3e, 0x37, 0x84, 0x45, 0x9c, 0xef, 0x33,
+            0xf6, 0xd0, 0x2a, 0xa7, 0xce, 0x0a, 0xce, 0x0d, 0xa1, 0xa7, 0x44, 0x5d,
+            0x18, 0x3f, 0x4f, 0xa4, 0x23, 0x9c, 0x5d, 0x74, 0x4f, 0xee, 0xdf, 0xaa,
+            0x0d, 0x0a, 0x52, 0x57, 0x73, 0xb1, 0xe4, 0xc5, 0x72, 0x93, 0x9d, 0x03,
+            0xe9, 0xf5, 0x48, 0x8c, 0xd1, 0xe6, 0x7c, 0x21, 0x65, 0x4e, 0x16, 0x51,
+            0xa3, 0x16, 0x51, 0x10, 0x75, 0x60, 0x37, 0x93, 0xb8, 0x15, 0xd6, 0x14,
+            0x41, 0x4a, 0x61, 0xc9, 0x1a, 0x4e, 0x9f, 0x38, 0xd8, 0x2c, 0xa5, 0x31,
+            0xe1, 0x87, 0xda, 0x1f, 0xa4, 0x31, 0xa2, 0xa4, 0x42, 0x1e, 0xe0, 0x30,
+            0xea, 0x2f, 0x9b, 0x77, 0x91, 0x59, 0x3e, 0xd5, 0xd0, 0xc5, 0x84, 0x45,
+            0x17, 0x19, 0x74, 0x8b, 0x18, 0xb0, 0xc1, 0xe0, 0xfc, 0x1c, 0xaf, 0xe6,
+            0x2a, 0xef, 0x4e, 0x0e, 0x8a, 0x5c, 0xc2, 0x91, 0xb9, 0x2b, 0xf8, 0x17,
+            0x8d, 0xed, 0x44, 0xaa, 0x47, 0xaa, 0x52, 0xa2, 0xdb, 0xb6, 0xf5, 0xa1,
+            0x88, 0x85, 0xa1, 0xd5, 0x87, 0xb8, 0x07, 0xd3, 0x97, 0xbe, 0x37, 0x74,
+            0x72, 0xf1, 0xa8, 0x29, 0xf1, 0xa7, 0x7d, 0x19, 0xc3, 0x27, 0x09, 0xcf,
+            0x23, 0x02, 0x01, 0x02
+        };
+        params.resize (sizeof (raw2048));
+        std::copy (raw2048, raw2048 + sizeof (raw2048), params.begin ());
+        break;
+    }
+
+    default:
+        break;
+    };
+
+    return params;
+}
+
 static
 DH*
 getDH (int keyLength)
 {
-    if (keyLength == 512 || keyLength == 1024)
+    if (keyLength == 512 || keyLength == 1024 || keyLength == 2048)
     {
-        static dh_ptr dh512 = make_DH(getRawDHParams (keyLength));
-        return dh512.get ();
+        static dh_ptr dh = make_DH(getRawDHParams (keyLength));
+        return dh.get ();
     }
     else
     {
@@ -225,9 +309,7 @@ disallowRenegotiation (SSL const* ssl, bool isNew)
     // Do not allow a connection to renegotiate
     // more than once every 4 minutes
 
-    static beast::static_initializer <StaticData> static_data;
-
-    auto& sd (static_data.get ());
+    static StaticData sd;
     std::lock_guard <std::mutex> lock (sd.lock);
     auto const expired (sd.set.clock().now() - std::chrono::minutes(4));
 
@@ -311,7 +393,7 @@ initAnonymous (
         context.native_handle (),
         cipherList.c_str ());
     if (result != 1)
-        throw std::invalid_argument("SSL_CTX_set_cipher_list failed");
+        Throw<std::invalid_argument> ("SSL_CTX_set_cipher_list failed");
 
     using namespace openssl;
 
@@ -395,7 +477,7 @@ initAuthenticated (boost::asio::ssl::context& context,
 
             fclose (f);
         }
-        catch (...)
+        catch (std::exception const&)
         {
             fclose (f);
             beast::FatalError ("Reading the SSL chain file generated an exception.",
@@ -429,41 +511,6 @@ initAuthenticated (boost::asio::ssl::context& context,
 } // openssl
 
 //------------------------------------------------------------------------------
-
-std::string
-getRawDHParams (int keySize)
-{
-    std::string params;
-
-    // Original code provided the 512-bit keySize parameters
-    // when 1024 bits were requested so we will do the same.
-    if (keySize == 1024)
-        keySize = 512;
-
-    switch (keySize)
-    {
-    case 512:
-        {
-            // These are the DH parameters that OpenCoin has chosen for Ripple
-            //
-            std::uint8_t const raw [] = {
-                0x30, 0x46, 0x02, 0x41, 0x00, 0x98, 0x15, 0xd2, 0xd0, 0x08, 0x32, 0xda,
-                0xaa, 0xac, 0xc4, 0x71, 0xa3, 0x1b, 0x11, 0xf0, 0x6c, 0x62, 0xb2, 0x35,
-                0x8a, 0x10, 0x92, 0xc6, 0x0a, 0xa3, 0x84, 0x7e, 0xaf, 0x17, 0x29, 0x0b,
-                0x70, 0xef, 0x07, 0x4f, 0xfc, 0x9d, 0x6d, 0x87, 0x99, 0x19, 0x09, 0x5b,
-                0x6e, 0xdb, 0x57, 0x72, 0x4a, 0x7e, 0xcd, 0xaf, 0xbd, 0x3a, 0x97, 0x55,
-                0x51, 0x77, 0x5a, 0x34, 0x7c, 0xe8, 0xc5, 0x71, 0x63, 0x02, 0x01, 0x02
-            };
-
-            params.resize (sizeof (raw));
-            std::copy (raw, raw + sizeof (raw), params.begin ());
-        }
-        break;
-    };
-
-    return params;
-}
-
 std::shared_ptr<boost::asio::ssl::context>
 make_SSLContext()
 {

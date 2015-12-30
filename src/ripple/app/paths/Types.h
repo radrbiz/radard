@@ -17,24 +17,24 @@
 */
 //==============================================================================
 
-#ifndef RIPPLE_TYPES_H_INCLUDED
-#define RIPPLE_TYPES_H_INCLUDED
+#ifndef RIPPLE_APP_PATHS_TYPES_H_INCLUDED
+#define RIPPLE_APP_PATHS_TYPES_H_INCLUDED
 
 namespace ripple {
 
 // account id, issue.
-typedef std::pair <Account, Issue> AccountIssue;
+using AccountIssue = std::pair <AccountID, Issue>;
 
 // Map of account, issue to node index.
 namespace path {
 
-typedef unsigned int NodeIndex;
+using NodeIndex = unsigned int;
 
-typedef hash_set <uint256> OfferSet;
+using OfferSet = hash_set <uint256>;
 
 }
 
-typedef hash_map <AccountIssue, path::NodeIndex> AccountIssueToNodeIndex;
+using AccountIssueToNodeIndex = hash_map <AccountIssue, path::NodeIndex>;
 
 } // ripple
 

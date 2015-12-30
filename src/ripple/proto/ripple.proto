@@ -3,6 +3,7 @@ package protocol;
 enum MessageType
 {
     mtHELLO                 = 181; // must less then 0xFF, @sa peer_protocol_detector::operator()
+    mtMANIFESTS             = 2;
     mtPING                  = 3;
     mtPROOFOFWORK           = 4;
     mtCLUSTER               = 5;
@@ -18,7 +19,6 @@ enum MessageType
     mtVALIDATION            = 41;
     mtGET_OBJECTS           = 42;
 
-    // <available>          = 2;
     // <available>          = 10;
     // <available>          = 11;
     // <available>          = 14;
@@ -31,6 +31,23 @@ enum MessageType
 // token, iterations, target, challenge = issue demand for proof of work
 // token, response = give solution to proof of work
 // token, result = report result of pow
+
+//------------------------------------------------------------------------------
+
+/* Provides the current ephemeral key for a validator. */
+message TMManifest
+{
+    // A Manifest object in the Ripple serialization format.
+    required bytes stobject = 1;
+}
+
+message TMManifests
+{
+    repeated TMManifest list = 1;
+    // The manifests sent when a peer first connects to another peer are `history`.
+    // The receiving peer does not forward them.
+    optional bool history = 2 [default = false];
+}
 
 //------------------------------------------------------------------------------
 
@@ -78,6 +95,8 @@ message TMHello
     optional bool           nodePrivate     = 11; // Request to not forward IP.
     optional TMProofWork    proofOfWork     = 12; // request/provide proof of work
     optional bool           testNet         = 13; // Running as testnet.
+    optional uint32         local_ip        = 14; // our public IP
+    optional uint32         remote_ip       = 15; // IP we see connection from
 }
 
 // The status of a node in our cluster
@@ -169,10 +188,11 @@ message TMProposeSet
     required bytes nodePubKey           = 3;
     required uint32 closeTime           = 4;
     required bytes signature            = 5;    // signature of above fields
-    optional bytes previousledger       = 6;
+    required bytes previousledger       = 6;
     optional bool checkedSignature      = 7;    // node vouches signature is correct
     repeated bytes addedTransactions    = 10;   // not required if number is large
     repeated bytes removedTransactions  = 11;   // not required if number is large
+    optional uint32 hops                = 12;   // Number of hops traveled
 }
 
 enum TxSetStatus
@@ -192,8 +212,9 @@ message TMHaveTransactionSet
 // Used to sign a final closed ledger after reprocessing
 message TMValidation
 {
-    required bytes validation       = 1;        // in STValidation signed form
-    optional bool checkedSignature  = 2;        // node vouches signature is correct
+    required bytes validation       = 1;    // in STValidation signed form
+    optional bool checkedSignature  = 2;    // node vouches signature is correct
+    optional uint32 hops            = 3;    // Number of hops traveled
 }
 
 message TMGetPeers
@@ -280,7 +301,7 @@ enum TMLedgerInfoType
 enum TMLedgerType
 {
     ltACCEPTED      = 0;
-    ltCURRENT       = 1;
+    ltCURRENT       = 1;        // no longer supported
     ltCLOSED        = 2;
 }
 
@@ -298,6 +319,7 @@ message TMGetLedger
     repeated bytes nodeIDs          = 5;
     optional uint64 requestCookie   = 6;
     optional TMQueryType queryType  = 7;
+    optional uint32 queryDepth      = 8;    // How deep to go, number of extra levels
 }
 
 enum TMReplyError

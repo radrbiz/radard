@@ -18,10 +18,24 @@
 //==============================================================================
 
 #include <BeastConfig.h>
-#include <ripple/basics/StringUtilities.h>
-#include <ripple/server/Role.h>
+#include <ripple/app/ledger/LedgerMaster.h>
+#include <ripple/app/misc/HashRouter.h>
+#include <ripple/app/misc/Transaction.h>
+#include <ripple/app/tx/apply.h>
+#include <ripple/net/RPCErr.h>
+#include <ripple/protocol/ErrorCodes.h>
+#include <ripple/resource/Fees.h>
+#include <ripple/rpc/Context.h>
+#include <ripple/rpc/impl/TransactionSign.h>
 
 namespace ripple {
+
+static NetworkOPs::FailHard getFailHard (RPC::Context const& context)
+{
+    return NetworkOPs::doFailHard (
+        context.params.isMember ("fail_hard")
+        && context.params["fail_hard"].asBool ());
+}
 
 // {
 //   tx_json: <object>,
@@ -31,66 +45,73 @@ Json::Value doSubmit (RPC::Context& context)
 {
     context.loadType = Resource::feeMediumBurdenRPC;
 
-    if (!context.params.isMember ("tx_blob"))
+    if (!context.params.isMember (jss::tx_blob))
     {
-        bool bFailHard = context.params.isMember ("fail_hard")
-                && context.params["fail_hard"].asBool ();
-        return RPC::transactionSign (
-            context.params, true, bFailHard, context.netOps, context.role);
+        auto const failType = getFailHard (context);
+
+        return RPC::transactionSubmit (
+        context.params,
+        failType,
+        context.role,
+        context.ledgerMaster.getValidatedLedgerAge(),
+        context.app,
+        context.ledgerMaster.getCurrentLedger(),
+        RPC::getProcessTxnFn (context.netOps));
     }
 
-    Json::Value                 jvResult;
+    Json::Value jvResult;
 
-    std::pair<Blob, bool> ret(strUnHex (context.params["tx_blob"].asString ()));
+    std::pair<Blob, bool> ret(strUnHex (context.params[jss::tx_blob].asString ()));
 
     if (!ret.second || !ret.first.size ())
         return rpcError (rpcINVALID_PARAMS);
 
-    Serializer                  sTrans (ret.first);
-    SerializerIterator          sitTrans (sTrans);
+    SerialIter sitTrans (makeSlice(ret.first));
 
-    STTx::pointer stpTrans;
+    std::shared_ptr<STTx const> stpTrans;
 
     try
     {
-        stpTrans = std::make_shared<STTx> (std::ref (sitTrans));
+        stpTrans = std::make_shared<STTx const> (std::ref (sitTrans));
     }
     catch (std::exception& e)
     {
-        jvResult[jss::error]           = "invalidTransaction";
-        jvResult["error_exception"] = e.what ();
+        jvResult[jss::error]        = "invalidTransaction";
+        jvResult[jss::error_exception] = e.what ();
 
         return jvResult;
     }
 
-    Transaction::pointer            tpTrans;
-
-    try
     {
-        tpTrans     = std::make_shared<Transaction> (stpTrans, Validate::YES);
-    }
-    catch (std::exception& e)
-    {
-        jvResult[jss::error]           = "internalTransaction";
-        jvResult["error_exception"] = e.what ();
+        auto validity = checkValidity(context.app.getHashRouter(),
+            *stpTrans, context.ledgerMaster.getCurrentLedger()->rules(),
+                context.app.config());
+        if (validity.first != Validity::Valid)
+        {
+            jvResult[jss::error] = "invalidTransaction";
+            jvResult[jss::error_exception] = "fails local checks: " + validity.second;
 
-        return jvResult;
+            return jvResult;
+        }
     }
 
+    std::string reason;
+    auto tpTrans = std::make_shared<Transaction> (
+        stpTrans, reason, context.app);
     if (tpTrans->getStatus() != NEW)
     {
-        jvResult[jss::error]            = "invalidTransactions";
-        jvResult["error_exception"] = "fails local checks";
+        jvResult[jss::error]            = "invalidTransaction";
+        jvResult[jss::error_exception] = "fails local checks: " + reason;
 
         return jvResult;
     }
 
     try
     {
-        (void) context.netOps.processTransaction (
-            tpTrans, context.role == Role::ADMIN, true,
-            context.params.isMember ("fail_hard")
-            && context.params["fail_hard"].asBool ());
+        auto const failType = getFailHard (context);
+
+        context.netOps.processTransaction (
+            tpTrans, isUnlimited (context.role), true, failType);
     }
     catch (std::exception& e)
     {

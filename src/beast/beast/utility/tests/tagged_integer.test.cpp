@@ -28,16 +28,16 @@
 
 namespace beast {
 
-class tagged_integer_test 
+class tagged_integer_test
     : public unit_test::suite
 {
 private:
     struct Tag1 { };
     struct Tag2 { };
 
-    typedef tagged_integer <std::uint32_t, Tag1> TagInt1;
-    typedef tagged_integer <std::uint32_t, Tag2> TagInt2;
-    typedef tagged_integer <std::uint64_t, Tag1> TagInt3;
+    using TagInt1 = tagged_integer <std::uint32_t, Tag1>;
+    using TagInt2 = tagged_integer <std::uint32_t, Tag2>;
+    using TagInt3 = tagged_integer <std::uint64_t, Tag1>;
 
     // Check construction of tagged_integers
     static_assert (std::is_constructible<TagInt1, std::uint32_t>::value,
@@ -112,7 +112,7 @@ public:
 
         expect (zero >= zero, "Should be greater than or equal");
         expect (zero == zero, "Should be equal");
-        
+
         expect (one > zero, "Should be greater");
         expect (one >= zero, "Should be greater than or equal");
         expect (one != zero, "Should not be equal");
@@ -140,7 +140,7 @@ public:
         expect(++tmp == one, "Should be equal");
 
         tmp = zero;
-        
+
         tmp += 1u;
         expect(tmp == one, "Should be equal");
 

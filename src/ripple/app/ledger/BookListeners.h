@@ -17,11 +17,12 @@
 */
 //==============================================================================
 
-#ifndef RIPPLE_BOOKLISTENERS_H
-#define RIPPLE_BOOKLISTENERS_H
+#ifndef RIPPLE_APP_LEDGER_BOOKLISTENERS_H_INCLUDED
+#define RIPPLE_APP_LEDGER_BOOKLISTENERS_H_INCLUDED
 
 #include <ripple/net/InfoSub.h>
 #include <memory>
+#include <mutex>
 
 namespace ripple {
 
@@ -29,7 +30,7 @@ namespace ripple {
 class BookListeners
 {
 public:
-    typedef std::shared_ptr<BookListeners> pointer;
+    using pointer = std::shared_ptr<BookListeners>;
 
     BookListeners () {}
 
@@ -38,9 +39,7 @@ public:
     void publish (Json::Value const& jvObj);
 
 private:
-    typedef RippleRecursiveMutex LockType;
-    typedef std::lock_guard <LockType> ScopedLockType;
-    LockType mLock;
+    std::recursive_mutex mLock;
 
     hash_map<std::uint64_t, InfoSub::wptr> mListeners;
 };

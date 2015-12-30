@@ -18,6 +18,7 @@
 //==============================================================================
 
 #include <BeastConfig.h>
+#include <ripple/basics/contract.h>
 #include <ripple/crypto/RandomNumbers.h>
 #include <openssl/rand.h>
 #include <cassert>
@@ -25,6 +26,18 @@
 #include <stdexcept>
 
 namespace ripple {
+
+bool stir_entropy (std::string file)
+{
+    // First, we attempt to stir any existing saved entropy
+    // into the pool: no use letting it go to waste.
+    RAND_load_file (file.c_str (), 1024);
+
+    // And now, we extract some entropy out, and save it for
+    // the future. If the quality of the entropy isn't great
+    // then we let the user know.
+    return RAND_write_file (file.c_str ()) != -1;
+}
 
 void add_entropy (void* buffer, int count)
 {
@@ -35,7 +48,7 @@ void add_entropy (void* buffer, int count)
     if (buffer != nullptr && count != 0)
         RAND_add (buffer, count, count / 4.0);
 
-    // Try to add a bit more entropy from the system
+    // And try to add some entropy from the system
     unsigned int rdbuf[32];
 
     std::random_device rd;
@@ -53,7 +66,7 @@ void random_fill (void* buffer, int count)
     assert (count > 0);
 
     if (RAND_bytes (reinterpret_cast <unsigned char*> (buffer), count) != 1)
-        throw std::runtime_error ("Insufficient entropy in pool.");
+        Throw<std::runtime_error> ("Insufficient entropy in pool.");
 }
 
 }

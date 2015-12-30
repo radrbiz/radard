@@ -20,53 +20,44 @@
 #include <BeastConfig.h>
 #include <ripple/shamap/SHAMap.h>
 #include <ripple/shamap/SHAMapItem.h>
+#include <ripple/shamap/tests/common.h>
 #include <ripple/basics/StringUtilities.h>
-#include <ripple/nodestore/Database.h>
-#include <ripple/nodestore/DummyScheduler.h>
-#include <ripple/nodestore/Manager.h>
 #include <ripple/protocol/UInt160.h>
-#include <beast/chrono/manual_clock.h>
 #include <beast/unit_test/suite.h>
 #include <openssl/rand.h> // DEPRECATED
 
 namespace ripple {
+namespace tests {
 
 #ifdef BEAST_DEBUG
 //#define SMS_DEBUG
 #endif
 
-class SHAMapSync_test : public beast::unit_test::suite
+class sync_test : public beast::unit_test::suite
 {
 public:
-    struct Handler
-    {
-        void operator()(std::uint32_t refNum) const
-        {
-            throw std::runtime_error("missing node");
-        }
-    };
-
-    static SHAMapItem::pointer makeRandomAS ()
+    static std::shared_ptr<SHAMapItem> makeRandomAS ()
     {
         Serializer s;
 
         for (int d = 0; d < 3; ++d) s.add32 (rand ());
 
-        return std::make_shared<SHAMapItem> (to256 (s.getRIPEMD160 ()), s.peekData ());
+        return std::make_shared<SHAMapItem>(
+            s.getSHA512Half(), s.peekData ());
     }
 
     bool confuseMap (SHAMap& map, int count)
     {
         // add a bunch of random states to a map, then remove them
         // map should be the same
-        uint256 beforeHash = map.getHash ();
+        SHAMapHash beforeHash = map.getHash ();
 
         std::list<uint256> items;
 
         for (int i = 0; i < count; ++i)
         {
-            SHAMapItem::pointer item = makeRandomAS ();
-            items.push_back (item->getTag ());
+            std::shared_ptr<SHAMapItem> item = makeRandomAS ();
+            items.push_back (item->key());
 
             if (!map.addItem (*item, false, false))
             {
@@ -107,19 +98,10 @@ public:
         RAND_pseudo_bytes (reinterpret_cast<unsigned char*> (&seed), sizeof (seed));
         srand (seed);
 
-        beast::manual_clock <std::chrono::steady_clock> clock;  // manual advance clock
         beast::Journal const j;                            // debug journal
-
-        FullBelowCache fullBelowCache ("test.full_below", clock);
-        TreeNodeCache treeNodeCache ("test.tree_node_cache", 65536, 60, clock, j);
-        NodeStore::DummyScheduler scheduler;
-        auto db = NodeStore::Manager::instance().make_Database (
-            "test", scheduler, j, 1, parseDelimitedKeyValueString("type=memory|path=SHAMapSync_test"));
-
-        SHAMap source (smtFREE, fullBelowCache, treeNodeCache,
-            *db, Handler(), beast::Journal());
-        SHAMap destination (smtFREE, fullBelowCache, treeNodeCache,
-            *db, Handler(), beast::Journal());
+        TestFamily f(j);
+        SHAMap source (SHAMapType::FREE, f);
+        SHAMap destination (SHAMapType::FREE, f);
 
         int items = 10000;
         for (int i = 0; i < items; ++i)
@@ -130,18 +112,19 @@ public:
         source.setImmutable ();
 
         std::vector<SHAMapNodeID> nodeIDs, gotNodeIDs;
-        std::list< Blob > gotNodes;
+        std::vector< Blob > gotNodes;
         std::vector<uint256> hashes;
 
         std::vector<SHAMapNodeID>::iterator nodeIDIterator;
-        std::list< Blob >::iterator rawNodeIterator;
+        std::vector< Blob >::iterator rawNodeIterator;
 
         int passes = 0;
         int nodes = 0;
 
         destination.setSynching ();
 
-        unexpected (!source.getNodeFat (SHAMapNodeID (), nodeIDs, gotNodes, (rand () % 2) == 0, (rand () % 2) == 0),
+        unexpected (!source.getNodeFat (SHAMapNodeID (), nodeIDs, gotNodes,
+            (rand () % 2) == 0, rand () % 3),
             "GetNodeFat");
 
         unexpected (gotNodes.size () < 1, "NodeSize");
@@ -157,7 +140,7 @@ public:
 
         do
         {
-            ++clock;
+            f.clock().advance(std::chrono::seconds(1));
             ++passes;
             hashes.clear ();
 
@@ -169,7 +152,8 @@ public:
             // get as many nodes as possible based on this information
             for (nodeIDIterator = nodeIDs.begin (); nodeIDIterator != nodeIDs.end (); ++nodeIDIterator)
             {
-                if (!source.getNodeFat (*nodeIDIterator, gotNodeIDs, gotNodes, (rand () % 2) == 0, (rand () % 2) == 0))
+                if (!source.getNodeFat (*nodeIDIterator, gotNodeIDs, gotNodes,
+                    (rand () % 2) == 0, rand () % 3))
                 {
                     fail ("GetNodeFat");
                 }
@@ -238,6 +222,7 @@ public:
     }
 };
 
-BEAST_DEFINE_TESTSUITE(SHAMapSync,ripple_app,ripple);
+BEAST_DEFINE_TESTSUITE(sync,shamap,ripple);
 
+} // tests
 } // ripple

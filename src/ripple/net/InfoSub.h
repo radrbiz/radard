@@ -17,8 +17,8 @@
 */
 //==============================================================================
 
-#ifndef RIPPLE_NET_RPC_INFOSUB_H_INCLUDED
-#define RIPPLE_NET_RPC_INFOSUB_H_INCLUDED
+#ifndef RIPPLE_NET_INFOSUB_H_INCLUDED
+#define RIPPLE_NET_INFOSUB_H_INCLUDED
 
 #include <ripple/basics/CountedObject.h>
 #include <ripple/json/json_value.h>
@@ -43,14 +43,14 @@ class InfoSub
 public:
     static char const* getCountedObjectName () { return "InfoSub"; }
 
-    typedef std::shared_ptr<InfoSub>          pointer;
+    using pointer = std::shared_ptr<InfoSub>;
 
-    // VFALCO TODO Standardize on the names of weak / strong pointer typedefs.
-    typedef std::weak_ptr<InfoSub>            wptr;
+    // VFALCO TODO Standardize on the names of weak / strong pointer type aliases.
+    using wptr = std::weak_ptr<InfoSub>;
 
-    typedef const std::shared_ptr<InfoSub>&   ref;
+    using ref = const std::shared_ptr<InfoSub>&;
 
-    typedef Resource::Consumer Consumer;
+    using Consumer = Resource::Consumer;
 
 public:
     /** Abstracts the source of subscription data.
@@ -61,14 +61,25 @@ public:
         Source (char const* name, beast::Stoppable& parent);
 
     public:
-        // VFALCO TODO Rename the 'rt' parameters to something meaningful.
-        virtual void subAccount (ref ispListener,
-            const hash_set<RippleAddress>& vnaAccountIDs,
-                std::uint32_t uLedgerIndex, bool rt) = 0;
 
-        virtual void unsubAccount (std::uint64_t uListener,
-            const hash_set<RippleAddress>& vnaAccountIDs,
-                bool rt) = 0;
+        // For some reason, these were originally called "rt"
+        // for "real time". They actually refer to whether
+        // you get transactions as they occur or once their
+        // results are confirmed
+        virtual void subAccount (ref ispListener,
+            hash_set<AccountID> const& vnaAccountIDs,
+            bool realTime) = 0;
+
+        // for normal use, removes from InfoSub and server
+        virtual void unsubAccount (ref isplistener,
+            hash_set<AccountID> const& vnaAccountIDs,
+            bool realTime) = 0;
+
+        // for use during InfoSub destruction
+        // Removes only from the server
+        virtual void unsubAccountInternal (std::uint64_t uListener,
+            hash_set<AccountID> const& vnaAccountIDs,
+            bool realTime) = 0;
 
         // VFALCO TODO Document the bool return value
         virtual bool subLedger (ref ispListener, Json::Value& jvResult) = 0;
@@ -87,6 +98,13 @@ public:
         virtual bool subRTTransactions (ref ispListener) = 0;
         virtual bool unsubRTTransactions (std::uint64_t uListener) = 0;
 
+        virtual bool subValidations (ref ispListener) = 0;
+        virtual bool unsubValidations (std::uint64_t uListener) = 0;
+
+        virtual bool subPeerStatus (ref ispListener) = 0;
+        virtual bool unsubPeerStatus (std::uint64_t uListener) = 0;
+        virtual void pubPeerStatus (std::function<Json::Value(void)> const&) = 0;
+
         // VFALCO TODO Remove
         //             This was added for one particular partner, it
         //             "pushes" subscription data to a particular URL.
@@ -104,7 +122,7 @@ public:
 
     virtual void send (Json::Value const& jvObj, bool broadcast) = 0;
 
-    // VFALCO NOTE Why is this virtual?
+    // virtual so that a derived class can optimize this case
     virtual void send (
         Json::Value const& jvObj, std::string const& sObj, bool broadcast);
 
@@ -112,7 +130,13 @@ public:
 
     void onSendEmpty ();
 
-    void insertSubAccountInfo (RippleAddress addr, std::uint32_t uLedgerIndex);
+    void insertSubAccountInfo (
+        AccountID const& account,
+        bool rt);
+
+    void deleteSubAccountInfo (
+        AccountID const& account,
+        bool rt);
 
     void clearPathRequest ();
 
@@ -121,15 +145,15 @@ public:
     std::shared_ptr <PathRequest> const& getPathRequest ();
 
 protected:
-    typedef std::mutex LockType;
-    typedef std::lock_guard <LockType> ScopedLockType;
+    using LockType = std::mutex;
+    using ScopedLockType = std::lock_guard <LockType>;
     LockType mLock;
 
 private:
     Consumer                      m_consumer;
     Source&                       m_source;
-    hash_set <RippleAddress>      mSubAccountInfo;
-    hash_set <RippleAddress>      mSubAccountTransaction;
+    hash_set <AccountID> realTimeSubscriptions_;
+    hash_set <AccountID> normalSubscriptions_;
     std::shared_ptr <PathRequest> mPathRequest;
     std::uint64_t                 mSeq;
 };

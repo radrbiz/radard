@@ -18,7 +18,13 @@
 //==============================================================================
 
 #include <BeastConfig.h>
+#include <ripple/app/ledger/LedgerMaster.h>
+#include <ripple/app/main/Application.h>
+#include <ripple/app/misc/NetworkOPs.h>
 #include <ripple/app/misc/SHAMapStore.h>
+#include <ripple/protocol/JsonFields.h>
+#include <ripple/rpc/Context.h>
+#include <beast/module/core/text/LexicalCast.h>
 #include <boost/algorithm/string/case_conv.hpp>
 #include <boost/format.hpp>
 
@@ -27,12 +33,12 @@ namespace ripple {
 // can_delete [<ledgerid>|<ledgerhash>|now|always|never]
 Json::Value doCanDelete (RPC::Context& context)
 {
-    if (! getApp().getSHAMapStore().advisoryDelete())
+    if (! context.app.getSHAMapStore().advisoryDelete())
         return RPC::make_error(rpcNOT_ENABLED);
 
     Json::Value ret (Json::objectValue);
 
-    if (context.params.isMember("can_delete"))
+    if (context.params.isMember(jss::can_delete))
     {
         Json::Value canDelete  = context.params.get(jss::can_delete, 0);
         std::uint32_t canDeleteSeq = 0;
@@ -62,20 +68,20 @@ Json::Value doCanDelete (RPC::Context& context)
             }
             else if (canDeleteStr == "now")
             {
-                canDeleteSeq = getApp().getSHAMapStore().getLastRotated();
+                canDeleteSeq = context.app.getSHAMapStore().getLastRotated();
                 if (!canDeleteSeq)
                     return RPC::make_error (rpcNOT_READY);            }
                 else if (canDeleteStr.size() == 64 &&
                     canDeleteStr.find_first_not_of("0123456789abcdef") ==
                     std::string::npos)
             {
-                uint256 ledgerHash (canDeleteStr);
-                Ledger::pointer ledger =
-                        context.netOps.getLedgerByHash (ledgerHash);
+                auto ledger = context.ledgerMaster.getLedgerByHash (
+                    from_hex_text<uint256>(canDeleteStr));
+
                 if (!ledger)
                     return RPC::make_error(rpcLGR_NOT_FOUND, "ledgerNotFound");
 
-                canDeleteSeq = ledger->getLedgerSeq();
+                canDeleteSeq = ledger->info().seq;
             }
             else
             {
@@ -83,12 +89,12 @@ Json::Value doCanDelete (RPC::Context& context)
             }
         }
 
-        ret["can_delete"] =
-                getApp().getSHAMapStore().setCanDelete (canDeleteSeq);
+        ret[jss::can_delete] =
+                context.app.getSHAMapStore().setCanDelete (canDeleteSeq);
     }
     else
     {
-        ret["can_delete"] = getApp().getSHAMapStore().getCanDelete();
+        ret[jss::can_delete] = context.app.getSHAMapStore().getCanDelete();
     }
 
     return ret;

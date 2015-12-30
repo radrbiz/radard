@@ -18,6 +18,10 @@
 //==============================================================================
 
 #include <BeastConfig.h>
+#include <ripple/app/main/Application.h>
+#include <ripple/protocol/JsonFields.h>
+#include <ripple/rpc/Context.h>
+#include <ripple/rpc/impl/LookupLedger.h>
 
 namespace ripple {
 
@@ -30,52 +34,49 @@ namespace ripple {
 // means any ledger.
 Json::Value doTransactionEntry (RPC::Context& context)
 {
-    Ledger::pointer     lpLedger;
-    Json::Value jvResult = RPC::lookupLedger (
-        context.params,
-        lpLedger,
-        context.netOps);
+    std::shared_ptr <ReadView const>     lpLedger;
+    Json::Value jvResult = RPC::lookupLedger (lpLedger, context);
 
     if (!lpLedger)
         return jvResult;
 
-    if (!context.params.isMember ("tx_hash"))
+    if (!context.params.isMember (jss::tx_hash))
     {
-        jvResult["error"]   = "fieldNotFoundTransaction";
+        jvResult[jss::error]   = "fieldNotFoundTransaction";
     }
-    else if (!context.params.isMember ("ledger_hash")
-             && !context.params.isMember ("ledger_index"))
+    else if (!context.params.isMember (jss::ledger_hash)
+             && !context.params.isMember (jss::ledger_index))
     {
         // We don't work on ledger current.
 
         // XXX We don't support any transaction yet.
-        jvResult["error"]   = "notYetImplemented";
+        jvResult[jss::error]   = "notYetImplemented";
     }
     else
     {
         uint256 uTransID;
         // XXX Relying on trusted WSS client. Would be better to have a strict
         // routine, returning success or failure.
-        uTransID.SetHex (context.params["tx_hash"].asString ());
+        uTransID.SetHex (context.params[jss::tx_hash].asString ());
 
         if (!lpLedger)
         {
-            jvResult["error"]   = "ledgerNotFound";
+            jvResult[jss::error]   = "ledgerNotFound";
         }
         else
         {
-            Transaction::pointer        tpTrans;
-            TransactionMetaSet::pointer tmTrans;
+            TxMeta::pointer tmTrans;
 
-            if (!lpLedger->getTransaction (uTransID, tpTrans, tmTrans))
+            auto tx = lpLedger->txRead (uTransID);
+            if (!tx.first)
             {
-                jvResult["error"]   = "transactionNotFound";
+                jvResult[jss::error]   = "transactionNotFound";
             }
             else
             {
-                jvResult["tx_json"]     = tpTrans->getJson (0);
-                if (tmTrans)
-                    jvResult["metadata"]    = tmTrans->getJson (0);
+                jvResult[jss::tx_json]     = tx.first->getJson (0);
+                if (tx.second)
+                    jvResult[jss::metadata]    = tx.second->getJson (0);
                 // 'accounts'
                 // 'engine_...'
                 // 'ledger_...'

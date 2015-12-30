@@ -21,8 +21,8 @@
 */
 //==============================================================================
 
-#ifndef BEAST_TIME_H_INCLUDED
-#define BEAST_TIME_H_INCLUDED
+#ifndef BEAST_MODULE_CORE_TIME_TIME_H_INCLUDED
+#define BEAST_MODULE_CORE_TIME_TIME_H_INCLUDED
 
 #include <beast/chrono/RelativeTime.h>
 
@@ -300,75 +300,6 @@ public:
         hardware, etc.
     */
     static std::int64_t currentTimeMillis() noexcept;
-
-    /** Returns the number of millisecs since a fixed event (usually system startup).
-
-        This returns a monotonically increasing value which it unaffected by changes to the
-        system clock. It should be accurate to within a few millisecs, depending on platform,
-        hardware, etc.
-
-        Being a 32-bit return value, it will of course wrap back to 0 after 2^32 seconds of
-        uptime, so be careful to take that into account. If you need a 64-bit time, you can
-        use currentTimeMillis() instead.
-
-        @see getApproximateMillisecondCounter
-    */
-    static std::uint32_t getMillisecondCounter() noexcept;
-
-    /** Returns the number of millisecs since a fixed event (usually system startup).
-
-        This has the same function as getMillisecondCounter(), but returns a more accurate
-        value, using a higher-resolution timer if one is available.
-
-        @see getMillisecondCounter
-    */
-    static double getMillisecondCounterHiRes() noexcept;
-
-    /** Less-accurate but faster version of getMillisecondCounter().
-
-        This will return the last value that getMillisecondCounter() returned, so doesn't
-        need to make a system call, but is less accurate - it shouldn't be more than
-        100ms away from the correct time, though, so is still accurate enough for a
-        lot of purposes.
-
-        @see getMillisecondCounter
-    */
-    static std::uint32_t getApproximateMillisecondCounter() noexcept;
-
-    //==============================================================================
-    // High-resolution timers..
-
-    /** Returns the current high-resolution counter's tick-count.
-
-        This is a similar idea to getMillisecondCounter(), but with a higher
-        resolution.
-
-        @see getHighResolutionTicksPerSecond, highResolutionTicksToSeconds,
-             secondsToHighResolutionTicks
-    */
-    static std::int64_t getHighResolutionTicks() noexcept;
-
-    /** Returns the resolution of the high-resolution counter in ticks per second.
-
-        @see getHighResolutionTicks, highResolutionTicksToSeconds,
-             secondsToHighResolutionTicks
-    */
-    static std::int64_t getHighResolutionTicksPerSecond() noexcept;
-
-    /** Converts a number of high-resolution ticks into seconds.
-
-        @see getHighResolutionTicks, getHighResolutionTicksPerSecond,
-             secondsToHighResolutionTicks
-    */
-    static double highResolutionTicksToSeconds (std::int64_t ticks) noexcept;
-
-    /** Converts a number seconds into high-resolution ticks.
-
-        @see getHighResolutionTicks, getHighResolutionTicksPerSecond,
-             highResolutionTicksToSeconds
-    */
-    static std::int64_t secondsToHighResolutionTicks (double seconds) noexcept;
-
 
 private:
     //==============================================================================

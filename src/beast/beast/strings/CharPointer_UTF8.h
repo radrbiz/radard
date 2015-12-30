@@ -21,8 +21,8 @@
 */
 //==============================================================================
 
-#ifndef BEAST_CHARPOINTER_UTF8_H_INCLUDED
-#define BEAST_CHARPOINTER_UTF8_H_INCLUDED
+#ifndef BEAST_STRINGS_CHARPOINTER_UTF8_H_INCLUDED
+#define BEAST_STRINGS_CHARPOINTER_UTF8_H_INCLUDED
 
 #include <beast/Config.h>
 #include <beast/strings/CharacterFunctions.h>
@@ -42,7 +42,7 @@ namespace beast {
 class CharPointer_UTF8
 {
 public:
-    typedef char CharType;
+    using CharType = char;
 
     inline explicit CharPointer_UTF8 (const CharType* const rawPointer) noexcept
         : data (const_cast <CharType*> (rawPointer))

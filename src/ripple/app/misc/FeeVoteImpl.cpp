@@ -18,6 +18,7 @@
 //==============================================================================
 
 #include <BeastConfig.h>
+#include <ripple/protocol/st.h>
 #include <ripple/app/misc/FeeVote.h>
 #include <ripple/app/main/Application.h>
 #include <ripple/app/misc/Validations.h>
@@ -32,7 +33,7 @@ template <typename Integer>
 class VotableInteger
 {
 private:
-    typedef std::map <Integer, int> map_type;
+    using map_type = std::map <Integer, int>;
     Integer mCurrent;   // The current setting
     Integer mTarget;    // The setting we want
     map_type mVoteMap;
@@ -102,7 +103,8 @@ public:
 
     void
     doVoting (Ledger::ref lastClosedLedger,
-        SHAMap::ref initialPosition) override;
+        ValidationSet const& parentValidations,
+        std::shared_ptr<SHAMap> const& initialPosition) override;
 };
 
 //--------------------------------------------------------------------------
@@ -117,7 +119,7 @@ void
 FeeVoteImpl::doValidation (Ledger::ref lastClosedLedger,
     STObject& baseValidation)
 {
-    if (lastClosedLedger->getBaseFee () != target_.reference_fee)
+    if (lastClosedLedger->fees().base != target_.reference_fee)
     {
         if (journal_.info) journal_.info <<
             "Voting for base fee of " << target_.reference_fee;
@@ -125,7 +127,7 @@ FeeVoteImpl::doValidation (Ledger::ref lastClosedLedger,
         baseValidation.setFieldU64 (sfBaseFee, target_.reference_fee);
     }
 
-    if (lastClosedLedger->getReserve (0) != target_.account_reserve)
+    if (lastClosedLedger->fees().accountReserve(0) != target_.account_reserve)
     {
         if (journal_.info) journal_.info <<
             "Voting for base resrve of " << target_.account_reserve;
@@ -133,7 +135,7 @@ FeeVoteImpl::doValidation (Ledger::ref lastClosedLedger,
         baseValidation.setFieldU32(sfReserveBase, target_.account_reserve);
     }
 
-    if (lastClosedLedger->getReserveInc () != target_.owner_reserve)
+    if (lastClosedLedger->fees().increment != target_.owner_reserve)
     {
         if (journal_.info) journal_.info <<
             "Voting for reserve increment of " << target_.owner_reserve;
@@ -145,24 +147,21 @@ FeeVoteImpl::doValidation (Ledger::ref lastClosedLedger,
 
 void
 FeeVoteImpl::doVoting (Ledger::ref lastClosedLedger,
-    SHAMap::ref initialPosition)
+    ValidationSet const& set,
+    std::shared_ptr<SHAMap> const& initialPosition)
 {
     // LCL must be flag ledger
-    assert ((lastClosedLedger->getLedgerSeq () % 256) == 0);
+    assert ((lastClosedLedger->info().seq % 256) == 0);
 
     detail::VotableInteger<std::uint64_t> baseFeeVote (
-        lastClosedLedger->getBaseFee (), target_.reference_fee);
+        lastClosedLedger->fees().base, target_.reference_fee);
 
     detail::VotableInteger<std::uint32_t> baseReserveVote (
-        lastClosedLedger->getReserve (0), target_.account_reserve);
+        lastClosedLedger->fees().accountReserve(0).drops(), target_.account_reserve);
 
     detail::VotableInteger<std::uint32_t> incReserveVote (
-        lastClosedLedger->getReserveInc (), target_.owner_reserve);
+        lastClosedLedger->fees().increment, target_.owner_reserve);
 
-    // get validations for ledger before flag
-    ValidationSet const set =
-        getApp().getValidations ().getValidations (
-            lastClosedLedger->getParentHash ());
     for (auto const& e : set)
     {
         STValidation const& val = *e.second;
@@ -204,9 +203,9 @@ FeeVoteImpl::doVoting (Ledger::ref lastClosedLedger,
     std::uint32_t const incReserve = incReserveVote.getVotes ();
 
     // add transactions to our position
-    if ((baseFee != lastClosedLedger->getBaseFee ()) ||
-            (baseReserve != lastClosedLedger->getReserve (0)) ||
-            (incReserve != lastClosedLedger->getReserveInc ()))
+    if ((baseFee != lastClosedLedger->fees().base) ||
+            (baseReserve != lastClosedLedger->fees().accountReserve(0)) ||
+            (incReserve != lastClosedLedger->fees().increment))
     {
         if (journal_.warning) journal_.warning <<
             "We are voting for a fee change: " << baseFee <<
@@ -214,11 +213,11 @@ FeeVoteImpl::doVoting (Ledger::ref lastClosedLedger,
             "/" << incReserve;
 
         STTx trans (ttFEE);
-        trans.setFieldAccount (sfAccount, Account ());
-        trans.setFieldU64 (sfBaseFee, baseFee);
-        trans.setFieldU32 (sfReferenceFeeUnits, 10);
-        trans.setFieldU32 (sfReserveBase, baseReserve);
-        trans.setFieldU32 (sfReserveIncrement, incReserve);
+        trans[sfAccount] = AccountID();
+        trans[sfBaseFee] = baseFee;
+        trans[sfReferenceFeeUnits] = target_.reference_fee_units;
+        trans[sfReserveBase] = baseReserve;
+        trans[sfReserveIncrement] = incReserve;
 
         uint256 txID = trans.getTransactionID ();
 
@@ -226,10 +225,9 @@ FeeVoteImpl::doVoting (Ledger::ref lastClosedLedger,
             journal_.warning << "Vote: " << txID;
 
         Serializer s;
-        trans.add (s, true);
+        trans.add (s);
 
-        SHAMapItem::pointer tItem = std::make_shared<SHAMapItem> (
-            txID, s.peekData ());
+        auto tItem = std::make_shared<SHAMapItem> (txID, s.peekData ());
 
         if (!initialPosition->addGiveItem (tItem, true, false))
         {

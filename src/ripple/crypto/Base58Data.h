@@ -29,8 +29,8 @@
 // - E-mail usually won't line-break if there's no punctuation to break at.
 // - Doubleclicking selects the whole number as one word if it's all alphanumeric.
 //
-#ifndef RIPPLE_CRYPTO_BASE58DATA_H
-#define RIPPLE_CRYPTO_BASE58DATA_H
+#ifndef RIPPLE_CRYPTO_BASE58DATA_H_INCLUDED
+#define RIPPLE_CRYPTO_BASE58DATA_H_INCLUDED
 
 #include <ripple/crypto/Base58.h>
 #include <ripple/basics/base_uint.h>
@@ -51,10 +51,8 @@ protected:
     ~CBase58Data ();
     CBase58Data (CBase58Data const&) = default;
     CBase58Data& operator= (CBase58Data const&) = default;
-#ifndef _MSC_VER
     CBase58Data (CBase58Data&&) = default;
     CBase58Data& operator= (CBase58Data&&) = default;
-#endif
 
     void SetData (int version, Blob const& vchDataIn)
     {

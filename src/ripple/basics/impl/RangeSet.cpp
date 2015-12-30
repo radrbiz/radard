@@ -42,7 +42,7 @@ inline std::uint32_t max (std::uint32_t x, std::uint32_t y)
 
 bool RangeSet::hasValue (std::uint32_t v) const
 {
-    BOOST_FOREACH (const value_type & it, mRanges)
+    for (auto const& it : mRanges)
     {
         if (contains (it, v))
             return true;
@@ -62,7 +62,7 @@ std::uint32_t RangeSet::getFirst () const
 
 std::uint32_t RangeSet::getNext (std::uint32_t v) const
 {
-    BOOST_FOREACH (const value_type & it, mRanges)
+    for (auto const& it : mRanges)
     {
         if (it.first > v)
             return it.first;
@@ -190,7 +190,7 @@ void RangeSet::clearValue (std::uint32_t v)
 std::string RangeSet::toString () const
 {
     std::string ret;
-    BOOST_FOREACH (value_type const & it, mRanges)
+    for (auto const& it : mRanges)
     {
         if (!ret.empty ())
             ret += ",";
@@ -233,6 +233,15 @@ void RangeSet::simplify ()
             it = nit;
         }
     }
+}
+
+std::size_t
+RangeSet::lebesgue_sum() const
+{
+    std::size_t sum = mRanges.size();
+    for (auto const& e : mRanges)
+        sum += e.second - e.first;
+    return sum;
 }
 
 void RangeSet::checkInternalConsistency () const noexcept

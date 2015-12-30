@@ -29,7 +29,7 @@ namespace beast {
 namespace insight {
 
 /** A metric for measuring an integral value.
-    
+
     A meter may be thought of as an increment-only counter.
 
     This is a lightweight reference wrapper which is cheap to copy and assign.
@@ -38,7 +38,7 @@ namespace insight {
 class Meter : public Base
 {
 public:
-    typedef MeterImpl::value_type value_type;
+    using value_type = MeterImpl::value_type;
 
     /** Create a null metric.
         A null metric reports no information.

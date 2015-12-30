@@ -18,16 +18,23 @@
 //==============================================================================
 
 #include <BeastConfig.h>
+#include <ripple/app/main/Application.h>
+#include <ripple/app/misc/UniqueNodeList.h>
+#include <ripple/core/Config.h>
+#include <ripple/protocol/ErrorCodes.h>
+#include <ripple/net/RPCErr.h>
+#include <ripple/rpc/impl/Handler.h>
+#include <beast/utility/make_lock.h>
 
 namespace ripple {
 
 // Populate the UNL from a local validators.txt file.
 Json::Value doUnlLoad (RPC::Context& context)
 {
-    auto lock = getApp().masterLock();
+    auto lock = beast::make_lock(context.app.getMasterMutex());
 
-    if (getConfig ().VALIDATORS_FILE.empty ()
-        || !getApp().getUNL ().nodeLoad (getConfig ().VALIDATORS_FILE))
+    if (context.app.config().VALIDATORS_FILE.empty ()
+        || !context.app.getUNL ().nodeLoad (context.app.config().VALIDATORS_FILE))
     {
         return rpcError (rpcLOAD_FAILED);
     }

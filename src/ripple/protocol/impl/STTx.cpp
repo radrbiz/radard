@@ -18,25 +18,30 @@
 //==============================================================================
 
 #include <BeastConfig.h>
-#include <ripple/basics/Log.h>
+#include <ripple/protocol/STTx.h>
 #include <ripple/protocol/HashPrefix.h>
+#include <ripple/protocol/JsonFields.h>
 #include <ripple/protocol/Protocol.h>
+#include <ripple/protocol/Sign.h>
 #include <ripple/protocol/STAccount.h>
 #include <ripple/protocol/STArray.h>
-#include <ripple/protocol/STTx.h>
-#include <ripple/protocol/STParsedJSON.h>
 #include <ripple/protocol/TxFlags.h>
+#include <ripple/protocol/types.h>
+#include <ripple/basics/contract.h>
+#include <ripple/basics/Log.h>
 #include <ripple/basics/StringUtilities.h>
 #include <ripple/json/to_string.h>
 #include <beast/unit_test/suite.h>
 #include <boost/format.hpp>
+#include <array>
+#include <memory>
+#include <utility>
 
 namespace ripple {
 
 STTx::STTx (TxType type)
     : STObject (sfTransaction)
     , tx_type_ (type)
-    , sig_state_ (boost::indeterminate)
 {
     auto format = TxFormats::getInstance().findByType (type);
 
@@ -44,16 +49,15 @@ STTx::STTx (TxType type)
     {
         WriteLog (lsWARNING, STTx) <<
             "Transaction type: " << type;
-        throw std::runtime_error ("invalid transaction type");
+        Throw<std::runtime_error> ("invalid transaction type");
     }
 
     set (format->elements);
     setFieldU16 (sfTransactionType, format->getType ());
 }
 
-STTx::STTx (STObject const& object)
-    : STObject (object)
-    , sig_state_ (boost::indeterminate)
+STTx::STTx (STObject&& object)
+    : STObject (std::move (object))
 {
     tx_type_ = static_cast <TxType> (getFieldU16 (sfTransactionType));
 
@@ -63,20 +67,21 @@ STTx::STTx (STObject const& object)
     {
         WriteLog (lsWARNING, STTx) <<
             "Transaction type: " << tx_type_;
-        throw std::runtime_error ("invalid transaction type");
+        Throw<std::runtime_error> ("invalid transaction type");
     }
 
     if (!setType (format->elements))
     {
         WriteLog (lsWARNING, STTx) <<
             "Transaction not legal for format";
-        throw std::runtime_error ("transaction not valid");
+        Throw<std::runtime_error> ("transaction not valid");
     }
+
+    tid_ = getHash(HashPrefix::transactionID);
 }
 
-STTx::STTx (SerializerIterator& sit)
+STTx::STTx (SerialIter& sit)
     : STObject (sfTransaction)
-    , sig_state_ (boost::indeterminate)
 {
     int length = sit.getBytesLeft ();
 
@@ -84,7 +89,7 @@ STTx::STTx (SerializerIterator& sit)
     {
         WriteLog (lsERROR, STTx) <<
             "Transaction has invalid length: " << length;
-        throw std::runtime_error ("Transaction length invalid");
+        Throw<std::runtime_error> ("Transaction length invalid");
     }
 
     set (sit);
@@ -96,15 +101,17 @@ STTx::STTx (SerializerIterator& sit)
     {
         WriteLog (lsWARNING, STTx) <<
             "Invalid transaction type: " << tx_type_;
-        throw std::runtime_error ("invalid transaction type");
+        Throw<std::runtime_error> ("invalid transaction type");
     }
 
     if (!setType (format->elements))
     {
         WriteLog (lsWARNING, STTx) <<
             "Transaction not legal for format";
-        throw std::runtime_error ("transaction not valid");
+        Throw<std::runtime_error> ("transaction not valid");
     }
+
+    tid_ = getHash(HashPrefix::transactionID);
 }
 
 std::string
@@ -118,36 +125,36 @@ STTx::getFullText () const
     return ret;
 }
 
-std::vector<RippleAddress>
+boost::container::flat_set<AccountID>
 STTx::getMentionedAccounts () const
 {
-    std::vector<RippleAddress> accounts;
+    boost::container::flat_set<AccountID> list;
 
-    for (auto const& it : peekData ())
+    for (auto const& it : *this)
     {
         if (auto sa = dynamic_cast<STAccount const*> (&it))
         {
-            auto const na = sa->getValueNCA ();
-
-            if (std::find (accounts.cbegin (), accounts.cend (), na) == accounts.cend ())
-                accounts.push_back (na);
+            assert(! sa->isDefault());
+            if (! sa->isDefault())
+                list.insert(sa->value());
         }
         else if (auto sa = dynamic_cast<STAmount const*> (&it))
         {
             auto const& issuer = sa->getIssuer ();
-
-            if (isNative (issuer))
-                continue;
-
-            RippleAddress na;
-            na.setAccountID (issuer);
-
-            if (std::find (accounts.cbegin (), accounts.cend (), na) == accounts.cend ())
-                accounts.push_back (na);
+            if (! isNative (issuer))
+                list.insert(issuer);
         }
     }
 
-    return accounts;
+    return list;
+}
+
+static Blob getSigningData (STTx const& that)
+{
+    Serializer s;
+    s.add32 (HashPrefix::txSign);
+    that.addWithoutSigningFields (s);
+    return s.getData();
 }
 
 uint256
@@ -159,7 +166,10 @@ STTx::getSigningHash () const
 uint256
 STTx::getTransactionID () const
 {
-    return getHash (HashPrefix::transactionID);
+    assert(tid_);
+    if (! tid_)
+        LogicError("digest is undefined");
+    return *tid_;
 }
 
 Blob STTx::getSignature () const
@@ -168,7 +178,7 @@ Blob STTx::getSignature () const
     {
         return getFieldVL (sfTxnSignature);
     }
-    catch (...)
+    catch (std::exception const&)
     {
         return Blob ();
     }
@@ -176,36 +186,34 @@ Blob STTx::getSignature () const
 
 void STTx::sign (RippleAddress const& private_key)
 {
-    Blob signature;
-    private_key.accountPrivateSign (getSigningHash (), signature);
+    Blob const signature = private_key.accountPrivateSign (getSigningData (*this));
     setFieldVL (sfTxnSignature, signature);
+    tid_ = getHash(HashPrefix::transactionID);
 }
 
-bool STTx::checkSign () const
+bool STTx::checkSign(bool allowMultiSign) const
 {
-    if (boost::indeterminate (sig_state_))
+    bool sigGood = false;
+    try
     {
-        try
+        if (allowMultiSign)
         {
-            ECDSA const fullyCanonical = (getFlags() & tfFullyCanonicalSig)
-                ? ECDSA::strict
-                : ECDSA::not_strict;
-
-            RippleAddress n;
-            n.setAccountPublic (getFieldVL (sfSigningPubKey));
-
-            sig_state_ = n.accountPublicVerify (getSigningHash (),
-                getFieldVL (sfTxnSignature), fullyCanonical);
+            // Determine whether we're single- or multi-signing by looking
+            // at the SigningPubKey.  It it's empty we must be
+            // multi-signing.  Otherwise we're single-signing.
+            Blob const& signingPubKey = getFieldVL (sfSigningPubKey);
+            sigGood = signingPubKey.empty () ?
+                checkMultiSign () : checkSingleSign ();
         }
-        catch (...)
+        else
         {
-            sig_state_ = false;
+            sigGood = checkSingleSign ();
         }
     }
-
-    assert (!boost::indeterminate (sig_state_));
-
-    return static_cast<bool> (sig_state_);
+    catch (std::exception const&)
+    {
+    }
+    return sigGood;
 }
 
 void STTx::setSigningPubKey (RippleAddress const& naSignPubKey)
@@ -213,15 +221,10 @@ void STTx::setSigningPubKey (RippleAddress const& naSignPubKey)
     setFieldVL (sfSigningPubKey, naSignPubKey.getAccountPublic ());
 }
 
-void STTx::setSourceAccount (RippleAddress const& naSource)
-{
-    setFieldAccount (sfAccount, naSource);
-}
-
 Json::Value STTx::getJson (int) const
 {
     Json::Value ret = STObject::getJson (0);
-    ret["hash"] = to_string (getTransactionID ());
+    ret[jss::hash] = to_string (getTransactionID ());
     return ret;
 }
 
@@ -231,17 +234,17 @@ Json::Value STTx::getJson (int options, bool binary) const
     {
         Json::Value ret;
         Serializer s = STObject::getSerializer ();
-        ret["tx"] = strHex (s.peekData ());
-        ret["hash"] = to_string (getTransactionID ());
+        ret[jss::tx] = strHex (s.peekData ());
+        ret[jss::hash] = to_string (getTransactionID ());
         return ret;
     }
     return getJson(options);
 }
 
 std::string const&
-STTx::getMetaSQLInsertReplaceHeader (const Database::Type dbType)
+STTx::getMetaSQLInsertReplaceHeader (const DatabaseCon::Type dbType)
 {
-    if (dbType == Database::Type::MySQL)
+    if (dbType == DatabaseCon::Type::MySQL)
     {
         static std::string const sqlMySQL = "REPLACE INTO Transactions "
         "(TransID, TransType, FromAcct, FromSeq, LedgerSeq, Status, CloseTime, RawTxn, TxnMeta)"
@@ -265,6 +268,7 @@ std::string STTx::getMetaSQL (std::uint32_t inLedger,
     return getMetaSQL (s, inLedger, TXN_SQL_VALIDATED, escapedMetaData, closeTime);
 }
 
+// VFALCO This could be a free function elsewhere
 std::string
 STTx::getMetaSQL (Serializer rawTxn,
     std::uint32_t inLedger, char status, std::string const& escapedMetaData, std::uint32_t closeTime) const
@@ -277,8 +281,117 @@ STTx::getMetaSQL (Serializer rawTxn,
 
     return str (boost::format (bfTrans)
                 % to_string (getTransactionID ()) % format->getName ()
-                % getSourceAccount ().humanAccountID ()
+                % toBase58(getAccountID(sfAccount))
                 % getSequence () % inLedger % status % closeTime % rTxn % escapedMetaData);
+}
+
+bool
+STTx::checkSingleSign () const
+{
+    // We don't allow both a non-empty sfSigningPubKey and an sfSigners.
+    // That would allow the transaction to be signed two ways.  So if both
+    // fields are present the signature is invalid.
+    if (isFieldPresent (sfSigners))
+        return false;
+
+    bool ret = false;
+    try
+    {
+        ECDSA const fullyCanonical = (getFlags() & tfFullyCanonicalSig)
+            ? ECDSA::strict
+            : ECDSA::not_strict;
+
+        RippleAddress n;
+        n.setAccountPublic (getFieldVL (sfSigningPubKey));
+
+        ret = n.accountPublicVerify (getSigningData (*this),
+            getFieldVL (sfTxnSignature), fullyCanonical);
+    }
+    catch (std::exception const&)
+    {
+        // Assume it was a signature failure.
+        ret = false;
+    }
+    return ret;
+}
+
+bool
+STTx::checkMultiSign () const
+{
+    // Make sure the MultiSigners are present.  Otherwise they are not
+    // attempting multi-signing and we just have a bad SigningPubKey.
+    if (!isFieldPresent (sfSigners))
+        return false;
+
+    // We don't allow both an sfSigners and an sfTxnSignature.  Both fields
+    // being present would indicate that the transaction is signed both ways.
+    if (isFieldPresent (sfTxnSignature))
+        return false;
+
+    STArray const& signers {getFieldArray (sfSigners)};
+
+    // There are well known bounds that the number of signers must be within.
+    if (signers.size() < minMultiSigners || signers.size() > maxMultiSigners)
+        return false;
+
+    // We can ease the computational load inside the loop a bit by
+    // pre-constructing part of the data that we hash.  Fill a Serializer
+    // with the stuff that stays constant from signature to signature.
+    Serializer const dataStart {startMultiSigningData (*this)};
+
+    // We also use the sfAccount field inside the loop.  Get it once.
+    auto const txnAccountID = getAccountID (sfAccount);
+
+    // Determine whether signatures must be full canonical.
+    ECDSA const fullyCanonical = (getFlags() & tfFullyCanonicalSig)
+        ? ECDSA::strict
+        : ECDSA::not_strict;
+
+    // Signers must be in sorted order by AccountID.
+    AccountID lastAccountID (beast::zero);
+
+    for (auto const& signer : signers)
+    {
+        auto const accountID = signer.getAccountID (sfAccount);
+
+        // The account owner may not multisign for themselves.
+        if (accountID == txnAccountID)
+            return false;
+
+        // Accounts must be in order by account ID.  No duplicates allowed.
+        if (lastAccountID >= accountID)
+            return false;
+
+        // The next signature must be greater than this one.
+        lastAccountID = accountID;
+
+        // Verify the signature.
+        bool validSig = false;
+        try
+        {
+            Serializer s = dataStart;
+            finishMultiSigningData (accountID, s);
+
+            RippleAddress const pubKey =
+                RippleAddress::createAccountPublic (
+                    signer.getFieldVL (sfSigningPubKey));
+
+            Blob const signature = signer.getFieldVL (sfTxnSignature);
+
+            validSig = pubKey.accountPublicVerify (
+                s.getData(), signature, fullyCanonical);
+        }
+        catch (std::exception const&)
+        {
+            // We assume any problem lies with the signature.
+            validSig = false;
+        }
+        if (!validSig)
+            return false;
+    }
+
+    // All signatures verified.
+    return true;
 }
 
 //------------------------------------------------------------------------------
@@ -290,7 +403,7 @@ isMemoOkay (STObject const& st, std::string& reason)
     if (!st.isFieldPresent (sfMemos))
         return true;
 
-    const STArray& memos = st.getFieldArray (sfMemos);
+    auto const& memos = st.getFieldArray (sfMemos);
 
     // The number 2048 is a preallocation hint, not a hard limit
     // to avoid allocate/copy/free's
@@ -316,12 +429,58 @@ isMemoOkay (STObject const& st, std::string& reason)
 
         for (auto const& memoElement : *memoObj)
         {
-            if ((memoElement.getFName() != sfMemoType) &&
-                (memoElement.getFName() != sfMemoData) &&
-                (memoElement.getFName() != sfMemoFormat))
+            auto const& name = memoElement.getFName();
+
+            if (name != sfMemoType &&
+                name != sfMemoData &&
+                name != sfMemoFormat)
             {
-                reason = "A memo may contain only MemoType, MemoData or MemoFormat fields.";
+                reason = "A memo may contain only MemoType, MemoData or "
+                         "MemoFormat fields.";
                 return false;
+            }
+
+            // The raw data is stored as hex-octets, which we want to decode.
+            auto data = strUnHex (memoElement.getText ());
+
+            if (!data.second)
+            {
+                reason = "The MemoType, MemoData and MemoFormat fields may "
+                         "only contain hex-encoded data.";
+                return false;
+            }
+
+            if (name == sfMemoData)
+                continue;
+
+            // The only allowed characters for MemoType and MemoFormat are the
+            // characters allowed in URLs per RFC 3986: alphanumerics and the
+            // following symbols: -._~:/?#[]@!$&'()*+,;=%
+            static std::array<char, 256> const allowedSymbols = []
+            {
+                std::array<char, 256> a;
+                a.fill(0);
+
+                std::string symbols (
+                    "0123456789"
+                    "-._~:/?#[]@!$&'()*+,;=%"
+                    "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+                    "abcdefghijklmnopqrstuvwxyz");
+
+                for(char c : symbols)
+                    a[c] = 1;
+                return a;
+            }();
+
+            for (auto c : data.first)
+            {
+                if (!allowedSymbols[c])
+                {
+                    reason = "The MemoType and MemoFormat fields may only "
+                             "contain characters that are allowed in URLs "
+                             "under RFC 3986.";
+                    return false;
+                }
             }
         }
     }
@@ -337,7 +496,7 @@ isAccountFieldOkay (STObject const& st)
     for (int i = 0; i < st.getCount(); ++i)
     {
         auto t = dynamic_cast<STAccount const*>(st.peekAtPIndex (i));
-        if (t && !t->isValueH160 ())
+        if (t && t->isDefault ())
             return false;
     }
 
@@ -358,10 +517,13 @@ bool passesLocalChecks (STObject const& st, std::string& reason)
     return true;
 }
 
-bool passesLocalChecks (STObject const& st)
+std::shared_ptr<STTx const>
+sterilize (STTx const& stx)
 {
-    std::string reason;
-    return passesLocalChecks (st, reason);
+    Serializer s;
+    stx.add(s);
+    SerialIter sit(s.slice());
+    return std::make_shared<STTx const>(std::ref(sit));
 }
 
 } // ripple

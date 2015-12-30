@@ -18,6 +18,14 @@
 //==============================================================================
 
 #include <BeastConfig.h>
+#include <ripple/app/main/Application.h>
+#include <ripple/app/misc/UniqueNodeList.h>
+#include <ripple/net/RPCErr.h>
+#include <ripple/protocol/JsonFields.h>
+#include <ripple/protocol/ErrorCodes.h>
+#include <ripple/rpc/Context.h>
+#include <ripple/rpc/impl/Handler.h>
+#include <beast/utility/make_lock.h>
 
 namespace ripple {
 
@@ -26,22 +34,22 @@ namespace ripple {
 // }
 Json::Value doUnlDelete (RPC::Context& context)
 {
-    auto lock = getApp().masterLock();
+    auto lock = beast::make_lock(context.app.getMasterMutex());
 
-    if (!context.params.isMember ("node"))
+    if (!context.params.isMember (jss::node))
         return rpcError (rpcINVALID_PARAMS);
 
-    auto strNode = context.params["node"].asString ();
+    auto strNode = context.params[jss::node].asString ();
     RippleAddress raNodePublic;
 
     if (raNodePublic.setNodePublic (strNode))
     {
-        getApp().getUNL ().nodeRemovePublic (raNodePublic);
+        context.app.getUNL ().nodeRemovePublic (raNodePublic);
         return RPC::makeObjectValue ("removing node by public key");
     }
     else
     {
-        getApp().getUNL ().nodeRemoveDomain (strNode);
+        context.app.getUNL ().nodeRemoveDomain (strNode);
         return RPC::makeObjectValue ("removing node by domain");
     }
 }

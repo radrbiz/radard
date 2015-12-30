@@ -1,27 +1,27 @@
 //------------------------------- siphash.h ------------------------------------
-// 
+//
 // This software is in the public domain.  The only restriction on its use is
 // that no one can remove it from the public domain by claiming ownership of it,
 // including the original authors.
-// 
+//
 // There is no warranty of correctness on the software contained herein.  Use
 // at your own risk.
 //
 // Derived from:
-// 
+//
 // SipHash reference C implementation
-// 
+//
 // Written in 2012 by Jean-Philippe Aumasson <jeanphilippe.aumasson@gmail.com>
 // Daniel J. Bernstein <djb@cr.yp.to>
-// 
+//
 // To the extent possible under law, the author(s) have dedicated all copyright
 // and related and neighboring rights to this software to the public domain
 // worldwide. This software is distributed without any warranty.
-// 
+//
 // You should have received a copy of the CC0 Public Domain Dedication along
 // with this software. If not, see
 // <http://creativecommons.org/publicdomain/zero/1.0/>.
-// 
+//
 //------------------------------------------------------------------------------
 
 #include <beast/hash/siphash.h>
@@ -34,9 +34,9 @@
 namespace beast {
 namespace detail {
 
-typedef std::uint64_t u64;
-typedef std::uint32_t u32;
-typedef std::uint8_t u8;
+using u64 = std::uint64_t;
+using u32 = std::uint32_t;
+using u8 = std::uint8_t;
 
 inline
 u64
@@ -90,7 +90,7 @@ siphash::siphash(std::uint64_t k0, std::uint64_t k1) noexcept
 }
 
 void
-siphash::append (void const* key, std::size_t inlen) noexcept
+siphash::operator() (void const* key, std::size_t inlen) noexcept
 {
     using namespace detail;
     u8 const* in = static_cast<const u8*>(key);

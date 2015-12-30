@@ -18,7 +18,15 @@
 //==============================================================================
 
 #include <BeastConfig.h>
+#include <ripple/basics/Log.h>
+#include <ripple/json/json_value.h>
+#include <ripple/json/json_writer.h>
+#include <ripple/net/RPCErr.h>
+#include <ripple/protocol/ErrorCodes.h>
+#include <ripple/protocol/JsonFields.h>
+#include <ripple/rpc/Context.h>
 #include <ripple/rpc/InternalHandler.h>
+#include <string>
 
 namespace ripple {
 
@@ -27,20 +35,20 @@ RPC::InternalHandler* RPC::InternalHandler::headHandler = nullptr;
 Json::Value doInternal (RPC::Context& context)
 {
     // Used for debug or special-purpose RPC commands
-    if (!context.params.isMember ("internal_command"))
+    if (!context.params.isMember (jss::internal_command))
         return rpcError (rpcINVALID_PARAMS);
 
-    auto name = context.params["internal_command"].asString ();
-    auto params = context.params["params"];
+    auto name = context.params[jss::internal_command].asString ();
+    auto params = context.params[jss::params];
 
     for (auto* h = RPC::InternalHandler::headHandler; h; )
     {
         if (name == h->name_)
         {
-            WriteLog (lsWARNING, RPCHandler)
+            JLOG (context.j.warning)
                 << "Internal command " << name << ": " << params;
             Json::Value ret = h->handler_ (params);
-            WriteLog (lsWARNING, RPCHandler)
+            JLOG (context.j.warning)
                 << "Internal command returns: " << ret;
             return ret;
         }

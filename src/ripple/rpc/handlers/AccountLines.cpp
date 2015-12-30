@@ -18,21 +18,31 @@
 //==============================================================================
 
 #include <BeastConfig.h>
-#include <ripple/rpc/impl/Tuning.h>
+#include <ripple/app/main/Application.h>
 #include <ripple/app/paths/RippleState.h>
-#include <ripple/protocol/Indexes.h>
+#include <ripple/ledger/PaymentSandbox.h>
+#include <ripple/ledger/ReadView.h>
+#include <ripple/net/RPCErr.h>
+#include <ripple/protocol/ErrorCodes.h>
+#include <ripple/protocol/JsonFields.h>
+#include <ripple/resource/Fees.h>
+#include <ripple/rpc/Context.h>
+#include <ripple/rpc/impl/AccountFromString.h>
+#include <ripple/rpc/impl/LookupLedger.h>
+#include <ripple/rpc/impl/Tuning.h>
+#include <ripple/rpc/impl/Utilities.h>
 
 namespace ripple {
 
 struct VisitData
 {
     std::vector <RippleState::pointer> items;
-    Account const& accountID;
-    RippleAddress const& rippleAddressPeer;
-    Account const& raPeerAccount;
+    AccountID const& accountID;
+    bool hasPeer;
+    AccountID const& raPeerAccount;
 };
 
-void addLine (Json::Value& jsonLines, RippleState const& line, Ledger::pointer ledger)
+void addLine (RPC::Context& context, Json::Value& jsonLines, RippleState const& line, std::shared_ptr<ReadView const> ledger)
 {
     STAmount saBalance (line.getBalance ());
     STAmount const& saLimit (line.getLimit ());
@@ -42,10 +52,9 @@ void addLine (Json::Value& jsonLines, RippleState const& line, Ledger::pointer l
     jPeer[jss::account] = to_string (line.getAccountIDPeer ());
     if (assetCurrency() == saBalance.getCurrency()) {
         // calculate released & reserved balance for asset.
-        auto lpLedger = std::make_shared<Ledger> (std::ref (*ledger), false);
-        LedgerEntrySet les(lpLedger, tapNONE);
-        auto sleRippleState = les.entryCache(ltRIPPLE_STATE, getRippleStateIndex(line.getAccountID(), line.getAccountIDPeer(), assetCurrency()));
-        les.assetRelease(line.getAccountID(), line.getAccountIDPeer(), assetCurrency(), sleRippleState);
+        PaymentSandbox les (&*ledger, tapNONE);
+        auto sleRippleState = les.peek (keylet::line (line.getAccountID (), line.getAccountIDPeer (), assetCurrency ()));
+        assetRelease(les, line.getAccountID(), line.getAccountIDPeer(), assetCurrency(), sleRippleState, context.app.journal ("View"));
         STAmount reserve = sleRippleState->getFieldAmount(sfReserve);
         STAmount balance = sleRippleState->getFieldAmount(sfBalance);
         if (line.getAccountID() == sleRippleState->getFieldAmount(sfHighLimit).getIssuer()) {
@@ -60,9 +69,9 @@ void addLine (Json::Value& jsonLines, RippleState const& line, Ledger::pointer l
         //
         // Amount reported is negative if other account holds current
         // account's IOUs.
-        jPeer[jss::balance] = saBalance.getText();
+        jPeer[jss::balance] = saBalance.getText ();
     }
-    jPeer[jss::currency] = saBalance.getHumanCurrency ();
+    jPeer[jss::currency] = to_string (saBalance.issue ().currency);
     jPeer[jss::limit] = saLimit.getText ();
     jPeer[jss::limit_peer] = saLimitPeer.getText ();
     jPeer[jss::quality_in]
@@ -85,7 +94,6 @@ void addLine (Json::Value& jsonLines, RippleState const& line, Ledger::pointer l
 
 // {
 //   account: <account>|<account_public_key>
-//   account_index: <number>        // optional, defaults to 0.
 //   ledger_hash : <ledger>
 //   ledger_index : <ledger_index>
 //   limit: integer                 // optional
@@ -95,80 +103,48 @@ Json::Value doAccountLines (RPC::Context& context)
 {
     auto const& params (context.params);
     if (! params.isMember (jss::account))
-        return RPC::missing_field_error ("account");
+        return RPC::missing_field_error (jss::account);
 
-    Ledger::pointer ledger;
-    Json::Value result (RPC::lookupLedger (params, ledger, context.netOps));
+    std::shared_ptr<ReadView const> ledger;
+    auto result = RPC::lookupLedger (ledger, context);
     if (! ledger)
         return result;
 
     std::string strIdent (params[jss::account].asString ());
-    bool bIndex (params.isMember (jss::account_index));
-    int iIndex (bIndex ? params[jss::account_index].asUInt () : 0);
-    RippleAddress rippleAddress;
+    AccountID accountID;
 
-    Json::Value const jv (RPC::accountFromString (ledger, rippleAddress, bIndex,
-        strIdent, iIndex, false, context.netOps));
-    if (! jv.empty ())
+    if (auto jv = RPC::accountFromString (accountID, strIdent))
     {
-        for (Json::Value::const_iterator it (jv.begin ()); it != jv.end (); ++it)
+        for (auto it = jv.begin (); it != jv.end (); ++it)
             result[it.memberName ()] = it.key ();
 
         return result;
     }
 
-    if (! ledger->hasAccount (rippleAddress))
+    if (! ledger->exists(keylet::account (accountID)))
         return rpcError (rpcACT_NOT_FOUND);
 
-    std::string strPeer (params.isMember (jss::peer)
-        ? params[jss::peer].asString () : "");
-    bool bPeerIndex (params.isMember (jss::peer_index));
-    int iPeerIndex (bIndex ? params[jss::peer_index].asUInt () : 0);
+    std::string strPeer;
+    if (params.isMember (jss::peer))
+        strPeer = params[jss::peer].asString ();
+    auto hasPeer = ! strPeer.empty ();
 
-    RippleAddress rippleAddressPeer;
-
-    if (! strPeer.empty ())
+    AccountID raPeerAccount;
+    if (hasPeer)
     {
-        result[jss::peer] = rippleAddress.humanAccountID ();
+        result[jss::peer] = context.app.accountIDCache().toBase58 (accountID);
+        result = RPC::accountFromString (raPeerAccount, strPeer);
 
-        if (bPeerIndex)
-            result[jss::peer_index] = iPeerIndex;
-
-        result = RPC::accountFromString (ledger, rippleAddressPeer, bPeerIndex,
-            strPeer, iPeerIndex, false, context.netOps);
-
-        if (! result.empty ())
+        if (result)
             return result;
     }
 
-    Account raPeerAccount;
-    if (rippleAddressPeer.isValid ())
-        raPeerAccount = rippleAddressPeer.getAccountID ();
-
     unsigned int limit;
-    if (params.isMember (jss::limit))
-    {
-        auto const& jvLimit (params[jss::limit]);
-        if (! jvLimit.isIntegral ())
-            return RPC::expected_field_error ("limit", "unsigned integer");
-
-        limit = jvLimit.isUInt () ? jvLimit.asUInt () :
-            std::max (0, jvLimit.asInt ());
-
-        if (context.role != Role::ADMIN)
-        {
-            limit = std::max (RPC::Tuning::minLinesPerRequest,
-                std::min (limit, RPC::Tuning::maxLinesPerRequest));
-        }
-    }
-    else
-    {
-        limit = RPC::Tuning::defaultLinesPerRequest;
-    }
+    if (auto err = readLimitField(limit, RPC::Tuning::accountLines, context))
+        return *err;
 
     Json::Value& jsonLines (result[jss::lines] = Json::arrayValue);
-    Account const& raAccount(rippleAddress.getAccountID ());
-    VisitData visitData = { {}, raAccount, rippleAddressPeer, raPeerAccount };
+    VisitData visitData = {{}, accountID, hasPeer, raPeerAccount};
     unsigned int reserve (limit);
     uint256 startAfter;
     std::uint64_t startHint;
@@ -180,27 +156,27 @@ Json::Value doAccountLines (RPC::Context& context)
         Json::Value const& marker (params[jss::marker]);
 
         if (! marker.isString ())
-            return RPC::expected_field_error ("marker", "string");
+            return RPC::expected_field_error (jss::marker, "string");
 
         startAfter.SetHex (marker.asString ());
-        SLE::pointer sleLine (ledger->getSLEi (startAfter));
+        auto const sleLine = ledger->read({ltRIPPLE_STATE, startAfter});
 
-        if (sleLine == nullptr || sleLine->getType () != ltRIPPLE_STATE)
+        if (! sleLine)
             return rpcError (rpcINVALID_PARAMS);
 
-        if (sleLine->getFieldAmount (sfLowLimit).getIssuer () == raAccount)
+        if (sleLine->getFieldAmount (sfLowLimit).getIssuer () == accountID)
             startHint = sleLine->getFieldU64 (sfLowNode);
-        else if (sleLine->getFieldAmount (sfHighLimit).getIssuer () == raAccount)
+        else if (sleLine->getFieldAmount (sfHighLimit).getIssuer () == accountID)
             startHint = sleLine->getFieldU64 (sfHighNode);
         else
             return rpcError (rpcINVALID_PARAMS);
 
         // Caller provided the first line (startAfter), add it as first result
-        auto const line (RippleState::makeItem (raAccount, sleLine));
+        auto const line = RippleState::makeItem (accountID, sleLine);
         if (line == nullptr)
             return rpcError (rpcINVALID_PARAMS);
 
-        addLine (jsonLines, *line, ledger);
+        addLine (context, jsonLines, *line, ledger);
         visitData.items.reserve (reserve);
     }
     else
@@ -210,22 +186,26 @@ Json::Value doAccountLines (RPC::Context& context)
         visitData.items.reserve (++reserve);
     }
 
-    if (! ledger->visitAccountItems (raAccount, startAfter, startHint, reserve,
-        [&visitData](SLE::ref sleCur)
-        {
-            auto const line (RippleState::makeItem (visitData.accountID, sleCur));
-            if (line != nullptr &&
-                (! visitData.rippleAddressPeer.isValid () ||
-                visitData.raPeerAccount == line->getAccountIDPeer ()))
-            {
-                visitData.items.emplace_back (line);
-                return true;
-            }
-
-            return false;
-        }))
     {
-        return rpcError (rpcINVALID_PARAMS);
+        if (! forEachItemAfter(*ledger, accountID,
+                startAfter, startHint, reserve,
+            [&visitData](std::shared_ptr<SLE const> const& sleCur)
+            {
+                auto const line =
+                    RippleState::makeItem (visitData.accountID, sleCur);
+                if (line != nullptr &&
+                    (! visitData.hasPeer ||
+                     visitData.raPeerAccount == line->getAccountIDPeer ()))
+                {
+                    visitData.items.emplace_back (line);
+                    return true;
+                }
+
+                return false;
+            }))
+        {
+            return rpcError (rpcINVALID_PARAMS);
+        }
     }
 
     if (visitData.items.size () == reserve)
@@ -233,14 +213,14 @@ Json::Value doAccountLines (RPC::Context& context)
         result[jss::limit] = limit;
 
         RippleState::pointer line (visitData.items.back ());
-        result[jss::marker] = to_string (line->peekSLE ().getIndex ());
+        result[jss::marker] = to_string (line->key());
         visitData.items.pop_back ();
     }
 
-    result[jss::account] = rippleAddress.humanAccountID ();
+    result[jss::account] = context.app.accountIDCache().toBase58 (accountID);
 
     for (auto const& item : visitData.items)
-        addLine (jsonLines, *item.get (), ledger);
+        addLine (context, jsonLines, *item.get (), ledger);
 
     context.loadType = Resource::feeMediumBurdenRPC;
     return result;

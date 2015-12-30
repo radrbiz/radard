@@ -18,6 +18,20 @@
 //==============================================================================
 
 #include <BeastConfig.h>
+#include <ripple/app/ledger/LedgerMaster.h>
+#include <ripple/app/main/Application.h>
+#include <ripple/app/misc/NetworkOPs.h>
+#include <ripple/app/misc/Transaction.h>
+#include <ripple/json/json_value.h>
+#include <ripple/ledger/ReadView.h>
+#include <ripple/net/RPCErr.h>
+#include <ripple/protocol/ErrorCodes.h>
+#include <ripple/protocol/JsonFields.h>
+#include <ripple/protocol/types.h>
+#include <ripple/resource/Fees.h>
+#include <ripple/rpc/Context.h>
+#include <ripple/rpc/impl/LookupLedger.h>
+#include <ripple/rpc/impl/Utilities.h>
 #include <ripple/server/Role.h>
 
 namespace ripple {
@@ -33,18 +47,19 @@ namespace ripple {
 // }
 Json::Value doAccountTx (RPC::Context& context)
 {
+    if (context.app.getTxnDB ().getType () == DatabaseCon::Type::None)
+        return rpcError (rpcNOT_SUPPORTED);
     auto& params = context.params;
 
-    RippleAddress   raAccount;
     int limit = params.isMember (jss::limit) ?
             params[jss::limit].asUInt () : -1;
-    bool bBinary = params.isMember ("binary") && params["binary"].asBool ();
-    bool bForward = params.isMember ("forward") && params["forward"].asBool ();
+    bool bBinary = params.isMember (jss::binary) && params[jss::binary].asBool ();
+    bool bForward = params.isMember (jss::forward) && params[jss::forward].asBool ();
     std::uint32_t   uLedgerMin;
     std::uint32_t   uLedgerMax;
     std::uint32_t   uValidatedMin;
     std::uint32_t   uValidatedMax;
-    bool bValidated = context.netOps.getValidatedRange (
+    bool bValidated = context.ledgerMaster.getValidatedRange (
         uValidatedMin, uValidatedMax);
 
     if (!bValidated)
@@ -53,21 +68,23 @@ Json::Value doAccountTx (RPC::Context& context)
         return rpcError (rpcLGR_IDXS_INVALID);
     }
 
-    if (!params.isMember ("account"))
+    if (!params.isMember (jss::account))
         return rpcError (rpcINVALID_PARAMS);
 
-    if (!raAccount.setAccountID (params["account"].asString ()))
+    auto const account = parseBase58<AccountID>(
+        params[jss::account].asString());
+    if (! account)
         return rpcError (rpcACT_MALFORMED);
 
     context.loadType = Resource::feeMediumBurdenRPC;
 
-    if (params.isMember ("ledger_index_min") ||
-        params.isMember ("ledger_index_max"))
+    if (params.isMember (jss::ledger_index_min) ||
+        params.isMember (jss::ledger_index_max))
     {
-        std::int64_t iLedgerMin  = params.isMember ("ledger_index_min")
-                ? params["ledger_index_min"].asInt () : -1;
-        std::int64_t iLedgerMax  = params.isMember ("ledger_index_max")
-                ? params["ledger_index_max"].asInt () : -1;
+        std::int64_t iLedgerMin  = params.isMember (jss::ledger_index_min)
+                ? params[jss::ledger_index_min].asInt () : -1;
+        std::int64_t iLedgerMax  = params.isMember (jss::ledger_index_max)
+                ? params[jss::ledger_index_max].asInt () : -1;
 
         uLedgerMin  = iLedgerMin == -1 ? uValidatedMin :
             ((iLedgerMin >= uValidatedMin) ? iLedgerMin : uValidatedMin);
@@ -79,13 +96,20 @@ Json::Value doAccountTx (RPC::Context& context)
     }
     else
     {
-        Ledger::pointer l;
-        Json::Value ret = RPC::lookupLedger (params, l, context.netOps);
+        std::shared_ptr<ReadView const> ledger;
+        auto ret = RPC::lookupLedger (ledger, context);
 
-        if (!l)
+        if (! ledger)
             return ret;
 
-        uLedgerMin = uLedgerMax = l->getLedgerSeq ();
+        if (! ret[jss::validated].asBool() ||
+            (ledger->info().seq > uValidatedMax) ||
+            (ledger->info().seq < uValidatedMin))
+        {
+            return rpcError (rpcLGR_NOT_VALIDATED);
+        }
+
+        uLedgerMin = uLedgerMax = ledger->info().seq;
     }
 
     std::string txType = "";
@@ -115,25 +139,25 @@ Json::Value doAccountTx (RPC::Context& context)
 #endif
         Json::Value ret (Json::objectValue);
 
-        ret["account"] = raAccount.humanAccountID ();
-        Json::Value& jvTxns = (ret["transactions"] = Json::arrayValue);
+        ret[jss::account] = context.app.accountIDCache().toBase58(*account);
+        Json::Value& jvTxns = (ret[jss::transactions] = Json::arrayValue);
 
         if (bBinary)
         {
             auto txns = context.netOps.getTxsAccountB (
-                raAccount, uLedgerMin, uLedgerMax, bForward, resumeToken, limit,
-                context.role == Role::ADMIN, txType);
+                *account, uLedgerMin, uLedgerMax, bForward, resumeToken, limit,
+                isUnlimited (context.role), txType);
 
             for (auto& it: txns)
             {
                 Json::Value& jvObj = jvTxns.append (Json::objectValue);
 
-                jvObj["tx_blob"] = std::get<0> (it);
-                jvObj["meta"] = std::get<1> (it);
+                jvObj[jss::tx_blob] = std::get<0> (it);
+                jvObj[jss::meta] = std::get<1> (it);
 
                 std::uint32_t uLedgerIndex = std::get<2> (it);
 
-                jvObj["ledger_index"] = uLedgerIndex;
+                jvObj[jss::ledger_index] = uLedgerIndex;
                 jvObj[jss::validated] = bValidated &&
                     uValidatedMin <= uLedgerIndex &&
                     uValidatedMax >= uLedgerIndex;
@@ -142,8 +166,8 @@ Json::Value doAccountTx (RPC::Context& context)
         else
         {
             auto txns = context.netOps.getTxsAccount (
-                raAccount, uLedgerMin, uLedgerMax, bForward, resumeToken, limit,
-                context.role == Role::ADMIN, txType);
+                *account, uLedgerMin, uLedgerMax, bForward, resumeToken, limit,
+                isUnlimited (context.role), txType);
 
             for (auto& it: txns)
             {
@@ -173,13 +197,13 @@ Json::Value doAccountTx (RPC::Context& context)
         ret[jss::ledger_index_max] = uLedgerMax;
         if (params.isMember (jss::limit))
             ret[jss::limit]        = limit;
-        if (!resumeToken.isNull())
+        if (resumeToken)
             ret[jss::marker] = resumeToken;
 
         return ret;
 #ifndef BEAST_DEBUG
     }
-    catch (...)
+    catch (std::exception const&)
     {
         return rpcError (rpcINTERNAL);
     }

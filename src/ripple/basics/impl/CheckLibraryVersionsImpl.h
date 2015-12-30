@@ -17,8 +17,8 @@
 */
 //==============================================================================
 
-#ifndef RIPPLE_BASICS_CHECKLIBRARYVERSIONS_IMPL_H_INCLUDED
-#define RIPPLE_BASICS_CHECKLIBRARYVERSIONS_IMPL_H_INCLUDED
+#ifndef RIPPLE_BASICS_CHECKLIBRARYVERSIONSIMPL_H_INCLUDED
+#define RIPPLE_BASICS_CHECKLIBRARYVERSIONSIMPL_H_INCLUDED
 
 #include <ripple/basics/CheckLibraryVersions.h>
 #include <boost/version.hpp>
@@ -28,7 +28,7 @@ namespace ripple {
 namespace version {
 
 /** Both Boost and OpenSSL have integral version numbers. */
-typedef unsigned long long VersionNumber;
+using VersionNumber = unsigned long long;
 
 /** Minimal required boost version. */
 extern const char boostMinimal[];
