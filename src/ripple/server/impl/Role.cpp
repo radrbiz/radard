@@ -108,7 +108,7 @@ bool
 isIdentified (HTTP::Port const& port, beast::IP::Address const& remoteIp,
         std::string const& user)
 {
-    return ! user.empty() && ipAllowed (remoteIp, port.secure_gateway_ip);
+    return is_private (remoteIp) || (!user.empty () && ipAllowed (remoteIp, port.secure_gateway_ip));
 }
 
 }
