@@ -1203,7 +1203,7 @@ addRefer (ApplyView& view,
              sleReference->getAccountID (sfReferee).isNonZero ())
     {
         // Reference account already has referee
-        WriteLog (lsTRACE, View)
+        JLOG (j.trace)
             << "Referee has been set.";
 
         return tefREFEREE_EXIST;
@@ -1281,7 +1281,7 @@ shareFeeWithReferee (ApplyView& view,
                 break;
 
             auto const currentAccountID = sleCurrent->getAccountID(sfReferee);
-            WriteLog (lsDEBUG, LedgerEntrySet) << "FeeShare: check " << currentAccountID;
+            JLOG (j.debug) << "FeeShare: check " << currentAccountID;
 
             sleCurrent = view.read (keylet::account (currentAccountID));
             if (!sleCurrent)
@@ -1325,7 +1325,7 @@ shareFeeWithReferee (ApplyView& view,
                     }
                     if (isMaxChild)
                     {
-                        WriteLog (lsDEBUG, LedgerEntrySet) << "\tskip as max child";
+                        JLOG (j.debug) << "\tskip as max child";
                         continue;
                     }
                 }
@@ -1338,14 +1338,14 @@ shareFeeWithReferee (ApplyView& view,
             sendCnt += 1;
             lastAccount = currentAccountID;
             takersMap.insert (std::pair<AccountID, STAmount> (lastAccount, saTransFeeShareEach));
-            WriteLog (lsDEBUG, LedgerEntrySet) << "\tget " << saTransFeeShareEach;
+            JLOG (j.debug) << "\tget " << saTransFeeShareEach;
         }
         
         if (terResult == tesSUCCESS)
         {
             if (sendCnt == 0)
             {
-                WriteLog (lsDEBUG, LedgerEntrySet) << "FeeShare: no ancestor find gateway keep all fee share.";
+                JLOG (j.debug) << "FeeShare: no ancestor find gateway keep all fee share.";
             }
             else if (sendCnt < 5)
             {
@@ -1357,12 +1357,12 @@ shareFeeWithReferee (ApplyView& view,
                     auto itTaker = takersMap.find(lastAccount);
                     if (itTaker == takersMap.end())
                     {
-                        WriteLog (lsWARNING, LedgerEntrySet) << "Last share account not found, this should not happpen.";
+                        JLOG (j.warning) << "Last share account not found, this should not happpen.";
                     }
                     else
                         itTaker->second += saLeft;
                 }
-                WriteLog (lsDEBUG, LedgerEntrySet) << "FeeShare: left " << saLeft << " goes to "<< lastAccount;
+                JLOG (j.debug) << "FeeShare: left " << saLeft << " goes to "<< lastAccount;
             }
             
             if (terResult == tesSUCCESS && takersMap.size())

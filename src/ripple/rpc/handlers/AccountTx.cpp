@@ -120,7 +120,7 @@ Json::Value doAccountTx (RPC::Context& context)
         try {
             TxFormats::getInstance().findTypeByName(txType);
         } catch (...) {
-            WriteLog (lsWARNING, AccountTx) <<
+            JLOG (context.j.warning) <<
             "Invalide tx_type " << txType;
             txType = "";
             return rpcError (rpcINVALID_PARAMS);

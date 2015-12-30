@@ -482,7 +482,7 @@ void DividendMasterImpl::calcDividend (uint64_t dividendCoins, uint64_t dividend
         }
         m_dividendVRank = sumVRank;
     }
-    WriteLog (lsINFO, DividendMaster) << "calcDividend got v rank total: " << sumVRank << " Mem " << memUsed ();
+    JLOG (m_journal.info) << "calcDividend got v rank total: " << sumVRank << " Mem " << memUsed ();
 
 
     // traverse accountsTree to caculate V spreading into VSpd
@@ -490,7 +490,7 @@ void DividendMasterImpl::calcDividend (uint64_t dividendCoins, uint64_t dividend
     {
         Visitor::VertexFunc startVertex = [&](AccountData::Vertex vertex, const AccountData::Graph& accountsGraph)
         {
-            WriteLog (lsINFO, DividendMaster) << "Got root node " << accountsGraph[vertex].data->account << " Mem " << memUsed ();
+            JLOG (m_journal.info) << "Got root node " << accountsGraph[vertex].data->account << " Mem " << memUsed ();
         };
         Visitor::VertexFunc finishVertex = [&](AccountData::Vertex vertex, const AccountData::Graph& accountsGraph)
         {
@@ -527,7 +527,7 @@ void DividendMasterImpl::calcDividend (uint64_t dividendCoins, uint64_t dividend
         boost::depth_first_search (accountsGraph, boost::visitor (Visitor (startVertex, finishVertex)));
         m_dividendVSprd = sumVSpd;
     }
-    WriteLog (lsINFO, DividendMaster) << "calcDividend got v spread total: " << sumVSpd << " Mem " << memUsed ();
+    JLOG (m_journal.info) << "calcDividend got v spread total: " << sumVSpd << " Mem " << memUsed ();
 
     // traverse accountsByReference to calc dividend
     //accountsOut.reserve(m_accounts.size()+1);
@@ -559,7 +559,7 @@ void DividendMasterImpl::calcDividend (uint64_t dividendCoins, uint64_t dividend
             actualTotalDividend += div;
         }
         
-        WriteLog(lsINFO, DividendMaster) << "{\"account\":\"" << accountPtr->account << "\",\"data\":{\"divVBCByRank\":\"" << divVBCbyRank << "\",\"divVBCByPower\":\"" << divVBCbyPower << "\",\"divVBC\":\"" << divVBC << "\",\"divVRP\":\"" << div << "\",\"balance\":\"" << accountPtr->vbc << "\",\"vrank\":\"" << accountPtr->vRank << "\",\"vsprd\":\"" << accountPtr->vSprd << "\",\"tsprd\":\"" << accountPtr->tSprd << "\"}}";
+        JLOG (m_journal.info) << "{\"account\":\"" << accountPtr->account << "\",\"data\":{\"divVBCByRank\":\"" << divVBCbyRank << "\",\"divVBCByPower\":\"" << divVBCbyPower << "\",\"divVBC\":\"" << divVBC << "\",\"divVRP\":\"" << div << "\",\"balance\":\"" << accountPtr->vbc << "\",\"vrank\":\"" << accountPtr->vRank << "\",\"vsprd\":\"" << accountPtr->vSprd << "\",\"tsprd\":\"" << accountPtr->tSprd << "\"}}";
         
         if (div !=0 || divVBC !=0 || accountPtr->vSprd > MIN_VSPD_TO_GET_FEE_SHARE)
         {
@@ -572,12 +572,12 @@ void DividendMasterImpl::calcDividend (uint64_t dividendCoins, uint64_t dividend
                             accountPtr->vSprd, accountPtr->tSprd));
             if (ret.second == false)
             {
-                WriteLog (lsWARNING, DividendMaster) << "Insert same account: " << accountPtr->account << "into dividend account map!";
+                JLOG (m_journal.warning) << "Insert same account: " << accountPtr->account << "into dividend account map!";
             }
         }
     }
     
-    WriteLog(lsINFO, DividendMaster) << "calcDividend got actualTotalDividend " << actualTotalDividend << " actualTotalDividendVBC " << actualTotalDividendVBC << " Mem " << memUsed();
+    JLOG (m_journal.info) << "calcDividend got actualTotalDividend " << actualTotalDividend << " actualTotalDividendVBC " << actualTotalDividendVBC << " Mem " << memUsed();
     
     // collect remainning
     uint64_t remainCoins = 0, remainCoinsVBC = 0;
@@ -606,7 +606,7 @@ void DividendMasterImpl::calcDividend (uint64_t dividendCoins, uint64_t dividend
         }
     }
 
-    WriteLog(lsINFO, DividendMaster) << "calcDividend done with " << accountsOut.size() << " accounts Mem " << memUsed();
+    JLOG (m_journal.info) << "calcDividend done with " << accountsOut.size() << " accounts Mem " << memUsed();
 }
 
 std::pair<bool, Json::Value> 

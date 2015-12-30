@@ -281,7 +281,7 @@ TER PathCursor::forwardLiquidityForAccount () const
                     ;
 
                 STAmount saFee = saTotalSend - saProvide;
-                WriteLog (lsTRACE, RippleCalc)
+                JLOG (j_.trace)
                     << "\n--------------------"
                     << "\npreviousNode():" << previousNode().account_
                     << "\n\tpreviousNode().saFwdRedeem:" << previousNode().saFwdRedeem
@@ -378,7 +378,7 @@ TER PathCursor::forwardLiquidityForAccount () const
                     ;
 
                 STAmount saFee = saTotalSend - saProvide;
-                WriteLog (lsTRACE, RippleCalc)
+                JLOG (j_.trace)
                     << "\n--------------------"
                     << "\npreviousNode():" << previousNode ().account_
                     << "\n\tpreviousNode().saFwdRedeem:" << previousNode ().saFwdRedeem
