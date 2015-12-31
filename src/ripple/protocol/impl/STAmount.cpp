@@ -272,6 +272,7 @@ STAmount::STAmount (IOUAmount const& amount, Issue const& issue)
 
 STAmount::STAmount (XRPAmount const& amount)
     : mOffset (0)
+    , mIssue(amount.isVBC()?vbcIssue():xrpIssue())
     , mIsNative (true)
     , mIsNegative (amount < zero)
 {

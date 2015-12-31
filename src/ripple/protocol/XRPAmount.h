@@ -53,6 +53,11 @@ public:
     {
         isVBC_ = true;
     }
+    
+    bool isVBC () const
+    {
+        return isVBC_;
+    }
 
     XRPAmount&
     operator= (beast::Zero)
