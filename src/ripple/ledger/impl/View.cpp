@@ -118,12 +118,14 @@ accountHolds (ApplyView& view,
                 sle->getFieldU32(sfOwnerCount));
         auto balance =
             sle->getFieldAmount(bVBC?sfBalanceVBC:sfBalance).xrp ();
-        if (bVBC)
-            balance.setVBC ();
         if (balance < reserve)
             amount.clear ();
         else
+        {
             amount = balance - reserve;
+            if (bVBC)
+                amount.setIssue (vbcIssue ());
+        }
         JLOG (j.trace) << "accountHolds:" <<
             " account=" << to_string (account) <<
             " amount=" << amount.getFullText () <<
