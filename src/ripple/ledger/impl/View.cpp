@@ -108,7 +108,7 @@ accountHolds (ApplyView& view,
 {
     STAmount amount;
     bool const bVBC (isVBC (currency));
-    if (isXRP(currency) || bVBC)
+    if (bVBC || isXRP(currency))
     {
         // XRP: return balance minus reserve
         auto const sle = view.read(
@@ -119,7 +119,10 @@ accountHolds (ApplyView& view,
         auto balance =
             sle->getFieldAmount(bVBC?sfBalanceVBC:sfBalance).xrp ();
         if (bVBC)
+        {
             balance.setVBC ();
+            amount.setIssue (vbcIssue ());
+        }
         if (balance < reserve)
             amount.clear ();
         else
