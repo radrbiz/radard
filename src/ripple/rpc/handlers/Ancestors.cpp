@@ -29,7 +29,8 @@ Json::Value doAncestors (RPC::Context& context)
 
     if (jvAccepted)
         return jvAccepted;
-    
+
+    auto& message = result[jss::message];
     AccountID curAccountID = accountID;
     for (int counter = 0; counter < 2000; ++counter)
     {
@@ -38,7 +39,7 @@ Json::Value doAncestors (RPC::Context& context)
         auto sle = ledger->read (keylet::account (curAccountID));
         if (!sle)
             break;
-        Json::Value& record (result.append (Json::objectValue));
+        Json::Value& record (message.append (Json::objectValue));
         record[jss::account] = context.app.accountIDCache().toBase58 (curAccountID);
         AccountID refereeAccountID = sle->getAccountID(sfReferee);
         if (refereeAccountID.isNonZero ())
