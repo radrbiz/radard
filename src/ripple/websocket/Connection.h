@@ -365,7 +365,7 @@ void ConnectionImpl <WebSocket>::preDestroy ()
 template <class WebSocket>
 void ConnectionImpl <WebSocket>::send (Json::Value const& jvObj, bool broadcast)
 {
-    JLOG (j_.warning)
+    JLOG (j_.debug)
             << "WebSocket: sending '" << to_string (jvObj);
     connection_ptr ptr = m_connection.lock ();
 
