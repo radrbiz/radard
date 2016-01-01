@@ -1434,9 +1434,13 @@ public:
             SerialIter it (node->getData().data(), node->getData().size());
             if (it.get32() == HashPrefix::ledgerMaster)
             {
+                // field fixed 
                 it.skip (
-                    4+8+32+    // seq drops parentHash
+                    4+8+8+32+    // seq drops TotalCoinsVBC parentHash
                     32+32+4);  // txHash acctHash parentClose
+                //it.skip (
+                //    4+8+32+    // seq drops parentHash
+                //    32+32+4);  // txHash acctHash parentClose
                 return it.get32();
             }
         }
