@@ -441,7 +441,7 @@ public:
                 gotTXSet (setHash, set);
             }))
 
-        , m_acceptedLedgerCache ("AcceptedLedger", 4, 60, stopwatch(),
+        , m_acceptedLedgerCache ("AcceptedLedger", 4, 600, stopwatch(),
             logs_->journal("TaggedCache"))
 
         , m_networkOPs (make_NetworkOPs (*this, stopwatch(),
