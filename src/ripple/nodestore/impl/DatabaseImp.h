@@ -131,7 +131,7 @@ public:
         {
             // No. Post a read
             std::unique_lock <std::mutex> lock (m_readLock);
-            if (m_backend->canFetchBatch ())
+            if (m_backend && m_backend->canFetchBatch ())
             {
                 auto& readSetList = m_readSetWait[std::this_thread::get_id ()];
                 if (readSetList.empty () || readSetList.back ().size () >= m_backend->fetchBatchLimit ())
@@ -152,7 +152,7 @@ public:
     {
         {
             std::unique_lock <std::mutex> lock (m_readLock);
-            if (m_backend->canFetchBatch ())
+            if (m_backend && m_backend->canFetchBatch ())
             {
                 auto threadId = std::this_thread::get_id ();
                 while (!m_readShut && (m_readSetWait.count (threadId) > 0 || m_readSetBusy.count (threadId) > 0))
@@ -430,7 +430,7 @@ public:
     {
         beast::Thread::setCurrentThreadName ("prefetch");
 
-        if (m_backend->canFetchBatch ())
+        if (m_backend && m_backend->canFetchBatch ())
         {
             while (1)
             {
