@@ -176,7 +176,7 @@ template <class WebSocket>
 void ConnectionImpl <WebSocket>::rcvMessage (
     message_ptr const& msg, bool& msgRejected, bool& runQueue)
 {
-    JLOG (j_.warning)
+    JLOG (j_.debug)
             << "WebSocket: rcvMessage";
     ScopedLockType sl (m_receiveQueueMutex);
 
