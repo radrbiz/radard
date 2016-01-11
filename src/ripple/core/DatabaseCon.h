@@ -115,9 +115,31 @@ public:
     void setupCheckpointing (JobQueue*, Logs&);
 
     Type getType () { return type_; }
+    
+    bool startReconnection ()
+    {
+        std::lock_guard<std::mutex> lock (mutex_);
+        if (isConnecting)
+        {
+            return false;
+        }
+        else
+        {
+            isConnecting = true;
+            return true;
+        }
+    }
+    
+    void finishReconnection ()
+    {
+        std::lock_guard <std::mutex> lock (mutex_);
+        isConnecting = false;
+    }
 
 private:
     LockedSociSession::mutex lock_;
+    std::mutex mutex_;
+    bool isConnecting = false;
 
     soci::session session_;
     std::unique_ptr<Checkpointer> checkpointer_;
