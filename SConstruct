@@ -563,13 +563,21 @@ def config_env(toolchain, variant, env):
 
         # If MySql is used.
         if ARGUMENTS.get('use-mysql'):
-            env.Append(LIBS=['mysqlclient', 'z'])
+            mysql_libs=['mysqlclient', 'z']
+            if should_link_static():
+                add_static_libs(env, mysql_libs)
+            else:
+                env.Append(LIBS=mysql_libs)
             if not Beast.system.osx:
                 env.Append(CPPPATH=['/usr/include/mysql'])
                 env.Append(LIBPATH=['/usr/lib/mysql'])
 
         if ARGUMENTS.get('use-hbase'):
-            env.Append(LIBS=['z', 'event'])
+            hbase_libs=['z', 'event']
+            if should_link_static():
+                add_static_libs(env, hbase_libs)
+            else:
+                env.Append(LIBS=hbase_libs)
 
         if Beast.system.osx:
             env.Append(LIBS=[

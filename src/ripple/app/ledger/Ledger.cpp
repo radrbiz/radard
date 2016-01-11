@@ -1127,18 +1127,20 @@ static bool saveValidatedLedger (
     {
         // catch mysql error
         JLOG (j.fatal) << "Mysql insert accountTransaction exception. " << e.what();
-        bool isConnected = true;
-        while (isConnected)
+
+        if (app.getTxnDB ().startReconnection ())
         {
             try
             {
-                std::this_thread::sleep_for (std::chrono::seconds (3));
+                //std::this_thread::sleep_for (std::chrono::seconds (3));
                 app.getTxnDB ().getSession ().reconnect ();
-                isConnected = false;
+                app.getTxnDB ().finishReconnection ();
+                JLOG (j.warning) << "Mysql reconncetion success";
             }
             catch ( std::exception const& e)
             {
                 JLOG (j.fatal) << "Mysql has gone away. And reconnection failed. " << e.what();
+                app.getTxnDB ().finishReconnection ();
             }
         }
     }
