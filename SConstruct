@@ -966,7 +966,7 @@ def get_unity_sources(toolchain):
     append_sources(
         result,
         'src/ripple/unity/nodestore.cpp',
-        CPPDEFINES=['USE_SHA512_ASM'] if Beast.system.linux and ARGUMENTS.get('use-sha512-asm') else [],
+        CPPDEFINES=['RIPPLE_THRIFT_AVAILABLE'] if ARGUMENTS.get('use-hbase') else [],
         CPPPATH=[
             'src/rocksdb2/include',
             'src/snappy/snappy',
