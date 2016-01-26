@@ -566,6 +566,7 @@ void
 SHAMapStoreImp::clearPrior (LedgerIndex lastRotated)
 {
     ledgerMaster_->clearPriorLedgers (lastRotated);
+    return;
     if (health())
         return;
 

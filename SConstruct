@@ -388,10 +388,10 @@ def config_base(env):
     profile_jemalloc = ARGUMENTS.get('profile-jemalloc')
     if profile_jemalloc:
         env.Append(CPPDEFINES={'PROFILE_JEMALLOC' : profile_jemalloc})
-        env.Append(LIBS=['jemalloc'])
         env.Append(LIBPATH=[os.path.join(profile_jemalloc, 'lib')])
         env.Append(CPPPATH=[os.path.join(profile_jemalloc, 'include')])
         env.Append(LINKFLAGS=['-Wl,-rpath,' + os.path.join(profile_jemalloc, 'lib')])
+        add_static_libs(env, ['jemalloc'], ['unwind'])
 
     profile_perf = ARGUMENTS.get('profile-perf')
     if profile_perf:
@@ -564,10 +564,7 @@ def config_env(toolchain, variant, env):
         # If MySql is used.
         if ARGUMENTS.get('use-mysql'):
             mysql_libs=['mysqlclient', 'z']
-            if should_link_static():
-                add_static_libs(env, mysql_libs)
-            else:
-                env.Append(LIBS=mysql_libs)
+            env.Append(LIBS=mysql_libs)
             if not Beast.system.osx:
                 env.Append(CPPPATH=['/usr/include/mysql'])
                 env.Append(LIBPATH=['/usr/lib/mysql'])
@@ -969,7 +966,7 @@ def get_unity_sources(toolchain):
     append_sources(
         result,
         'src/ripple/unity/nodestore.cpp',
-        CPPDEFINES=['USE_SHA512_ASM'] if Beast.system.linux and ARGUMENTS.get('use-sha512-asm') else [],
+        CPPDEFINES=['RIPPLE_THRIFT_AVAILABLE'] if ARGUMENTS.get('use-hbase') else [],
         CPPPATH=[
             'src/rocksdb2/include',
             'src/snappy/snappy',
