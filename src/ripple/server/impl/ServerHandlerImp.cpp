@@ -19,6 +19,7 @@
 
 #include <BeastConfig.h>
 #include <ripple/app/main/Application.h>
+#include <ripple/app/misc/NetworkOPs.h>
 #include <ripple/json/json_reader.h>
 #include <ripple/server/JsonWriter.h>
 #include <ripple/server/make_ServerHandler.h>
@@ -203,6 +204,14 @@ void
 ServerHandlerImp::processSession (std::shared_ptr<HTTP::Session> const& session,
     std::shared_ptr<JobCoro> jobCoro)
 {
+    if (session->request ().method () == beast::http::method_t::http_get &&
+        session->request ().url () == "/status")
+    {
+        auto rpcJ = app_.journal ("RPC");
+        auto status = m_networkOPs.getOperatingMode () < NetworkOPs::omSYNCING ? 503 : 200;
+        HTTPReply (status, m_networkOPs.strOperatingMode (), makeOutput (*session), rpcJ);
+    }
+    else
     processRequest (session->port(), to_string (session->body()),
         session->remoteAddress().at_port (0), makeOutput (*session), jobCoro,
         session->forwarded_for(), session->user());

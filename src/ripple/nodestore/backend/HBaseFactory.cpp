@@ -34,6 +34,7 @@
 #include <atomic>
 #include <memory>
 #include <boost/thread/tss.hpp>
+#include <boost/format.hpp>
 
 #include <thrift/protocol/TBinaryProtocol.h>
 #include <thrift/protocol/TCompactProtocol.h>
@@ -60,14 +61,20 @@ private:
     BatchWriter m_batch;
 
     std::string m_host;
-    std::string m_port;
+    int32_t m_port;
     bool m_isCompactProtocol;
-    uint32_t m_fetchBatchLimit = 4096;
+    int32_t m_fetchBatchLimit = 4096;
+    int32_t m_connTimeout = 5000;
+    int32_t m_sendTimeout = 5000;
+    int32_t m_recvTimeout = 5000;
 
     std::string s_tableName = "radard";
     std::string s_columnFamily = "data:";
     std::string s_columnName = "data:data";
-
+    
+    // connection pool
+    std::vector <std::string> m_hosts;
+    
     class HbaseConnection
     {
     public:
@@ -77,17 +84,23 @@ private:
         std::unique_ptr<apache::hadoop::hbase::thrift::HbaseClient> m_client;
         beast::Journal m_journal;
 
-        HbaseConnection (std::string host, std::string port, beast::Journal journal, bool isCompactProtocol) : m_journal (journal)
+        HbaseConnection (std::string host, int port,
+                         beast::Journal journal,
+                         bool isCompactProtocol,
+                         int connTimeout,
+                         int sendTimeout,
+                         int recvTimeout)
+            : m_journal (journal)
         {
             using namespace apache::thrift;
             using namespace apache::hadoop::hbase::thrift;
 
-            auto socket = new transport::TSocket (host, boost::lexical_cast<int> (port));
+            auto socket = new transport::TSocket (host, port);
             if (socket)
             {
-                socket->setConnTimeout (5000);
-                socket->setSendTimeout (5000);
-                socket->setRecvTimeout (5000);
+                socket->setConnTimeout (connTimeout);
+                socket->setSendTimeout (sendTimeout);
+                socket->setRecvTimeout (recvTimeout);
             }
             m_socket.reset (socket);
             m_transport.reset (new transport::TBufferedTransport (m_socket));
@@ -119,7 +132,16 @@ private:
         ~HbaseConnection ()
         {
             if (m_transport)
-                m_transport->close ();
+            {
+                try
+                {
+                    m_transport->close ();
+                }
+                catch (const apache::thrift::transport::TTransportException& tte)
+                {
+                    m_journal.error << "Close transport failed: " << tte.what () << " code " << tte.getType ();
+                }
+            }
         }
     };
 
@@ -134,18 +156,39 @@ public:
         , m_scheduler (scheduler)
         , m_batch (*this, scheduler)
         , m_host (get<std::string>(keyValues, "host"))
-        , m_port (get<std::string>(keyValues, "port"))
+        , m_port (get<int>(keyValues, "port", 9090))
         , m_isCompactProtocol (get<std::string>(keyValues, "protocol").compare ("compact") == 0)
     {
-        if (m_host.empty())
+        // parse thrift hosts in config
+        std::string host;
+        std::string hosts = get<std::string> (keyValues, "host");
+        if (hosts.empty ())
             throw std::runtime_error ("Missing host in HbaseFactory backend");
-        
-        if (m_port.empty())
-            throw std::runtime_error ("Missing port in HbaseFactory backend");
 
-        auto fetchBatchLimit = boost::lexical_cast<int> (get<std::string> (keyValues, "fetch_batch_max", "0"));
-        if (fetchBatchLimit > 0)
-            m_fetchBatchLimit = fetchBatchLimit;
+        std::stringstream ss (hosts);
+        while (std::getline (ss, host, ','))
+        {
+            m_hosts.push_back (host);
+        }
+        
+        if (m_port <= 0)
+            throw std::runtime_error ("Bad port in HbaseFactory backend");
+        
+        if (keyValues.exists ("fetch_batch_max"))
+        {
+            m_fetchBatchLimit = get<int>(keyValues, "fetch_batch_max");
+            if (m_fetchBatchLimit <= 0)
+                throw std::runtime_error ("Bad fetch_batch_max in HbaseFactory backend");
+        }
+        
+        if (keyValues.exists ("conn_timeout"))
+            m_connTimeout = get<int>(keyValues, "conn_timeout");
+
+        if (keyValues.exists ("send_timeout"))
+            m_sendTimeout = get<int>(keyValues, "send_timeout");
+
+        if (keyValues.exists ("recv_timeout"))
+            m_recvTimeout = get<int>(keyValues, "recv_timeout");
 
         using namespace apache::thrift;
         using namespace apache::hadoop::hbase::thrift;
@@ -161,7 +204,7 @@ public:
             columns.back ().compression = "SNAPPY";
 //            columns.back ().inMemory = true;
             columns.back ().blockCacheEnabled = true;
-//            columns.back ().bloomFilterType = "ROW";
+            columns.back ().bloomFilterType = "ROW";
 //            columns.back ().timeToLive = 3 * 24 * 3600;
             getConnection ()->m_client->createTable (table, columns);
         }
@@ -171,8 +214,6 @@ public:
         }
         catch (const TException& te)
         {
-//            if (getApp ().isShutdown ())
-//                return;
             throw std::runtime_error (std::string ("Unable to open/create Hbase: ") + te.what ());
         }
     }
@@ -190,16 +231,36 @@ public:
     std::string
     getName()
     {
-        return m_host + ':' + m_port;
+        return boost::str (boost::format ("%s:%d") % m_host % m_port);
     }
 
     HbaseConnection* getConnection ()
     {
+        
         auto conn = m_connection.get ();
         if (!conn)
         {
-            conn = new HbaseConnection (m_host, m_port, m_journal, m_isCompactProtocol);
-            m_connection.reset (conn);
+            for (std::string host : m_hosts)
+            {
+                m_journal.info << "Trying to connect thrift server " << host;
+                conn = new HbaseConnection (host, m_port, m_journal, m_isCompactProtocol, m_connTimeout, m_sendTimeout, m_recvTimeout);
+                m_connection.reset (conn);
+                
+                if (!conn->m_socket->isOpen ())
+                {
+                    m_connection.reset ();
+                    conn->m_socket->close ();
+                    m_journal.warning << "Connect " << host << " failed";
+                    continue;
+                }
+                m_host = host;
+                m_journal.info << "Connected " << host << " hbase thrift server";
+                break;
+            }
+        }
+        if (!conn)
+        {
+            throw std::runtime_error (std::string ("Unable to open/create Hbase connection"));
         }
         return conn;
     }
@@ -220,6 +281,8 @@ public:
         pObject->reset ();
 
         Status status (ok);
+        for (;;)
+        {
         try
         {
             std::vector<TRowResult> rowResult;
@@ -262,6 +325,7 @@ public:
                     }
                 }
             }
+            break;
         }
         catch (TApplicationException& tae)
         {
@@ -278,12 +342,15 @@ public:
             status = tte.getType () == transport::TTransportException::CORRUPTED_DATA ? dataCorrupt : Status (customCode + tte.getType ());
             m_journal.error << tte.what () << "(TTransportException) getting NodeObject #" << uint256::fromVoid (key);
             releaseConnection ();
+            std::this_thread::sleep_for (std::chrono::seconds (1));
         }
         catch (const TException& te)
         {
             status = Status (customCode);
             m_journal.error << te.what () << " getting NodeObject #" << uint256::fromVoid (key);
             releaseConnection ();
+            std::this_thread::sleep_for (std::chrono::seconds (1));
+        }
         }
         return status;
     }
@@ -361,11 +428,13 @@ public:
             {
                 m_journal.error << tte.what () << "(TTransportException) getting " << hashes.size () << " NodeObjects, code " << tte.getType ();
                 releaseConnection ();
+                std::this_thread::sleep_for (std::chrono::seconds (1));
             }
             catch (const TException& te)
             {
                 m_journal.error << te.what () << " getting " << hashes.size () << " NodeObjects";
                 releaseConnection ();
+                std::this_thread::sleep_for (std::chrono::seconds (1));
             }
         }
         return std::make_pair (objects, hashesNotFound);
@@ -402,7 +471,8 @@ public:
             rowBatches.back ().mutations = mutations;
         }
 
-        for (int i = 0; i < 3; i++)
+        //for (int i = 0; i < 3; i++)
+        for (;;)
         {
             try
             {
@@ -414,8 +484,7 @@ public:
             {
                 m_journal.error << "storeBatch failed: " << te.what ();
                 releaseConnection ();
-//                if (getApp ().isShutdown ())
-//                    return;
+                std::this_thread::sleep_for (std::chrono::seconds (1));
             }
         }
         throw std::runtime_error ("storeBatch failed");

@@ -147,7 +147,13 @@ public:
             bool noParent = !accountParent;
 
             auto iter = accounts.find (account);
-
+            
+            // root account stats
+            if (noParent)
+            {
+                JLOG (m_journal.info) << "Root account " << account;
+            }
+            
             if (iter != accounts.end ())
             {
                 // Already qualified as referee.
@@ -167,8 +173,7 @@ public:
                 if (!result)
                 {
                     // this should not happen.
-                    if (m_journal.fatal)
-                        m_journal.fatal << "Can not get AccountData for " << account;
+                    JLOG (m_journal.fatal) << "Can not get AccountData for " << account;
                 }
             }
 
@@ -201,8 +206,7 @@ public:
                     if (iterParent == accounts.end ())
                     {
                         // this should not happen.
-                        if (m_journal.fatal)
-                            m_journal.fatal << "Can not get AccountData for " << sle->getAccountID (sfAccount);
+                        JLOG (m_journal.fatal) << "Can not get AccountData for " << sle->getAccountID (sfAccount);
                     }
                 }
                 auto& parentPtr = iterParent->second;
@@ -213,8 +217,7 @@ public:
 
         ledger->visitStateItems (accountVisitor);
 
-        if (m_journal.info)
-            m_journal.info << accountsUnqualified.size () << " unqualified accounts found. Mem " << memUsed ();
+        JLOG (m_journal.info) << accountsUnqualified.size () << " unqualified accounts found. Mem " << memUsed ();
     }
 
     bool calcDividend (const uint32_t ledgerIndex) override
@@ -311,15 +314,9 @@ private:
     public:
         typedef std::function<void(AccountData::Vertex, const AccountData::Graph&)> VertexFunc;
 
-        Visitor (VertexFunc start_vertex, VertexFunc finish_vertex)
-            : m_start_vertex (start_vertex), m_finish_vertex (finish_vertex)
+        Visitor (VertexFunc finish_vertex)
+            : m_finish_vertex (finish_vertex)
         {
-        }
-
-        template <class Vertex, class Graph>
-        void start_vertex (Vertex vertex, const Graph& accountsGraph)
-        {
-            m_start_vertex (vertex, accountsGraph);
         }
 
         template <typename Vertex, typename Graph>
@@ -329,7 +326,7 @@ private:
         }
 
     private:
-        VertexFunc m_start_vertex, m_finish_vertex;
+        VertexFunc m_finish_vertex;
     };
 
     /// Reference Graph
@@ -488,10 +485,6 @@ void DividendMasterImpl::calcDividend (uint64_t dividendCoins, uint64_t dividend
     // traverse accountsTree to caculate V spreading into VSpd
     sumVSpd = 0;
     {
-        Visitor::VertexFunc startVertex = [&](AccountData::Vertex vertex, const AccountData::Graph& accountsGraph)
-        {
-            JLOG (m_journal.info) << "Got root node " << accountsGraph[vertex].data->account << " Mem " << memUsed ();
-        };
         Visitor::VertexFunc finishVertex = [&](AccountData::Vertex vertex, const AccountData::Graph& accountsGraph)
         {
             auto& accountData = *accountsGraph[vertex].data;
@@ -524,7 +517,7 @@ void DividendMasterImpl::calcDividend (uint64_t dividendCoins, uint64_t dividend
                     parentData.maxChildHolding = t;
             }
         };
-        boost::depth_first_search (accountsGraph, boost::visitor (Visitor (startVertex, finishVertex)));
+        boost::depth_first_search (accountsGraph, boost::visitor (Visitor (finishVertex)));
         m_dividendVSprd = sumVSpd;
     }
     JLOG (m_journal.info) << "calcDividend got v spread total: " << sumVSpd << " Mem " << memUsed ();
@@ -691,8 +684,7 @@ bool DividendMasterImpl::launchDividend (const uint32_t ledgerIndex)
         jtTRANSACTION, "launchDividend",
         std::bind (&NetworkOPs::submitTransaction, &app_.getOPs (),
                    trans));
- 
-    setDividendState (DividendMaster::DivState_Start);
+
     JLOG(m_journal.info) << "Launch dividend,dividend state " << getDividendState ();
     return true;
 }
