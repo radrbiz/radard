@@ -566,7 +566,6 @@ void
 SHAMapStoreImp::clearPrior (LedgerIndex lastRotated)
 {
     ledgerMaster_->clearPriorLedgers (lastRotated);
-    return;
     if (health())
         return;
 
@@ -591,6 +590,7 @@ SHAMapStoreImp::clearPrior (LedgerIndex lastRotated)
     clearSql (*ledgerDb_, lastRotated,
         "SELECT MIN(LedgerSeq) FROM Ledgers;",
         "DELETE FROM Ledgers WHERE LedgerSeq < %u;");
+    return;
     if (health())
         return;
 
