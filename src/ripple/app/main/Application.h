@@ -24,6 +24,7 @@
 #include <ripple/shamap/TreeNodeCache.h>
 #include <ripple/basics/TaggedCache.h>
 #include <ripple/core/Config.h>
+#include <ripple/core/Signals.h>
 #include <beast/utility/PropertyStream.h>
 #include <memory>
 #include <mutex>
@@ -154,6 +155,12 @@ public:
     //        NOTE This will be replaced by class Validators
     //
     virtual DatabaseCon& getWalletDB () = 0;
+
+    struct Signals
+    {
+        boost::signals2::signal<bool(Application&), AbortOnFalse> Setup;
+    };
+    static Signals& signals ();
 };
 
 std::unique_ptr <Application>

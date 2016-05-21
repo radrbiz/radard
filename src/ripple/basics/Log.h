@@ -221,7 +221,11 @@ private:
 // Wraps a Journal::Stream to skip evaluation of
 // expensive argument lists if the stream is not active.
 #ifndef JLOG
-#define JLOG(x) if (!x) { } else x
+#if BEAST_WIN32
+#define JLOG(x) if (!x) { } else x << __FUNCTION__ << ": "
+#else
+#define JLOG(x) if (!x) { } else x << __func__ << ": "
+#endif
 #endif
 
 //------------------------------------------------------------------------------

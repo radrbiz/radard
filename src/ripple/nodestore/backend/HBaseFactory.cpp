@@ -19,8 +19,6 @@
 
 #include <BeastConfig.h>
 
-#include <ripple/unity/thrift.h>
-
 #if RIPPLE_THRIFT_AVAILABLE
 
 #include <ripple/app/main/Application.h>
@@ -33,18 +31,9 @@
 #include <beast/threads/Thread.h>
 #include <atomic>
 #include <memory>
-#include <boost/thread/tss.hpp>
 #include <boost/format.hpp>
 
-#include <thrift/protocol/TBinaryProtocol.h>
-#include <thrift/protocol/TCompactProtocol.h>
-#include <thrift/transport/TSocket.h>
-#include <thrift/transport/TTransportUtils.h>
-
-#include <ripple/thrift/gen-cpp/Hbase.h>
-#include <ripple/thrift/gen-cpp/Hbase.cpp>
-#include <ripple/thrift/gen-cpp/hbase_constants.cpp>
-#include <ripple/thrift/gen-cpp/hbase_types.cpp>
+#include <ripple/thrift/HBaseConn.h>
 
 namespace ripple {
 namespace NodeStore {
@@ -60,92 +49,11 @@ private:
     Scheduler& m_scheduler;
     BatchWriter m_batch;
 
-    std::string m_host;
-    int32_t m_port;
-    bool m_isCompactProtocol;
-    int32_t m_fetchBatchLimit = 4096;
-    int32_t m_connTimeout = 5000;
-    int32_t m_sendTimeout = 5000;
-    int32_t m_recvTimeout = 5000;
-
-    std::string s_tableName = "radard";
+    std::string s_tableName = "NodeStore";
     std::string s_columnFamily = "data:";
     std::string s_columnName = "data:data";
     
-    // connection pool
-    std::vector <std::string> m_hosts;
-    
-    class HbaseConnection
-    {
-    public:
-        boost::shared_ptr<apache::thrift::transport::TTransport> m_socket;
-        boost::shared_ptr<apache::thrift::transport::TTransport> m_transport;
-        boost::shared_ptr<apache::thrift::protocol::TProtocol> m_protocol;
-        std::unique_ptr<apache::hadoop::hbase::thrift::HbaseClient> m_client;
-        beast::Journal m_journal;
-
-        HbaseConnection (std::string host, int port,
-                         beast::Journal journal,
-                         bool isCompactProtocol,
-                         int connTimeout,
-                         int sendTimeout,
-                         int recvTimeout)
-            : m_journal (journal)
-        {
-            using namespace apache::thrift;
-            using namespace apache::hadoop::hbase::thrift;
-
-            auto socket = new transport::TSocket (host, port);
-            if (socket)
-            {
-                socket->setConnTimeout (connTimeout);
-                socket->setSendTimeout (sendTimeout);
-                socket->setRecvTimeout (recvTimeout);
-            }
-            m_socket.reset (socket);
-            m_transport.reset (new transport::TBufferedTransport (m_socket));
-            if (isCompactProtocol)
-                m_protocol.reset (new protocol::TCompactProtocol (m_transport));
-            else
-                m_protocol.reset (new protocol::TBinaryProtocol (m_transport));
-            m_client.reset (new HbaseClient (m_protocol));
-
-//            while (!getApp ().isShutdown ())
-            {
-                try
-                {
-                    m_transport->open ();
-                    return;
-                }
-                catch (const transport::TTransportException& tte)
-                {
-                    m_journal.error << "Open transport failed: " << tte.what () << " code " << tte.getType ();
-                }
-                catch (const TException& te)
-                {
-                    m_journal.error << "Open transport failed: " << te.what ();
-                }
-                std::this_thread::sleep_for (std::chrono::seconds (1));
-            }
-        }
-
-        ~HbaseConnection ()
-        {
-            if (m_transport)
-            {
-                try
-                {
-                    m_transport->close ();
-                }
-                catch (const apache::thrift::transport::TTransportException& tte)
-                {
-                    m_journal.error << "Close transport failed: " << tte.what () << " code " << tte.getType ();
-                }
-            }
-        }
-    };
-
-    boost::thread_specific_ptr<HbaseConnection> m_connection;
+    HBaseConnFactory m_hbaseFactory;
 
 public:
     HbaseBackend (int keyBytes, Section const& keyValues,
@@ -155,41 +63,8 @@ public:
         , m_keyBytes (keyBytes)
         , m_scheduler (scheduler)
         , m_batch (*this, scheduler)
-        , m_host (get<std::string>(keyValues, "host"))
-        , m_port (get<int>(keyValues, "port", 9090))
-        , m_isCompactProtocol (get<std::string>(keyValues, "protocol").compare ("compact") == 0)
+        , m_hbaseFactory (keyValues, journal)
     {
-        // parse thrift hosts in config
-        std::string host;
-        std::string hosts = get<std::string> (keyValues, "host");
-        if (hosts.empty ())
-            throw std::runtime_error ("Missing host in HbaseFactory backend");
-
-        std::stringstream ss (hosts);
-        while (std::getline (ss, host, ','))
-        {
-            m_hosts.push_back (host);
-        }
-        
-        if (m_port <= 0)
-            throw std::runtime_error ("Bad port in HbaseFactory backend");
-        
-        if (keyValues.exists ("fetch_batch_max"))
-        {
-            m_fetchBatchLimit = get<int>(keyValues, "fetch_batch_max");
-            if (m_fetchBatchLimit <= 0)
-                throw std::runtime_error ("Bad fetch_batch_max in HbaseFactory backend");
-        }
-        
-        if (keyValues.exists ("conn_timeout"))
-            m_connTimeout = get<int>(keyValues, "conn_timeout");
-
-        if (keyValues.exists ("send_timeout"))
-            m_sendTimeout = get<int>(keyValues, "send_timeout");
-
-        if (keyValues.exists ("recv_timeout"))
-            m_recvTimeout = get<int>(keyValues, "recv_timeout");
-
         using namespace apache::thrift;
         using namespace apache::hadoop::hbase::thrift;
 
@@ -231,43 +106,17 @@ public:
     std::string
     getName()
     {
-        return boost::str (boost::format ("%s:%d") % m_host % m_port);
+        return "hbase";
     }
 
-    HbaseConnection* getConnection ()
+    HBaseConn* getConnection ()
     {
-        
-        auto conn = m_connection.get ();
-        if (!conn)
-        {
-            for (std::string host : m_hosts)
-            {
-                m_journal.info << "Trying to connect thrift server " << host;
-                conn = new HbaseConnection (host, m_port, m_journal, m_isCompactProtocol, m_connTimeout, m_sendTimeout, m_recvTimeout);
-                m_connection.reset (conn);
-                
-                if (!conn->m_socket->isOpen ())
-                {
-                    m_connection.reset ();
-                    conn->m_socket->close ();
-                    m_journal.warning << "Connect " << host << " failed";
-                    continue;
-                }
-                m_host = host;
-                m_journal.info << "Connected " << host << " hbase thrift server";
-                break;
-            }
-        }
-        if (!conn)
-        {
-            throw std::runtime_error (std::string ("Unable to open/create Hbase connection"));
-        }
-        return conn;
+        return m_hbaseFactory.getConnection ();
     }
 
     void releaseConnection ()
     {
-        m_connection.reset ();
+        m_hbaseFactory.release ();
     }
 
     //--------------------------------------------------------------------------
@@ -367,7 +216,7 @@ public:
     uint32_t
     fetchBatchLimit ()
     {
-        return m_fetchBatchLimit;
+        return m_hbaseFactory.getSetup ().fetchBatchLimit;
     }
 
     std::pair<std::vector<std::shared_ptr<NodeObject>>, std::set<uint256>>

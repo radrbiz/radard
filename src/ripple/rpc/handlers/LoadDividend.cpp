@@ -63,7 +63,7 @@ Json::Value doLoadDividend (RPC::Context &context)
     }
 
     // public key is needed to accept dividend transactions.
-    std::string public_key = get<std::string> (context.app.config ()[ConfigSection::dividendAccount ()], "public_key");
+    std::string public_key = get<std::string> (context.app.config ()[SECTION_DIVIDEND_ACCOUNT], "public_key");
     if (public_key.empty ())
         return RPC::make_error (rpcNOT_ENABLED, "public_key missing in cfg.");
     auto accountPublic = parseBase58<AccountID> (public_key);
@@ -71,7 +71,7 @@ Json::Value doLoadDividend (RPC::Context &context)
         return RPC::make_error (rpcPUBLIC_MALFORMED, "invalid public_key in cfg.");
 
     // private key is needed to launch dividend.
-    std::string secret_key = get<std::string> (context.app.config ()[ConfigSection::dividendAccount ()], "secret_key");
+    std::string secret_key = get<std::string> (context.app.config ()[SECTION_DIVIDEND_ACCOUNT], "secret_key");
     if (secret_key.empty ())
         return RPC::make_error (rpcNOT_ENABLED, "secret_key missing in cfg.");
     RippleAddress secret = RippleAddress::createSeedGeneric (secret_key);

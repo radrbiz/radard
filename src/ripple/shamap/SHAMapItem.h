@@ -32,12 +32,14 @@ namespace ripple {
 
 // an item stored in a SHAMap
 class SHAMapItem
+    : public CountedObject <SHAMapItem>
 {
 private:
     uint256    tag_;
     Blob       data_;
 
 public:
+    static char const* getCountedObjectName () { return "SHAMapItem"; }
     SHAMapItem (uint256 const& tag, Blob const & data);
     SHAMapItem (uint256 const& tag, Serializer const& s);
     SHAMapItem (uint256 const& tag, Serializer&& s);

@@ -62,7 +62,7 @@ Dividend::preflight (PreflightContext const& ctx)
     }
 
     // check if signing public key is trusted.
-    auto const& dividendAccount = ctx.app.config ()[ConfigSection::dividendAccount ()];
+    auto const& dividendAccount = ctx.app.config ()[SECTION_DIVIDEND_ACCOUNT];
     std::string public_key = get<std::string> (dividendAccount, "public_key");
     if (public_key.empty())
     {

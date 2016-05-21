@@ -1449,7 +1449,7 @@ assetReleased (ApplyView& view,
                 view.info ().parentCloseTime);
             released = mulRound(amount, amountFromRate(releaseRate), amount.issue(), true, amountCalcSwitchovers);
             released.floor();
-            JLOG (j.trace) << __func__ << ": release " << released << " bought at " << boughtTime;
+            JLOG (j.trace) << "release " << released << " bought at " << boughtTime;
         }
     }
     return std::make_tuple(released, bIsReleaseFinished);
@@ -1471,7 +1471,7 @@ assetRelease (ApplyView& view,
     uint256 assetStateEnd = getQualityNext(assetStateIndex);
     uint256 assetStateIndexZero = assetStateIndex;
 
-    JLOG(j.trace) << __func__ << ": checking asset between " << uSrcAccountID << '/' << uDstAccountID << " current balance:" << saBalance << " reserved:" << sleRippleState->getFieldAmount (sfReserve);
+    JLOG(j.trace) << "checking asset between " << uSrcAccountID << '/' << uDstAccountID << " current balance:" << saBalance << " reserved:" << sleRippleState->getFieldAmount (sfReserve);
 
     auto const& sleAssetState = view.peek (keylet::asset_state (assetStateIndexZero));
     if (sleAssetState) {
@@ -1534,7 +1534,7 @@ assetRelease (ApplyView& view,
             // just update delivered amount if there are further releases.
             sleAssetState->setFieldAmount(sfDeliveredAmount, released);
             view.update(sleAssetState);
-            JLOG(j.trace) << __func__ << ": asset state updated";
+            JLOG(j.trace) << "asset state updated";
         } else {
             // compact asset state if no more further release.
             bool bDstHigh = uSrcAccountID < uDstAccountID;
@@ -1547,7 +1547,7 @@ assetRelease (ApplyView& view,
                     sleAssetStateZero->setFieldAmount(sfDeliveredAmount,
                                                       sleAssetStateZero->getFieldAmount(sfDeliveredAmount) + released);
                     view.update (sleAssetStateZero);
-                    JLOG(j.trace) << __func__ << ": asset state zero updated";
+                    JLOG(j.trace) << "asset state zero updated";
                 } else {
                     sleAssetStateZero = std::make_shared<SLE> (keylet::asset_state(assetStateIndexZero));
                     view.insert (sleAssetStateZero);
@@ -1579,7 +1579,7 @@ assetRelease (ApplyView& view,
                     sleAssetStateZero->setFieldAmount(sfDeliveredAmount, released);
 
                     adjustOwnerCount (view, view.peek (keylet::account (owner)), 1, j);
-                    JLOG(j.trace) << __func__ << ": asset state zero created";
+                    JLOG(j.trace) << "asset state zero created";
                 }
             }
             if (tesSUCCESS != terResult)
@@ -1606,7 +1606,7 @@ assetRelease (ApplyView& view,
                 break;
             view.erase (sleAssetState);
             adjustOwnerCount (view, view.peek (keylet::account (owner)), -1, j);
-            JLOG(j.trace) << __func__ << ": asset state deleted";
+            JLOG(j.trace) << "asset state deleted";
         }
 
         // update balance in RippleState
@@ -1629,7 +1629,7 @@ assetRelease (ApplyView& view,
         view.update (sleRippleState);
     }
 
-    JLOG(j.trace) << __func__ << ": final balance:" << saBalance << " reserved:" << saReserve;
+    JLOG(j.trace) << "final balance:" << saBalance << " reserved:" << saReserve;
 
     return terResult;
 }
@@ -1658,7 +1658,7 @@ issueAsset (ApplyView& view,
     else
     {
         // Amounts sending to normal account are added to an asset state.
-        JLOG (j.debug) << __func__ << ": " << uSenderID << " -> " << uReceiverID << " : " << saAmount.getFullText ();
+        JLOG (j.debug) << uSenderID << " -> " << uReceiverID << " : " << saAmount.getFullText ();
         auto sleAsset = view.read (keylet::asset (uSenderID, currency));
         if (!sleAsset)
         {
@@ -1700,7 +1700,7 @@ issueAsset (ApplyView& view,
                 }
                 if (tesSUCCESS == terResult)
                 {
-                    JLOG (j.debug) << __func__ << ": create asset state for " << uReceiverID;
+                    JLOG (j.debug) << "create asset state for " << uReceiverID;
                     sleAssetState->setFieldU64 (sfLowNode, uLowNode);
                     sleAssetState->setFieldU64 (sfHighNode, uHighNode);
                     sleAssetState->setAccountID (sfAccount, uReceiverID);
@@ -1721,7 +1721,7 @@ issueAsset (ApplyView& view,
                 STAmount saReceiverLimit ({currency, uReceiverID}, Config ().ASSET_LIMIT_DEFAULT);
                 STAmount saBalance ({currency, noAccount ()});
 
-                JLOG (j.debug) << __func__ << ": create line: " << uSenderID << " -> " << uReceiverID << " : " << saAmount.getFullText ();
+                JLOG (j.debug) << "create line: " << uSenderID << " -> " << uReceiverID << " : " << saAmount.getFullText ();
 
                 terResult = trustCreate (view,
                                          bSenderHigh,

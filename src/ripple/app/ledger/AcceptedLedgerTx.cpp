@@ -73,6 +73,12 @@ std::string AcceptedLedgerTx::getEscMeta () const
     return sqlEscape (mRawMeta);
 }
 
+std::string AcceptedLedgerTx::getRawMeta () const
+{
+    assert (!mRawMeta.empty ());
+    return std::string (static_cast<const char*> ((void*)mRawMeta.data ()), mRawMeta.size ());
+}
+
 void AcceptedLedgerTx::buildJson ()
 {
     mJson = Json::objectValue;

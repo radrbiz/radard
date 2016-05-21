@@ -108,6 +108,7 @@ public:
         return mMeta ? mMeta->getIndex () : 0;
     }
     std::string getEscMeta () const;
+    std::string getRawMeta () const;
     Json::Value getJson ()
     {
         if (mJson == Json::nullValue)

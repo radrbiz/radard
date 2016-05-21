@@ -84,6 +84,12 @@ namespace ripple {
 // 204/256 about 80%
 static int const MAJORITY_FRACTION (204);
 
+Application::Signals& Application::signals ()
+{
+    static Signals gSignals;
+    return gSignals;
+}
+
 //------------------------------------------------------------------------------
 
 namespace detail {
@@ -738,14 +744,14 @@ public:
         assert (mWalletDB.get () == nullptr);
 
         DatabaseCon::Setup setup = setup_DatabaseCon (*config_);
-        auto const& trasactionDatabse = config_->section (ConfigSection::transactionDatabase ());
+        auto const& trasactionDatabse = config_->section (SECTION_TX_DB);
         std::string type = get<std::string> (trasactionDatabse, "type");
         if (type.empty () || type == "sqlite")
             mTxnDB = std::make_unique <DatabaseCon> (setup, "transaction.db",
                 TxnDBInit, TxnDBCount);
         else if (type == "mysql")
         {
-            auto const& params = config_->section (ConfigSection::transactionDatabase ());
+            auto const& params = config_->section (SECTION_TX_DB);
             auto connectionString = (boost::format ("host=%s port=%s db=%s user=%s password='%s'") %
                                      get<std::string> (params, "host") %
                                      get<std::string> (params, "port") %
@@ -980,6 +986,13 @@ void ApplicationImp::setup()
     if (!config_->RUN_STANDALONE)
         updateTables ();
 
+    // trigger Setup signal
+    if (!signals ().Setup (*this))
+    {
+        m_journal.fatal << "One setup signal slot failed.";
+        exitWithCode(3);
+    }
+
     m_amendmentTable->addInitial (
         config_->section (SECTION_AMENDMENTS));
     Pathfinder::initPathTable();
@@ -993,6 +1006,53 @@ void ApplicationImp::setup()
         m_journal.info << "Starting new Ledger";
 
         startGenesisLedger ();
+    }
+    else if (startUp == Config::DUMP)
+    {
+        uint256 uNodeIndex;
+        uNodeIndex.SetHex (config_->DUMP_INDEX);
+        SHAMap map (
+            SHAMapType::TRANSACTION, uint256 (),
+            family ());
+
+        std::shared_ptr<NodeObject> obj = family ().db ().fetch (uNodeIndex);
+        if (obj)
+        {
+            try
+            {
+                auto node = SHAMapAbstractNode::make (
+                    obj->getData (), 0, snfPREFIX, SHAMapHash (uNodeIndex), true, m_journal);
+                if (!node || !node->isLeaf ())
+                    throw "No such node";
+                std::shared_ptr<STTx const> txn;
+                auto item = dynamic_cast<SHAMapTreeNode*> (node.get ())->peekItem ();
+                switch (node->getType ())
+                {
+                case SHAMapInnerNode::tnTRANSACTION_NM:
+                {
+                    SerialIter sit (item->slice ());
+                    txn = std::make_shared<STTx const> (std::ref (sit));
+                    break;
+                }
+                case SHAMapInnerNode::tnTRANSACTION_MD:
+                {
+                    auto blob = SerialIter{item->data (), item->size ()}.getVL ();
+                    txn = std::make_shared<STTx const> (SerialIter{blob.data (), blob.size ()});
+                    break;
+                }
+                }
+                if (txn)
+                {
+                    std::cout << txn->getJson (0) << std::endl;
+                }
+            }
+            catch (std::exception const&)
+            {
+                if (m_journal.warning) m_journal.warning <<
+                    "Invalid DB node " << uNodeIndex;
+            }
+        }
+        exitWithCode(0);
     }
     else if (startUp == Config::LOAD ||
                 startUp == Config::LOAD_FILE ||

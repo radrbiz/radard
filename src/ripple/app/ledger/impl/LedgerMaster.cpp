@@ -64,6 +64,12 @@ namespace ripple {
 // Don't acquire history if ledger is too old
 #define MAX_LEDGER_AGE_ACQUIRE  60
 
+LedgerMaster::Signals& LedgerMaster::signals ()
+{
+    static Signals gSignals;
+    return gSignals;
+}
+
 class LedgerMasterImp
     : public LedgerMaster
 {
@@ -896,7 +902,7 @@ public:
                 return;
             }
             
-            auto const& dividendAccount = app_.config ()[ConfigSection::dividendAccount ()];
+            auto const& dividendAccount = app_.config ()[SECTION_DIVIDEND_ACCOUNT];
             std::string secret_key = get<std::string> (dividendAccount, "secret_key");
             if (secret_key.empty())
                 return;

@@ -37,6 +37,7 @@ namespace ripple {
 // }
 Json::Value doTxHistory (RPC::Context& context)
 {
+    return rpcError (rpcNOT_SUPPORTED);
     context.loadType = Resource::feeMediumBurdenRPC;
 
     if (!context.params.isMember (jss::start))

@@ -29,13 +29,12 @@ struct ConfigSection
 {
     static std::string nodeDatabase ()       { return "node_db"; }
     static std::string importNodeDatabase () { return "import_db"; }
-    static std::string transactionDatabase () { return "transaction_db"; }
-    static std::string dividendAccount ()    { return "dividend_account";}
 };
 
 // VFALCO TODO Rename and replace these macros with variables.
 #define SECTION_AMENDMENTS              "amendments"
 #define SECTION_CLUSTER_NODES           "cluster_nodes"
+#define SECTION_DIVIDEND_ACCOUNT        "dividend_account"
 #define SECTION_DEBUG_LOGFILE           "debug_logfile"
 #define SECTION_ELB_SUPPORT             "elb_support"
 #define SECTION_FEE_DEFAULT             "fee_default"
@@ -61,6 +60,8 @@ struct ConfigSection
 #define SECTION_SSL_VERIFY              "ssl_verify"
 #define SECTION_SSL_VERIFY_FILE         "ssl_verify_file"
 #define SECTION_SSL_VERIFY_DIR          "ssl_verify_dir"
+#define SECTION_TX_DB                   "transaction_db"
+#define SECTION_TX_DB_HBASE             "tx_db_hbase"
 #define SECTION_VALIDATORS_FILE         "validators_file"
 #define SECTION_VALIDATION_QUORUM       "validation_quorum"
 #define SECTION_VALIDATION_SEED         "validation_seed"

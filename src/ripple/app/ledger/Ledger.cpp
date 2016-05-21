@@ -994,6 +994,13 @@ static bool saveValidatedLedger (
             hotLEDGER, std::move (s.modData ()), ledger->info().hash);
     }
 
+    if (!LedgerMaster::signals ().SaveValidated (ledger))
+    {
+        JLOG (j.warning) << "One SaveValidated signal slot failed";
+        app.getLedgerMaster().failedSave(seq, ledger->info().hash);
+        app.pendingSaves().finishWork(seq);
+        return false;
+    }
 
     AcceptedLedger::pointer aLedger;
     try
@@ -1127,6 +1134,7 @@ static bool saveValidatedLedger (
     {
         // catch mysql error
         JLOG (j.fatal) << "Mysql insert accountTransaction exception. " << e.what();
+        app.getLedgerMaster().failedSave(seq, ledger->info().hash);
 
         if (app.getTxnDB ().startReconnection ())
         {
@@ -1143,6 +1151,8 @@ static bool saveValidatedLedger (
                 app.getTxnDB ().finishReconnection ();
             }
         }
+        app.pendingSaves ().finishWork (seq);
+        return false;
     }
 
     // Clients can now trust the database for

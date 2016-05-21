@@ -378,7 +378,7 @@ void DividendMasterImpl::getMissingTxns ()
     }
     
 //    SHAMap const& transMap = curLedger->txMap ();
-    std::string secret_key = get<std::string> (app_.config ()[ConfigSection::dividendAccount ()], "secret_key");
+    std::string secret_key = get<std::string> (app_.config ()[SECTION_DIVIDEND_ACCOUNT], "secret_key");
     RippleAddress secret = RippleAddress::createSeedGeneric (secret_key);
     RippleAddress generator = RippleAddress::createGeneratorPublic (secret);
     RippleAddress naAccountPrivate = RippleAddress::createAccountPrivate (generator, secret, 0);
@@ -390,7 +390,7 @@ void DividendMasterImpl::getMissingTxns ()
         txnIter++;
 
     uint256 lastTxn = prevTxnID;
-    int shots = 200;
+    int shots = 256;
     int passes = 1;
 
     JLOG(journal.info) << "Dividend job, begin submit, dividend state " << getDividendState();
@@ -658,7 +658,7 @@ DividendMasterImpl::checkDividend (const uint32_t ledgerIndex, const std::string
 
 bool DividendMasterImpl::launchDividend (const uint32_t ledgerIndex)
 {
-    std::string secret_key = get<std::string> (app_.config ()[ConfigSection::dividendAccount ()], "secret_key");
+    std::string secret_key = get<std::string> (app_.config ()[SECTION_DIVIDEND_ACCOUNT], "secret_key");
 
     RippleAddress secret = RippleAddress::createSeedGeneric (secret_key);
     RippleAddress generator = RippleAddress::createGeneratorPublic (secret);
@@ -693,7 +693,7 @@ bool DividendMasterImpl::dumpTransactionMap(const uint32_t ledgerIndex, const st
 {
     bool doSave = !hash.empty ();
 
-    std::string secret_key = get<std::string> (app_.config ()[ConfigSection::dividendAccount ()], "secret_key");
+    std::string secret_key = get<std::string> (app_.config ()[SECTION_DIVIDEND_ACCOUNT], "secret_key");
     RippleAddress secret = RippleAddress::createSeedGeneric (secret_key);
     RippleAddress generator = RippleAddress::createGeneratorPublic (secret);
     RippleAddress naAccountPrivate = RippleAddress::createAccountPrivate (generator, secret, 0);

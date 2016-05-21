@@ -133,6 +133,7 @@ public:
 
 class SHAMapInnerNode
     : public SHAMapAbstractNode
+    , public CountedObject <SHAMapInnerNode>
 {
     SHAMapHash                      mHashes[16];
     std::shared_ptr<SHAMapAbstractNode> mChildren[16];
@@ -141,6 +142,7 @@ class SHAMapInnerNode
 
     static std::mutex               childLock;
 public:
+    static char const* getCountedObjectName () { return "SHAMapInnerNode"; }
     SHAMapInnerNode(std::uint32_t seq = 0);
     std::shared_ptr<SHAMapAbstractNode> clone(std::uint32_t seq) const override;
 
@@ -174,11 +176,13 @@ public:
 // SHAMapTreeNode represents a leaf, and may eventually be renamed to reflect that.
 class SHAMapTreeNode
     : public SHAMapAbstractNode
+    , public CountedObject <SHAMapTreeNode>
 {
 private:
     std::shared_ptr<SHAMapItem const> mItem;
 
 public:
+    static char const* getCountedObjectName () { return "SHAMapTreeNode"; }
     SHAMapTreeNode (const SHAMapTreeNode&) = delete;
     SHAMapTreeNode& operator= (const SHAMapTreeNode&) = delete;
 

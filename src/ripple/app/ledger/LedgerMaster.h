@@ -25,6 +25,7 @@
 #include <ripple/app/ledger/LedgerHolder.h>
 #include <ripple/basics/chrono.h>
 #include <ripple/basics/StringUtilities.h>
+#include <ripple/core/Signals.h>
 #include <ripple/protocol/RippleLedgerHash.h>
 #include <ripple/protocol/STValidation.h>
 #include <beast/insight/Collector.h>
@@ -208,6 +209,14 @@ public:
 
     virtual
     std::size_t getFetchPackCacheSize () const = 0;
+
+    // signals
+    struct Signals
+    {
+        boost::signals2::signal<bool(std::shared_ptr<Ledger const> const&), AbortOnFalse> SaveValidated;
+    };
+
+    static Signals& signals ();
 };
 
 std::unique_ptr <LedgerMaster>

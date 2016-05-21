@@ -177,13 +177,15 @@ public:
         LOAD,
         LOAD_FILE,
         REPLAY,
-        NETWORK
+        NETWORK,
+        DUMP
     };
     StartUpType                 START_UP = NORMAL;
 
     bool                        START_VALID = false;
 
     std::string                 START_LEDGER;
+    std::string                 DUMP_INDEX;
 
     // Network parameters
     int                         TRANSACTION_FEE_BASE = 1000;   // The number of fee units a reference transaction costs

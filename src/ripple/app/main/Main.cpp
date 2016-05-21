@@ -306,6 +306,7 @@ int run (int argc, char** argv)
     ("fg", "Run in the foreground.")
     ("import", importText.c_str ())
     ("version", "Display the build version.")
+    ("dump", po::value<std::string> (), "Dump an entry")
     ;
 
     // Interpret positional arguments as --parameters.
@@ -412,6 +413,12 @@ int run (int argc, char** argv)
     else if (vm.count ("load"))
     {
         config->START_UP = Config::LOAD;
+    }
+    
+    if (vm.count ("dump"))
+    {
+        config->START_UP = Config::DUMP;
+        config->DUMP_INDEX = vm["dump"].as<std::string> ();
     }
 
     if (vm.count ("valid"))
