@@ -156,12 +156,40 @@ public:
     //
     virtual DatabaseCon& getWalletDB () = 0;
 
+    /// Global signals.
     struct Signals
     {
+        /// Called in Application::setup.
         boost::signals2::signal<bool(Application&), AbortOnFalse> Setup;
+        /// Called in Application::onStop.
+        boost::signals2::signal<void()> Shutdown;
     };
+    /// Get the global signals.
     static Signals& signals ();
+
+    /** 
+     * Inherit this template class to listen Application::Signals::Setup.
+     * @note Implement `static bool onSetup (Application& app)` in your class.
+     */
+    template <class T>
+    struct SetupListener
+    {
+        SetupListener ()
+        {
+            reg; //force specialization
+        }
+
+        static bool reg;
+        static bool listenSetup ()
+        {
+            Application::signals ().Setup.connect (T::onSetup);
+            return true;
+        }
+    };
 };
+
+template<class T>
+bool Application::SetupListener<T>::reg = Application::SetupListener<T>::listenSetup();
 
 std::unique_ptr <Application>
 make_Application(

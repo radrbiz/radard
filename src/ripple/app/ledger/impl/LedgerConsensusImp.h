@@ -50,6 +50,7 @@ class LedgerConsensusImp
     : public LedgerConsensus
     , public std::enable_shared_from_this <LedgerConsensusImp>
     , public CountedObject <LedgerConsensusImp>
+    , private Application::SetupListener <LedgerConsensusImp>
 {
 private:
     enum class State
@@ -104,6 +105,8 @@ public:
         Ledger::ref previousLedger,
         std::uint32_t closeTime,
         FeeVote& feeVote);
+
+    static bool onSetup (Application& app);
 
     /**
       Get the Json state of the consensus process.
@@ -344,6 +347,23 @@ private:
     // nodes that have bowed out of this consensus process
     hash_set<NodeID> mDeadNodes;
     beast::Journal j_;
+
+public:
+    enum Type
+    {
+        Ripple = 0,
+        ZooKeeper = 1,
+    };
+
+    static Type getConsensusType () { return s_type; }
+    static void setConsensusType (Type type) { s_type = type; }
+
+private:
+    static std::atomic<Type> s_type;
+#if USE_ZOOKEEPER
+    static std::string s_hosts;
+    static const char* s_zkPath;
+#endif
 };
 
 //------------------------------------------------------------------------------

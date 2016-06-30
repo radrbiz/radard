@@ -408,6 +408,16 @@ private:
         return jvRequest;
     }
 
+    // consensus_type <ip> [port]
+    Json::Value parseConsensusType (Json::Value const& jvParams)
+    {
+        Json::Value     jvRequest (Json::objectValue);
+
+        jvRequest[jss::type] = jvParams[0u].asString ();
+
+        return jvRequest;
+    }
+
     // Return an error for attemping to subscribe/unsubscribe via RPC.
     Json::Value parseEvented (Json::Value const& jvParams)
     {
@@ -961,6 +971,7 @@ public:
             {   "can_delete",           &RPCParser::parseCanDelete,             0,  1   },
             {   "connect",              &RPCParser::parseConnect,               1,  2   },
             {   "consensus_info",       &RPCParser::parseAsIs,                  0,  0   },
+            {   "consensus_type",       &RPCParser::parseConsensusType,         1,  1   },
             {   "feature",              &RPCParser::parseFeature,               0,  2   },
             {   "fetch_info",           &RPCParser::parseFetchInfo,             0,  1   },
             {   "gateway_balances",     &RPCParser::parseGatewayBalances  ,     1,  -1  },

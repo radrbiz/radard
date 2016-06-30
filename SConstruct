@@ -576,6 +576,13 @@ def config_env(toolchain, variant, env):
             else:
                 env.Append(LIBS=hbase_libs)
 
+        if ARGUMENTS.get('use-zookeeper'):
+            zk_libs=['zookeeper_mt']
+            if should_link_static():
+                add_static_libs(env, zk_libs)
+            else:
+                env.Append(LIBS=zk_libs)
+
         if Beast.system.osx:
             env.Append(LIBS=[
                 'crypto',
@@ -893,7 +900,12 @@ def get_classic_sources(toolchain):
             'src/soci/src/core',
             'src/sqlite']
     )
-    append_sources(result, *list_sources('src/ripple/app', '.cpp'), CPPDEFINES=['USE_SHA512_ASM'] if Beast.system.linux and ARGUMENTS.get('use-sha512-asm') else [])
+    cpp_define=[]
+    if Beast.system.linux and ARGUMENTS.get('use-sha512-asm'):
+        cpp_define.append('USE_SHA512_ASM')
+    if ARGUMENTS.get('use-zookeeper'):
+        cpp_define.append('USE_ZOOKEEPER')
+    append_sources(result, *list_sources('src/ripple/app', '.cpp'), CPPDEFINES=cpp_define)
     append_sources(result, *list_sources('src/ripple/basics', '.cpp'))
     append_sources(result, *list_sources('src/ripple/crypto', '.cpp'))
     append_sources(result, *list_sources('src/ripple/json', '.cpp'))
@@ -933,7 +945,6 @@ def get_unity_sources(toolchain):
     result = []
     append_sources(
         result,
-        'src/ripple/unity/app_ledger.cpp',
         'src/ripple/unity/app_misc.cpp',
         'src/ripple/unity/app_paths.cpp',
         'src/ripple/unity/app_tests.cpp',
@@ -951,6 +962,12 @@ def get_unity_sources(toolchain):
         'src/ripple/unity/test.cpp',
         'src/ripple/unity/unl.cpp',
     )
+
+    append_sources(
+        result,
+        'src/ripple/unity/app_ledger.cpp',
+        CPPDEFINES=['USE_ZOOKEEPER'] if ARGUMENTS.get('use-zookeeper') else []
+        )
 
     append_sources(
         result,

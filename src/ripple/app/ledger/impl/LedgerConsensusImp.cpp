@@ -18,6 +18,7 @@
 //==============================================================================
 
 #include <BeastConfig.h>
+#include <boost/algorithm/string.hpp>
 #include <ripple/app/ledger/InboundLedgers.h>
 #include <ripple/app/ledger/LedgerMaster.h>
 #include <ripple/app/ledger/LedgerTiming.h>
@@ -48,6 +49,7 @@
 #include <ripple/overlay/predicates.h>
 #include <ripple/protocol/st.h>
 #include <ripple/protocol/Feature.h>
+#include <ripple/unity/zookeeper.h>
 #include <beast/module/core/text/LexicalCast.h>
 #include <beast/utility/make_lock.h>
 #include <type_traits>
@@ -144,6 +146,14 @@ enum class ConsensusState
     MovedOn,      // The network has consensus without us
     Yes           // We have consensus along with the network
 };
+
+std::atomic<LedgerConsensusImp::Type> LedgerConsensusImp::s_type (LedgerConsensusImp::Type::Ripple);
+#if USE_ZOOKEEPER
+std::string LedgerConsensusImp::s_hosts;
+const char* LedgerConsensusImp::s_zkPath = "/" SYSTEM_NAMESPACE "/consensus";
+
+static std::unique_ptr<ZkConnFactory> zkConnFactory;
+#endif
 
 /** Determine whether the network reached consensus and whether we joined.
 
@@ -306,6 +316,45 @@ LedgerConsensusImp::LedgerConsensusImp (
         // consider closing the ledger immediately
         timerEntry ();
     }
+}
+
+bool LedgerConsensusImp::onSetup (Application& app)
+{
+    if (!app.config ().exists (SECTION_CONSENSUS))
+        return true;
+
+    auto type = get<std::string> (app.config ().section (SECTION_CONSENSUS), "type", "ripple");
+    if (type.compare ("Ripple") == 0)
+        s_type = LedgerConsensusImp::Type::Ripple;
+    else if (type.compare ("ZooKeeper") == 0)
+    {
+#if USE_ZOOKEEPER
+        s_type = LedgerConsensusImp::Type::ZooKeeper;
+
+        zkConnFactory.reset (new ZkConnFactory (app.config ().section (SECTION_CONSENSUS), app.journal ("ZooKeeper")));
+
+        // disconnect zookeeper when shutdown
+        Application::signals ().Shutdown.connect (
+            []() {
+                zkConnFactory.reset ();
+            });
+
+        // initialize zookeeper parent path
+        int ret = zoo_create (zkConnFactory->getConnection (), "/" SYSTEM_NAMESPACE, NULL, -1, &ZOO_OPEN_ACL_UNSAFE, 0, NULL, 0);
+        if (ret == ZNODEEXISTS || ret == ZOK)
+            ret = zoo_create (zkConnFactory->getConnection (), s_zkPath, NULL, -1, &ZOO_OPEN_ACL_UNSAFE, 0, NULL, 0);
+        if (ret != ZNODEEXISTS && ret != ZOK)
+        {
+            JLOG (app.journal ("LedgerConsensus").error) << "Failed to create zookeeper parent path. Code " << ret;
+            return false;
+        }
+#else
+        JLOG (app.journal ("LedgerConsensus").error) << "ZooKeeper based consensus used but not compiled";
+        return false;
+#endif
+    }
+
+    return true;
 }
 
 Json::Value LedgerConsensusImp::getJson (bool full)
@@ -820,6 +869,125 @@ void LedgerConsensusImp::stateAccepted ()
 
 bool LedgerConsensusImp::haveConsensus ()
 {
+    // zk based consensus
+#if USE_ZOOKEEPER
+    if (s_type == Type::ZooKeeper)
+    {
+        JLOG (j_.debug) << "Begin ZooKeeper based consensus.";
+
+        static boost::format pathFmt = boost::format ("%s/%d"),
+                             valueFmt = boost::format ("%s-%s-%d");
+
+        auto path = boost::str (boost::format (pathFmt) % s_zkPath % (mPreviousLedger->info ().seq + 1));
+
+        auto value = boost::str (boost::format (valueFmt) % to_string (mOurPosition->getCurrentHash ()) %
+                                 to_string (getLCL ()) %
+                                 mOurPosition->getCloseTime ());
+
+        int ret = zoo_create (zkConnFactory->getConnection (), path.c_str (),
+                              value.c_str (), value.size (),
+                              &ZOO_OPEN_ACL_UNSAFE, ZOO_EPHEMERAL, NULL, 0);
+
+        switch (ret)
+        {
+        case ZNODEEXISTS:
+        {
+            JLOG (j_.info) << "Consensus exists in ZooKeeper, check it.";
+            constexpr auto buffSize = 1024;
+            char buff[buffSize];
+            int size = buffSize;
+            Stat stat;
+            ret = zoo_get (zkConnFactory->getConnection (), path.c_str (),
+                           0, buff, &size, &stat);
+            if (ret != ZOK || size == buffSize || size == -1)
+            {
+                JLOG (j_.fatal) << "zoo_get failed with size " << size
+                                << " code " << ret << ", try later.";
+                return false;
+            }
+
+            buff[size] = 0;
+            JLOG (j_.debug) << "Consensus data: " << buff;
+
+            std::vector<std::string> vLines;
+            boost::algorithm::split (vLines, buff,
+                                     boost::algorithm::is_any_of ("-"));
+            if (vLines.size () < 3)
+            {
+                JLOG (j_.warning) << "Bad consensus data, replace it.";
+                ret = zoo_set (zkConnFactory->getConnection (), path.c_str (),
+                               value.c_str (), value.size (), stat.version);
+                if (ret == ZOK)
+                {
+                    JLOG (j_.info) << "Replaced in ZooKeeper.";
+                    mConsensusFail = false;
+                    return true;
+                }
+                JLOG (j_.warning) << "Replace failed with " << ret << ", try later.";
+                return false;
+            }
+
+            uint256 txHash = from_hex_text<uint256> (vLines[0]);
+            uint256 prevHash = from_hex_text<uint256> (vLines[1]);
+            uint32_t closeTime = boost::lexical_cast<uint32_t> (vLines[2]);
+            bool changes = false;
+            if (getLCL () != prevHash)
+            {
+                JLOG (j_.warning) << "Previous ledger hash mismatch";
+                mConsensusFail = true;
+                return false;
+            }
+            
+            if (mOurPosition->getCurrentHash () != txHash)
+            {
+                JLOG (j_.warning) << "TX hash mismatch, Our: "
+                                  << mOurPosition->getCurrentHash ()
+                                  << " published: " << txHash;
+                if (mAcquired.find (txHash) == mAcquired.end ())
+                {
+                    JLOG (j_.warning) << "TXs not acquired, try later.";
+                    return false;
+                }
+                changes = true;
+            }
+
+            if (mOurPosition->getCloseTime () != closeTime)
+            {
+                JLOG (j_.warning) << "Close time mismatch, Our: "
+                                  << mOurPosition->getCloseTime ()
+                                  << " published: " << closeTime;
+                changes = true;
+            }
+
+            if (changes && !mOurPosition->changePosition (txHash, closeTime))
+            {
+                JLOG (j_.warning) << "changePosition failed, try later.";
+                return false;
+            }
+            
+            mConsensusFail = false;
+            return true;
+        }
+        case ZOK:
+        {
+            JLOG (j_.info) << "Consensus written to ZooKeeper.";
+            mConsensusFail = false;
+            return true;
+        }
+        default:
+        {
+            JLOG (j_.warning) << "Create ZooKeeper node failed. Code " << ret
+                              << " try later";
+            return false;
+        }
+        }
+
+        JLOG (j_.warning) << "Consensus failed.";
+        mConsensusFail = true;
+        return false;
+    }
+#endif
+
     // CHECKME: should possibly count unacquired TX sets as disagreeing
     int agree = 0, disagree = 0;
     uint256 ourPosition = mOurPosition->getCurrentHash ();
@@ -1534,6 +1702,16 @@ std::uint32_t LedgerConsensusImp::effectiveCloseTime (std::uint32_t closeTime)
 
 void LedgerConsensusImp::updateOurPositions ()
 {
+    // zk based consensus.
+    // Do not check CloseTime if 3 peers (including me) are using zk consensus.
+#if USE_ZOOKEEPER
+    if (s_type == Type::ZooKeeper)
+    {
+        mHaveCloseTimeConsensus = true;
+        return;
+    }
+#endif
+
     // Compute a cutoff time
     auto peerCutoff
         = std::chrono::steady_clock::now ();

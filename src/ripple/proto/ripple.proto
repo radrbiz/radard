@@ -2,7 +2,7 @@ package protocol;
 
 enum MessageType
 {
-    mtHELLO                 = 181; // must less then 0xFF, @sa peer_protocol_detector::operator()
+    mtHELLO                 = 1;
     mtMANIFESTS             = 2;
     mtPING                  = 3;
     mtPROOFOFWORK           = 4;

@@ -848,6 +848,9 @@ public:
 
         m_overlay->saveValidatorKeyManifests (getWalletDB ());
 
+        // trigger Shutdown signal
+        signals ().Shutdown ();
+
         stopped ();
     }
 

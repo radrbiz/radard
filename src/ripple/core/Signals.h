@@ -5,6 +5,7 @@
 
 namespace ripple
 {
+/// Boost signals2 helper class. Abort slots calling when one slot returns false.
 struct AbortOnFalse
 {
     typedef bool result_type;

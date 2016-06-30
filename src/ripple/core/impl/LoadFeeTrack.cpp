@@ -39,7 +39,7 @@ std::uint64_t
 LoadFeeTrack::scaleFeeLoad (std::uint64_t fee, std::uint64_t baseFee,
     std::uint32_t referenceFeeUnits, bool bUnlimited) const
 {
-    if (fee == 0)
+//    if (fee == 0)
         return fee;
     std::uint32_t feeFactor;
     std::uint32_t uRemFee;

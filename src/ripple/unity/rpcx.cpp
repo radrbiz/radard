@@ -47,6 +47,7 @@
 #include <ripple/rpc/handlers/CanDelete.cpp>
 #include <ripple/rpc/handlers/Connect.cpp>
 #include <ripple/rpc/handlers/ConsensusInfo.cpp>
+#include <ripple/rpc/handlers/ConsensusType.cpp>
 #include <ripple/rpc/handlers/DividendObject.cpp>
 #include <ripple/rpc/handlers/Feature1.cpp>
 #include <ripple/rpc/handlers/Fee1.cpp>

@@ -36,6 +36,10 @@ systemName ()
     return name;
 }
 
+#define SYSTEM_NAMESPACE "Rd"
+
+static constexpr auto systemNamespace = SYSTEM_NAMESPACE;
+
 static
 std::uint64_t const
 SYSTEM_CURRENCY_GIFT = 2;

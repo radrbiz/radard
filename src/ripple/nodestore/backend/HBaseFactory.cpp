@@ -49,9 +49,9 @@ private:
     Scheduler& m_scheduler;
     BatchWriter m_batch;
 
-    std::string s_tableName = "NodeStore";
-    std::string s_columnFamily = "data:";
-    std::string s_columnName = "data:data";
+    static constexpr auto s_tableName =     "NodeStore";
+    static constexpr auto s_columnFamily =  "d:";
+    static constexpr auto s_columnName =    "d:v";
     
     HBaseConnFactory m_hbaseFactory;
 

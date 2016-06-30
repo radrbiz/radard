@@ -216,6 +216,15 @@ public:
             f (*i);
     }
 
+    void
+    foreach (std::function<void(Peer::ptr const&)> f)
+    {
+        PeerSequence peers (getActivePeers ());
+
+        for (PeerSequence::const_iterator i = peers.begin (); i != peers.end (); ++i)
+            f (*i);
+    }
+
     /** Select from active peers
 
         Scores all active peers.

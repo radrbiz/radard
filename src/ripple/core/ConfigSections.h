@@ -34,6 +34,7 @@ struct ConfigSection
 // VFALCO TODO Rename and replace these macros with variables.
 #define SECTION_AMENDMENTS              "amendments"
 #define SECTION_CLUSTER_NODES           "cluster_nodes"
+#define SECTION_CONSENSUS               "consensus"
 #define SECTION_DIVIDEND_ACCOUNT        "dividend_account"
 #define SECTION_DEBUG_LOGFILE           "debug_logfile"
 #define SECTION_ELB_SUPPORT             "elb_support"

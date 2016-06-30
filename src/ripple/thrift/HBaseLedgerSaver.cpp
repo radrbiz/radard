@@ -4,34 +4,35 @@
 #include <ripple/app/main/Application.h>
 #include <ripple/core/ConfigSections.h>
 #include <ripple/thrift/HBaseConn.h>
+#include <boost/make_shared.hpp>
 
 namespace ripple
 {
-class HBaseLedgerSaver
+class HBaseLedgerSaver : Application::SetupListener<HBaseLedgerSaver>
 {
 private:
     // Hbase table defines.
-    std::string s_tableLocks = "Rd:Locks";  // LedgerData
-    std::string s_tableLedgers = "Rd:Ledgers";  // LedgerData
-    std::string s_tableTxs = "Rd:Txs";  // Raw & meta data
-    std::string s_tableTxIndex = "Rd:TxIdx";    // Indexes for Hash -> Ledger,TxnSeq
+    static constexpr auto s_tableLocks =    SYSTEM_NAMESPACE ":Locks";  // LedgerData
+    static constexpr auto s_tableLedgers =  SYSTEM_NAMESPACE ":Ledgers";// LedgerData
+    static constexpr auto s_tableTxs =      SYSTEM_NAMESPACE ":Txs";    // Raw & meta data
+    static constexpr auto s_tableTxIndex =  SYSTEM_NAMESPACE ":TxIdx";  // Indexes for Hash -> Ledger,TxnSeq
 
     boost::format s_keyTxs = boost::format ("%X%u-%u-%u"); // Row Key format: [Hex(LedgerSeq%16)][LedgerSeq]-[TxnType]-[TxnSeq]
 
-    std::string s_columnFamily = "d:";
+    static constexpr auto s_columnFamily =          "d:";
 
-    std::string s_columnRaw = "d:r";
-    std::string s_columnMeta = "d:m";
+    static constexpr auto s_columnRaw =             "d:r";
+    static constexpr auto s_columnMeta =            "d:m";
     
-    std::string s_columnValue = "d:v";
+    static constexpr auto s_columnValue =           "d:v";
 
-    std::string s_columnHash = "d:h";
-    std::string s_columnClosingTime = "d:ct";
-    std::string s_columnPrevHash = "d:ph";
-    std::string s_columnAccountSetHash = "d:ah";
-    std::string s_columnTransSetHash = "d:th";
-    std::string s_columnVRP = "d:vrp";
-    std::string s_columnVBC = "d:vbc";
+    static constexpr auto s_columnHash =            "d:h";
+    static constexpr auto s_columnClosingTime =     "d:ct";
+    static constexpr auto s_columnPrevHash =        "d:ph";
+    static constexpr auto s_columnAccountSetHash =  "d:ah";
+    static constexpr auto s_columnTransSetHash =    "d:th";
+    static constexpr auto s_columnVRP =             "d:vrp";
+    static constexpr auto s_columnVBC =             "d:vbc";
 
 public:
     HBaseLedgerSaver (Application& app)
@@ -46,36 +47,31 @@ public:
     {
     }
 
-    static bool setup ()
+    static bool onSetup (Application& app)
     {
-        auto doSetup = [](Application& app) {
-            if (!app.config ().exists (SECTION_TX_DB_HBASE))
-                return true;
-
-            try
-            {
-                typedef boost::signals2::signal<bool(std::shared_ptr<Ledger const> const&)> signal_type;
-
-                // new HBaseLedgerSaver
-                boost::shared_ptr<HBaseLedgerSaver> hbaseLedgerSaver (new HBaseLedgerSaver (app));
-
-                // connect it to signal SaveValidated
-                LedgerMaster::signals ().SaveValidated.connect (
-                    signal_type::slot_type (&HBaseLedgerSaver::onSaveValidatedLedger,
-                                            hbaseLedgerSaver.get (), _1)
-                        .track (hbaseLedgerSaver));
-
-                JLOG (app.journal ("HBaseLedgerSaver").info) << "done";
-            }
-            catch (const std::exception& e)
-            {
-                JLOG (app.journal ("HBaseLedgerSaver").error) << e.what ();
-                return false;
-            }
-
+        if (!app.config ().exists (SECTION_TX_DB_HBASE))
             return true;
-        };
-        Application::signals ().Setup.connect (doSetup);
+
+        try
+        {
+            // new HBaseLedgerSaver
+            static boost::shared_ptr<HBaseLedgerSaver> hbaseLedgerSaver = boost::make_shared<HBaseLedgerSaver> (app);
+
+            // connect it to signal SaveValidated
+            typedef decltype(LedgerMaster::Signals::SaveValidated)::slot_type slot_type;
+            LedgerMaster::signals ().SaveValidated.connect (
+                slot_type (&HBaseLedgerSaver::onSaveValidatedLedger,
+                           hbaseLedgerSaver.get (), _1)
+                    .track (hbaseLedgerSaver));
+
+            JLOG (app.journal ("HBaseLedgerSaver").info) << "done";
+        }
+        catch (const std::exception& e)
+        {
+            JLOG (app.journal ("HBaseLedgerSaver").error) << e.what ();
+            return false;
+        }
+
         return true;
     }
 
@@ -106,11 +102,11 @@ private:
             try
             {
                 Mutation mput;
-                mput.column = m_ledgerSaver->s_columnValue;
+                mput.column = s_columnValue;
                 mput.value = "1";
                 std::map<Text, Text> attributes;
                 while (!m_ledgerSaver->getConnection ()->m_client->checkAndPut (
-                    m_ledgerSaver->s_tableLocks, m_rowKey, mput.column, "", mput, attributes))
+                    s_tableLocks, m_rowKey, mput.column, "", mput, attributes))
                 {
                     JLOG (m_ledgerSaver->m_journal.debug) << "wait for lock";
                     std::this_thread::sleep_for (std::chrono::milliseconds (100));
@@ -135,7 +131,7 @@ private:
                 {
                     std::map<Text, Text> attributes;
                     m_ledgerSaver->getConnection ()->m_client->deleteAllRow (
-                        m_ledgerSaver->s_tableLocks, m_rowKey, attributes);
+                        s_tableLocks, m_rowKey, attributes);
                     m_locked = false;
                     return true;
                 }
@@ -161,7 +157,7 @@ private:
 
         // get a lock to write this ledger
         static boost::format rowKeyFormat ("ls-%u");
-        HBaseLock hbaseLock (boost::str (rowKeyFormat % ledgerSeq), this);
+        HBaseLock hbaseLock (boost::str (boost::format (rowKeyFormat) % ledgerSeq), this);
         if (!hbaseLock.lock ())
             return false;
 
@@ -231,7 +227,7 @@ private:
             std::vector<Text> columns;
             static boost::format prefix ("%X%u-");
             auto scanner = getConnection ()->m_client->scannerOpenWithPrefix (
-                s_tableTxs, boost::str (prefix % (ledgerSeq % 16) % ledgerSeq), columns, attributes);
+                s_tableTxs, boost::str (boost::format (prefix) % (ledgerSeq % 16) % ledgerSeq), columns, attributes);
 
             std::vector<TRowResult> rowList;
             for (;;)
@@ -272,7 +268,7 @@ private:
                 transactionID, ledgerSeq);
 
             std::string const rowKey (boost::str (
-                s_keyTxs % (ledgerSeq % 16) % ledgerSeq % vt.second->getTxnType () % vt.second->getTxnSeq ()));
+                boost::format (s_keyTxs) % (ledgerSeq % 16) % ledgerSeq % vt.second->getTxnType () % vt.second->getTxnSeq ()));
 
             // mutations to table Txs
             {
@@ -417,5 +413,4 @@ private:
     }
 };
 
-static auto hbaseLedgerSaverSetup = HBaseLedgerSaver::setup ();
 }

@@ -114,6 +114,7 @@ Handler handlerArray[] {
     {   "can_delete",           byRef (&doCanDelete),           Role::ADMIN,   NO_CONDITION     },
     {   "connect",              byRef (&doConnect),             Role::ADMIN,   NO_CONDITION     },
     {   "consensus_info",       byRef (&doConsensusInfo),       Role::ADMIN,   NO_CONDITION     },
+    {   "consensus_type",       byRef (&doConsensusType),       Role::ADMIN,   NO_CONDITION     },
     {   "dividend_object",      byRef (&doDividendObject),      Role::USER,  NEEDS_NETWORK_CONNECTION },
     {   "gateway_balances",     byRef (&doGatewayBalances),     Role::USER,  NO_CONDITION  },
     {   "get_counts",           byRef (&doGetCounts),           Role::ADMIN,   NO_CONDITION     },

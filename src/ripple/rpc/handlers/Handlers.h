@@ -38,6 +38,7 @@ Json::Value doBookOffers            (RPC::Context&);
 Json::Value doCanDelete             (RPC::Context&);
 Json::Value doConnect               (RPC::Context&);
 Json::Value doConsensusInfo         (RPC::Context&);
+Json::Value doConsensusType         (RPC::Context&);
 Json::Value doDividendObject        (RPC::Context&);
 Json::Value doFeature               (RPC::Context&);
 Json::Value doFee                   (RPC::Context&);
