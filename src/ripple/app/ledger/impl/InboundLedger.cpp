@@ -275,6 +275,12 @@ bool InboundLedger::tryLocal ()
 */
 void InboundLedger::onTimer (bool wasProgress, ScopedLockType&)
 {
+    if (!app_.getInboundLedgers ().isAcquiring (getHash ()))
+    {
+        progress ();
+        return;
+    }
+
     mRecentNodes.clear ();
 
     if (isDone())

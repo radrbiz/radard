@@ -80,6 +80,8 @@ public:
     virtual void sweep () = 0;
 
     virtual void onStop() = 0;
+
+    virtual bool isAcquiring (uint256 const& h) = 0;
 };
 
 std::unique_ptr<InboundLedgers>

@@ -416,6 +416,11 @@ public:
         stopped();
     }
 
+    bool isAcquiring (uint256 const& h)
+    {
+        return (!mLedgers.empty ()) && ((*mLedgers.begin ())->getHash () == h);
+    }
+
 private:
     clock_type& m_clock;
 
