@@ -28,6 +28,10 @@
 #include <ripple/protocol/JsonFields.h>
 #include <beast/module/core/text/LexicalCast.h>
 #include <beast/container/aged_map.h>
+#include <boost/multi_index_container.hpp>
+#include <boost/multi_index/hashed_index.hpp>
+#include <boost/multi_index/mem_fun.hpp>
+#include <boost/multi_index/sequenced_index.hpp>
 #include <memory>
 #include <mutex>
 
@@ -72,17 +76,18 @@ public:
 
             if (! isStopping ())
             {
-                auto it = mLedgers.find (hash);
-                if (it != mLedgers.end ())
+                auto& mapIndex = mLedgers.get<1> ();
+                auto it = mapIndex.find (hash);
+                if (it != mapIndex.end ())
                 {
                     isNew = false;
-                    inbound = it->second;
+                    inbound = *it;
                 }
                 else
                 {
                     inbound = std::make_shared <InboundLedger> (app_,
                         hash, seq, reason, std::ref (m_clock));
-                    mLedgers.emplace (hash, inbound);
+                    mLedgers.push_back (inbound);
                     inbound->init (sl);
                     ++mCounter;
                 }
@@ -105,11 +110,11 @@ public:
         {
             ScopedLockType sl (mLock);
 
-            auto it = mLedgers.
-            find (hash);
-            if (it != mLedgers.end ())
+            auto& mapIndex = mLedgers.get<1> ();
+            auto it = mapIndex.find (hash);
+            if (it != mapIndex.end ())
             {
-                ret = it->second;
+                ret = *it;
             }
         }
 
@@ -121,7 +126,7 @@ public:
         assert (hash.isNonZero ());
 
         ScopedLockType sl (mLock);
-        return mLedgers.find (hash) != mLedgers.end ();
+        return mLedgers.get<1> ().find (hash) != mLedgers.get<1> ().end ();
     }
 
     void dropLedger (LedgerHash const& hash)
@@ -129,8 +134,7 @@ public:
         assert (hash.isNonZero ());
 
         ScopedLockType sl (mLock);
-        mLedgers.erase (hash);
-
+        mLedgers.get<1> ().erase (hash);
     }
 
     /*
@@ -190,7 +194,7 @@ public:
         timeoutCount = 0;
         int ret = 0;
 
-        std::vector<u256_acq_pair> inboundLedgers;
+        std::vector<InboundLedger::pointer> inboundLedgers;
 
         {
             ScopedLockType sl (mLock);
@@ -204,10 +208,10 @@ public:
 
         for (auto const& it : inboundLedgers)
         {
-            if (it.second->isActive ())
+            if (it->isActive ())
             {
                 ++ret;
-                timeoutCount += it.second->getTimeouts ();
+                timeoutCount += it->getTimeouts ();
             }
         }
         return ret;
@@ -306,7 +310,7 @@ public:
     {
         Json::Value ret(Json::objectValue);
 
-        std::vector<u256_acq_pair> acquires;
+        std::vector<InboundLedger::pointer> acquires;
         {
             ScopedLockType sl (mLock);
 
@@ -329,11 +333,11 @@ public:
         for (auto const& it : acquires)
         {
             // getJson is expensive, so call without the lock
-            std::uint32_t seq = it.second->getSeq();
+            std::uint32_t seq = it->getSeq();
             if (seq > 1)
-                ret[std::to_string(seq)] = it.second->getJson(0);
+                ret[std::to_string(seq)] = it->getJson(0);
             else
-                ret[to_string (it.first)] = it.second->getJson(0);
+                ret[to_string (it->getHash())] = it->getJson(0);
         }
 
         return ret;
@@ -349,7 +353,7 @@ public:
             for (auto const& it : mLedgers)
             {
                 assert (it.second);
-                acquires.push_back (it.second);
+                acquires.push_back (it);
             }
         }
 
@@ -364,7 +368,7 @@ public:
         clock_type::time_point const now (m_clock.now());
 
         // Make a list of things to sweep, while holding the lock
-        std::vector <MapType::mapped_type> stuffToSweep;
+        std::vector <InboundLedger::pointer> stuffToSweep;
         std::size_t total;
         {
             ScopedLockType sl (mLock);
@@ -374,15 +378,15 @@ public:
 
             while (it != mLedgers.end ())
             {
-                if (it->second->getLastAction () > now)
+                if (it->get()->getLastAction () > now)
                 {
-                    it->second->touch ();
+                    it->get()->touch ();
                     ++it;
                 }
-                else if ((it->second->getLastAction () +
+                else if ((it->get()->getLastAction () +
                           std::chrono::minutes (1)) < now)
                 {
-                    stuffToSweep.push_back (it->second);
+                    stuffToSweep.push_back (*it);
                     // shouldn't cause the actual final delete
                     // since we are holding a reference in the vector.
                     it = mLedgers.erase (it);
@@ -418,7 +422,13 @@ private:
     using ScopedLockType = std::unique_lock <std::recursive_mutex>;
     std::recursive_mutex mLock;
 
-    using MapType = hash_map <uint256, InboundLedger::pointer>;
+    using MapType = boost::multi_index_container<
+        InboundLedger::pointer,
+        boost::multi_index::indexed_by<
+            boost::multi_index::sequenced<>,   // list-like index
+            boost::multi_index::hashed_unique< // hash as key
+                boost::multi_index::const_mem_fun<PeerSet, const uint256&, &PeerSet::getHash>,
+                beast::uhash<>>>>;
     MapType mLedgers;
 
     beast::aged_map <uint256, std::uint32_t> mRecentFailures;
