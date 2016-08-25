@@ -232,6 +232,167 @@ void SHAMap::walkMap (std::vector<SHAMapMissingNode>& missingNodes, int maxMissi
     if (!root_->isInner ())  // root_ is only node, and we have it
         return;
 
+    SHAMapSyncFilter* filter = nullptr;
+    int max = maxMissing;
+    // copy from getMissingNodes
+    std::uint32_t generation = f_.fullbelow().getGeneration();
+    int const maxDefer = f_.db().getDesiredAsyncReadCount ();
+
+    // Track the missing hashes we have found so far
+    std::set <SHAMapHash> missingHashes;
+
+    while (1)
+    {
+        std::vector <std::tuple <SHAMapInnerNode*, int, SHAMapNodeID>> deferredReads;
+        deferredReads.reserve (maxDefer + 16);
+
+        using StackEntry = std::tuple<SHAMapInnerNode*, SHAMapNodeID, int, int, bool>;
+        std::stack <StackEntry, std::vector<StackEntry>> stack;
+
+        // Traverse the map without blocking
+
+        auto node = static_cast<SHAMapInnerNode*>(root_.get());
+        SHAMapNodeID nodeID;
+
+        // The firstChild value is selected randomly so if multiple threads
+        // are traversing the map, each thread will start at a different
+        // (randomly selected) inner node.  This increases the likelihood
+        // that the two threads will produce different request sets (which is
+        // more efficient than sending identical requests).
+        int firstChild = rand() % 256;
+        int currentChild = 0;
+        bool fullBelow = true;
+
+        do
+        {
+            while (currentChild < 16)
+            {
+                int branch = (firstChild + currentChild++) % 16;
+                if (!node->isEmptyBranch (branch))
+                {
+                    auto const& childHash = node->getChildHash (branch);
+
+                    if (missingHashes.count (childHash) != 0)
+                    {
+                        fullBelow = false;
+                    }
+                    else if (! backed_ || ! f_.fullbelow().touch_if_exists (childHash.as_uint256()))
+                    {
+                        SHAMapNodeID childID = nodeID.getChildNodeID (branch);
+                        bool pending = false;
+                        auto d = descendAsync (node, branch, childID, filter, pending);
+
+                        if (!d)
+                        {
+                            if (!pending)
+                            { // node is not in the database
+                                //nodeIDs.push_back (childID);
+                                //hashes.push_back (childHash.as_uint256());
+                                missingNodes.emplace_back (type_, childHash.as_uint256());
+
+                                if (--max <= 0)
+                                    return;
+                            }
+                            else
+                            {
+                                // read is deferred
+                                deferredReads.emplace_back (node, branch, childID);
+                            }
+
+                            fullBelow = false; // This node is not known full below
+                        }
+                        else if (d->isInner() &&
+                                 !static_cast<SHAMapInnerNode*>(d)->isFullBelow(generation))
+                        {
+                            stack.push (std::make_tuple (node, nodeID,
+                                  firstChild, currentChild, fullBelow));
+
+                            // Switch to processing the child node
+                            node = static_cast<SHAMapInnerNode*>(d);
+                            nodeID = childID;
+                            firstChild = rand() % 256;
+                            currentChild = 0;
+                            fullBelow = true;
+                        }
+                    }
+                }
+            }
+
+            // We are done with this inner node (and thus all of its children)
+
+            if (fullBelow)
+            { // No partial node encountered below this node
+                node->setFullBelowGen (generation);
+                if (backed_)
+                    f_.fullbelow().insert (node->getNodeHash ().as_uint256());
+            }
+
+            if (stack.empty ())
+                node = nullptr; // Finished processing the last node, we are done
+            else
+            { // Pick up where we left off (above this node)
+                bool was;
+                std::tie(node, nodeID, firstChild, currentChild, was) = stack.top ();
+                fullBelow = was && fullBelow; // was and still is
+                stack.pop ();
+            }
+
+        }
+        while ((node != nullptr) && (deferredReads.size () <= maxDefer));
+
+        // If we didn't defer any reads, we're done
+        if (deferredReads.empty ())
+            break;
+
+        auto const before = std::chrono::steady_clock::now();
+        f_.db().waitReads();
+        auto const after = std::chrono::steady_clock::now();
+
+        auto const elapsed = std::chrono::duration_cast
+            <std::chrono::milliseconds> (after - before);
+        auto const count = deferredReads.size ();
+
+        // Process all deferred reads
+        int hits = 0;
+        for (auto const& node : deferredReads)
+        {
+            auto parent = std::get<0>(node);
+            auto branch = std::get<1>(node);
+            auto const& nodeID = std::get<2>(node);
+            auto const& nodeHash = parent->getChildHash (branch);
+
+            auto nodePtr = fetchNodeNT(nodeID, nodeHash, filter);
+            if (nodePtr)
+            {
+                ++hits;
+                if (backed_)
+                    canonicalize (nodeHash, nodePtr);
+                nodePtr = parent->canonicalizeChild (branch, std::move(nodePtr));
+            }
+            else if ((max > 0) && (missingHashes.insert (nodeHash).second))
+            {
+                //nodeIDs.push_back (nodeID);
+                //hashes.push_back (nodeHash.as_uint256());
+                missingNodes.emplace_back (type_, nodeHash.as_uint256 ());
+
+                --max;
+            }
+        }
+
+        auto const process_time = std::chrono::duration_cast
+            <std::chrono::milliseconds> (std::chrono::steady_clock::now() - after);
+
+        if ((count > 50) || (elapsed.count() > 50))
+            journal_.debug << "getMissingNodes reads " <<
+                count << " nodes (" << hits << " hits) in "
+                << elapsed.count() << " + " << process_time.count()  << " ms";
+
+        if (max <= 0)
+            return;
+
+    }
+    return;
+
     using StackEntry = std::shared_ptr<SHAMapInnerNode>;
     std::stack <StackEntry, std::vector <StackEntry>> nodeStack;
 
