@@ -49,7 +49,7 @@ private:
     Scheduler& m_scheduler;
     BatchWriter m_batch;
 
-    static constexpr auto s_tableName =     "NodeStore";
+    static constexpr auto s_tableName =     SYSTEM_NAMESPACE ":NodeStore";
     static constexpr auto s_columnFamily =  "d:";
     static constexpr auto s_columnName =    "d:v";
     
