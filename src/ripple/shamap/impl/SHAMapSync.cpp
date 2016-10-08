@@ -227,6 +227,14 @@ SHAMap::getMissingNodes(std::vector<SHAMapNodeID>& nodeIDs, std::vector<uint256>
                 node->setFullBelowGen (generation);
                 if (backed_)
                     f_.fullbelow().insert (node->getNodeHash ().as_uint256());
+
+                if (filter)
+                {
+                    Serializer s;
+                    node->addRaw (s, snfPREFIX);
+                    filter->gotNode (false, nodeID, node->getNodeHash ().as_uint256 (),
+                                     s.modData (), node->getType ());
+                }
             }
 
             if (stack.empty ())
@@ -559,7 +567,7 @@ SHAMap::addKnownNode (const SHAMapNodeID& node, Blob const& rawNode,
 
             newNode = prevNode->canonicalizeChild (branch, std::move(newNode));
 
-            if (filter)
+            if (filter && newNode->isLeaf ())
             {
                 Serializer s;
                 newNode->addRaw (s, snfPREFIX);
