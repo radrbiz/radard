@@ -271,7 +271,25 @@ SHAMap::getMissingNodes(std::vector<SHAMapNodeID>& nodeIDs, std::vector<uint256>
             auto const& nodeID = std::get<2>(node);
             auto const& nodeHash = parent->getChildHash (branch);
 
+            /* inflate fetchNodeNT to set fullbelow if exists in db.
             auto nodePtr = fetchNodeNT(nodeID, nodeHash, filter);
+            */
+            auto nodePtr = getCache(nodeHash);
+            if (!nodePtr && backed_)
+            {
+                nodePtr = fetchNodeFromDB (nodeHash);
+                if (nodePtr && nodePtr->isInner ())
+                {
+                    journal_.info << "got node from db, set as full.";
+                    static_cast<SHAMapInnerNode*> (nodePtr.get ())->setFullBelowGen (generation);
+                    if (backed_)
+                        f_.fullbelow ().insert (nodePtr->getNodeHash ().as_uint256 ());
+                }
+            }
+
+            if (!nodePtr && filter)
+                nodePtr = checkFilter (nodeHash, nodeID, filter);
+
             if (nodePtr)
             {
                 ++hits;
