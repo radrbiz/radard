@@ -280,7 +280,7 @@ SHAMap::getMissingNodes(std::vector<SHAMapNodeID>& nodeIDs, std::vector<uint256>
                 nodePtr = fetchNodeFromDB (nodeHash);
                 if (nodePtr && nodePtr->isInner ())
                 {
-                    journal_.info << "got node from db, set as full.";
+                    JLOG (journal_.trace) << "Node " << nodeHash << " found in db, set as full.";
                     static_cast<SHAMapInnerNode*> (nodePtr.get ())->setFullBelowGen (generation);
                     if (backed_)
                         f_.fullbelow ().insert (nodePtr->getNodeHash ().as_uint256 ());
