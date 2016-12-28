@@ -39,7 +39,7 @@ struct LedgerFill
     }
 
     enum Options {
-        dumpTxrp = 1, dumpState = 2, expand = 4, full = 8, binary = 16, dumpTxdiv = 128};
+        dumpTxrp = 1, dumpState = 2, expand = 4, full = 8, binary = 16, dumpTxdiv = 128, dumpTxActiveAccount = 256};
 
     ReadView const& ledger;
     int options;

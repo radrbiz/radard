@@ -50,6 +50,7 @@ Status LedgerHandler::check()
 
     bool bFull = params[jss::full].asBool();
     bool bWithDividend = params["dividend"].asBool ();
+    bool bWithActiveAccount = params["active_account"].asBool ();
     bool bTransactions = params[jss::transactions].asBool();
     bool bAccounts = params[jss::accounts].asBool();
     bool bExpand = params[jss::expand].asBool();
@@ -58,6 +59,7 @@ Status LedgerHandler::check()
     options_ = (bFull ? LedgerFill::full : 0)
             | (bExpand ? LedgerFill::expand : 0)
             | (bWithDividend ? LedgerFill::dumpTxdiv : 0)
+            | (bWithActiveAccount ? LedgerFill::dumpTxActiveAccount : 0)
             | (bTransactions ? LedgerFill::dumpTxrp : 0)
             | (bAccounts ? LedgerFill::dumpState : 0)
             | (bBinary ? LedgerFill::binary : 0);
