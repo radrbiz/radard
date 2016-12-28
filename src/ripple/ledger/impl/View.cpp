@@ -1219,6 +1219,11 @@ addRefer (ApplyView& view,
             if (sleRefereeRefer->isFieldPresent (sfReferences))
             {
                 references = sleRefereeRefer->getFieldArray (sfReferences);
+                if (references.size () > 1024)
+                {
+                    JLOG (j.warning) << "Too many references for " << refereeID << " " << references.size ();
+                    return tecDIR_FULL;
+                }
                 for (const auto& it : references)
                 {
                     if (it.getAccountID (sfReference) == referenceID)
