@@ -132,12 +132,14 @@ Json::Value doSubscribe (RPC::Context& context)
                 }
                 else if (streamName == "transactions")
                 {
-                    context.netOps.subTransactions (ispSub);
+                    //context.netOps.subTransactions (ispSub);
+                    return rpcError (rpcNOT_SUPPORTED);
                 }
                 else if (streamName == "transactions_proposed"
                          || streamName == "rt_transactions") // DEPRECATED
                 {
-                    context.netOps.subRTTransactions (ispSub);
+                    //context.netOps.subRTTransactions (ispSub);
+                    return rpcError (rpcNOT_SUPPORTED);
                 }
                 else if (streamName == "validations")
                 {
