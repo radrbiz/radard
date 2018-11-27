@@ -1183,7 +1183,16 @@ addRefer (ApplyView& view,
 
     auto const refereeReferIndex = getAccountReferIndex (refereeID);
     auto sleRefereeRefer = view.peek(keylet::refer (refereeReferIndex));
-    auto const sleReferenceRefer = view.read (keylet::refer (referenceID));
+
+    auto const referenceReferIndex = getAccountReferIndex (referenceID);
+    auto const sleReferenceRefer = view.read (keylet::refer (referenceReferIndex));
+    if (sleReferenceRefer && sleReferenceRefer->isFieldPresent(sfReferences))
+    {
+        // reference should not be refee
+        JLOG(j.warning)
+            << "Reference account should not have references.";
+        return tefREFERENCE_EXIST;
+    }
 
     if (!sleReferee)
     {
