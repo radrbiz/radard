@@ -621,7 +621,7 @@ SHAMapStoreImp::health()
     NetworkOPs::OperatingMode mode = netOPs_->getOperatingMode();
 
     std::int32_t age = ledgerMaster_->getValidatedLedgerAge();
-    if (mode != NetworkOPs::omFULL || age >= setup_.ageThreshold)
+    if (mode < NetworkOPs::omSYNCING || age >= setup_.ageThreshold)
     {
         journal_.warning << "Not deleting. state: " << mode << " age " << age
                 << " age threshold " << setup_.ageThreshold;

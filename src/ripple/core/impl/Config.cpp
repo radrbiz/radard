@@ -509,14 +509,14 @@ int Config::getSize (SizedItemName item) const
     SizedItem sizeTable[] =   //    tiny    small   medium  large       huge
     {
 
-        { siSweepInterval,      {   10,     30,     60,     90,         120     } },
+        { siSweepInterval,      {   10,     30,     60,     90,         300     } },
 
         { siLedgerFetch,        {   2,      2,      3,      3,          3       } },
 
         { siNodeCacheSize,      {   16384,  32768,  131072, 262144,     524288  } },
         { siNodeCacheAge,       {   60,     90,     120,    900,        1800    } },
 
-        { siTreeCacheSize,      {   128000, 256000, 512000, 768000,     2048000 } },
+        { siTreeCacheSize,      {   128000, 256000, 512000, 768000,     0       } },
         { siTreeCacheAge,       {   30,     60,     90,     120,        900     } },
 
         { siSLECacheSize,       {   4096,   8192,   16384,  65536,      131072  } },
