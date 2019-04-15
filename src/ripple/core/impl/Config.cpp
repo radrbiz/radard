@@ -509,7 +509,7 @@ int Config::getSize (SizedItemName item) const
     SizedItem sizeTable[] =   //    tiny    small   medium  large       huge
     {
 
-        { siSweepInterval,      {   10,     30,     60,     90,         300     } },
+        { siSweepInterval,      {   10,     30,     60,     90,         180     } },
 
         { siLedgerFetch,        {   2,      2,      3,      3,          3       } },
 
