@@ -82,11 +82,11 @@ private:
     private:
         std::string m_rowKey;
         HBaseLedgerSaver* m_ledgerSaver;
-        bool m_locked = false;
+        std::atomic<bool> m_locked;
 
     public:
         HBaseLock (const std::string& rowKey, HBaseLedgerSaver* ledgerSaver)
-            : m_rowKey (rowKey), m_ledgerSaver (ledgerSaver)
+            : m_rowKey (rowKey), m_ledgerSaver (ledgerSaver), m_locked (false)
         {
         }
         ~HBaseLock ()
@@ -95,33 +95,35 @@ private:
                 unlock ();
         }
 
-        bool lock ()
+        void lock () noexcept
         {
             using namespace apache::thrift;
             using namespace apache::hadoop::hbase::thrift;
-            try
+            Mutation mput;
+            mput.column = s_columnValue;
+            mput.value = "1";
+            std::map<Text, Text> attributes;
+            for (;;)
             {
-                Mutation mput;
-                mput.column = s_columnValue;
-                mput.value = "1";
-                std::map<Text, Text> attributes;
-                while (!m_ledgerSaver->getConnection ()->m_client->checkAndPut (
-                    s_tableLocks, m_rowKey, mput.column, "", mput, attributes))
+                try
                 {
-                    JLOG (m_ledgerSaver->m_journal.debug) << "wait for lock";
-                    std::this_thread::sleep_for (std::chrono::milliseconds (100));
+                    if (m_ledgerSaver->getConnection ()->m_client->checkAndPut (
+                            s_tableLocks, m_rowKey, mput.column, "", mput, attributes))
+                    {
+                        m_locked = true;
+                        return;
+                    }
                 }
+                catch (const TException& te)
+                {
+                    JLOG (m_ledgerSaver->m_journal.error) << "get lock failed, " << te.what ();
+                }
+                JLOG (m_ledgerSaver->m_journal.debug) << "wait for lock";
+                std::this_thread::sleep_for (std::chrono::milliseconds (100));
             }
-            catch (const TException& te)
-            {
-                JLOG (m_ledgerSaver->m_journal.error) << "get lock failed, " << te.what ();
-                return false;
-            }
-            m_locked = true;
-            return true;
         }
 
-        bool unlock ()
+        bool unlock () noexcept
         {
             using namespace apache::thrift;
             using namespace apache::hadoop::hbase::thrift;
@@ -155,51 +157,16 @@ private:
 
         JLOG (m_journal.info) << "saving ledger " << ledgerSeq;
 
-        // get a lock to write this ledger
-        static boost::format rowKeyFormat ("ls-%u");
-        HBaseLock hbaseLock (boost::str (boost::format (rowKeyFormat) % ledgerSeq), this);
-        if (!hbaseLock.lock ())
-            return false;
-
-        // check if already in hbase
+        // Return if already in hbase. Will check again later if someone wrote it
+        // during we are proparing writing. So retry on exception loop is not needed.
+        try
         {
-            std::vector<TCell> cells;
-            std::map<Text, Text> attributes;
-            try
-            {
-                getConnection ()->m_client->get (
-                    cells, s_tableLedgers, ledgerSeqStr, s_columnHash, attributes);
-            }
-            catch (const TException& te)
-            {
-                JLOG (m_journal.error) << "ledger check failed, " << te.what ();
-                return false;
-            }
-
-            if (!cells.empty ())
-            {
-                if (cells.size () == 1 && cells[0].value == ledgerHash)
-                {
-                    // already in hbase
-                    JLOG (m_journal.info) << "already saved";
-                    return true;
-                }
-                else
-                {
-                    // mismatch ledger in ledgers, delete it
-                    JLOG (m_journal.warning) << "mismatch hash " << cells[0].value << " got for " << ledgerSeq;
-                    try
-                    {
-                        getConnection ()->m_client->deleteAllRow (
-                            s_tableLedgers, ledgerSeqStr, attributes);
-                    }
-                    catch (const TException& te)
-                    {
-                        JLOG (m_journal.error) << "delete mismatch ledger failed, " << te.what ();
-                        return false;
-                    }
-                }
-            }
+            if (isSaved (ledgerSeqStr, ledgerHash))
+                return true;
+        }
+        catch (const TException& te)
+        {
+            JLOG (m_journal.fatal) << ledgerSeq << " isSaved checking failed, " << te.what ();
         }
 
         // get AcceptedLedger
@@ -216,44 +183,6 @@ private:
         catch (std::exception const&)
         {
             JLOG (m_journal.warning) << "An accepted ledger was missing nodes";
-            return false;
-        }
-
-        // delete txs begin with this LedgerSeq if exists
-        try
-        {
-            JLOG (m_journal.debug) << "scanning dirty txs";
-            std::map<Text, Text> attributes;
-            std::vector<Text> columns;
-            static boost::format prefix ("%X%u-");
-            auto scanner = getConnection ()->m_client->scannerOpenWithPrefix (
-                s_tableTxs, boost::str (boost::format (prefix) % (ledgerSeq % 16) % ledgerSeq), columns, attributes);
-
-            std::vector<TRowResult> rowList;
-            for (;;)
-            {
-                getConnection ()->m_client->scannerGetList (rowList, scanner, 1024);
-                if (rowList.empty ())
-                    break;
-                JLOG (m_journal.debug) << "deleting " << rowList.size () << " dirty txs";
-                std::vector<BatchMutation> rowBatches;
-                for (auto& row : rowList)
-                {
-                    rowBatches.push_back (BatchMutation ());
-                    rowBatches.back ().row = row.row;
-                    auto& mutations = rowBatches.back ().mutations;
-                    mutations.push_back (Mutation ());
-                    mutations.back ().isDelete = true;
-                }
-                getConnection ()->m_client->mutateRows (s_tableTxs, rowBatches, attributes);
-            }
-
-            getConnection ()->m_client->scannerClose (scanner);
-            JLOG (m_journal.debug) << "scanning dirty txs done";
-        }
-        catch (const TException& te)
-        {
-            JLOG (m_journal.error) << "clear from hbase failed, " << te.what ();
             return false;
         }
 
@@ -325,10 +254,19 @@ private:
         ledgerMutations.back ().column = s_columnVBC;
         ledgerMutations.back ().value.assign (to_string (ledger->info ().dropsVBC));
 
-        for (int i = 0; i < 3; i++)
+        for (;;)
         {
+            // get a lock to write this ledger
+            static boost::format rowKeyFormat ("ls-%u");
             try
             {
+                HBaseLock hbaseLock (boost::str (boost::format (rowKeyFormat) % ledgerSeq), this);
+                hbaseLock.lock ();
+
+                // check again if already in hbase
+                if (isSaved (ledgerSeqStr, ledgerHash))
+                    return true;
+
                 std::map<Text, Text> attributes;
                 getConnection ()->m_client->mutateRows (
                     s_tableTxs, txsBatches, attributes);
@@ -341,11 +279,39 @@ private:
             }
             catch (const TException& te)
             {
-                JLOG (m_journal.error) << "save failed, " << te.what ();
+                JLOG (m_journal.fatal) << ledgerSeq << " save failed, " << te.what ();
             }
+            std::this_thread::sleep_for (std::chrono::milliseconds (100));
         }
         JLOG (m_journal.error) << "fail to save " << ledgerSeq;
         return false;
+    }
+
+    bool isSaved (const std::string& ledgerSeqStr, const std::string& ledgerHash) noexcept(false)
+    {
+        using namespace apache::thrift;
+        using namespace apache::hadoop::hbase::thrift;
+
+        std::vector<TCell> cells;
+        std::map<Text, Text> attributes;
+
+        getConnection ()->m_client->get (
+            cells, s_tableLedgers, ledgerSeqStr, s_columnHash, attributes);
+
+        if (cells.empty ())
+            return false;
+
+        if (cells.size () == 1 && cells[0].value == ledgerHash)
+        {
+            // already in hbase
+            JLOG (m_journal.info) << "already saved";
+            return true;
+        }
+        else
+        {
+            JLOG (m_journal.fatal) << "mismatch hash " << cells[0].value << " got for " << ledgerSeqStr;
+            return false;
+        }
     }
 
 private:
@@ -396,7 +362,7 @@ private:
         columns.back ().maxVersions = 1;
         columns.back ().inMemory = true;
         columns.back ().blockCacheEnabled = true;
-        columns.back ().timeToLive = 3;
+        columns.back ().timeToLive = 30;
         try
         {
             getConnection ()->m_client->createTable (s_tableLocks, columns);
