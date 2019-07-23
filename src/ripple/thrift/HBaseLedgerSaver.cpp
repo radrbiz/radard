@@ -186,50 +186,10 @@ private:
             return false;
         }
 
-        // write txs
-        std::vector<BatchMutation> txsBatches;
-        std::vector<BatchMutation> txIndexBatches;
-        for (auto const& vt : aLedger->getMap ())
-        {
-            uint256 transactionID = vt.second->getTransactionID ();
+        std::unordered_map<std::string, std::vector<BatchMutation>> mutations;
 
-            m_app.getMasterTransaction ().inLedger (
-                transactionID, ledgerSeq);
+        prepareTxs (mutations, aLedger, ledgerSeq);
 
-            std::string const rowKey (boost::str (
-                boost::format (s_keyTxs) % (ledgerSeq % 16) % ledgerSeq % vt.second->getTxnType () % vt.second->getTxnSeq ()));
-
-            // mutations to table Txs
-            {
-                txsBatches.push_back (BatchMutation ());
-                txsBatches.back ().row = rowKey;
-
-                auto& mutations = txsBatches.back ().mutations;
-
-                mutations.push_back (Mutation ());
-                mutations.back ().column = s_columnRaw;
-                Serializer s;
-                vt.second->getTxn ()->add (s);
-                mutations.back ().value.assign (s.getString ());
-                
-                mutations.push_back (Mutation ());
-                mutations.back ().column = s_columnMeta;
-                mutations.back ().value.assign (vt.second->getRawMeta ());
-            }
-
-            // mutations to table TxIndex
-            {
-                txIndexBatches.push_back (BatchMutation ());
-                txIndexBatches.back ().row = to_string (transactionID);
-
-                auto& mutations = txIndexBatches.back ().mutations;
-
-                mutations.push_back (Mutation ());
-                mutations.back ().column = s_columnValue;
-                mutations.back ().value.assign (rowKey);
-            }
-        }
-        
         // mutations to table Ledgers
         std::vector<Mutation> ledgerMutations;
         ledgerMutations.push_back (Mutation ());
@@ -267,11 +227,14 @@ private:
                 if (isSaved (ledgerSeqStr, ledgerHash))
                     return true;
 
+                for (auto const& mutation : mutations)
+                {
+                    std::map<Text, Text> attributes;
+                    getConnection ()->m_client->mutateRows (
+                        mutation.first, mutation.second, attributes);
+                }
+
                 std::map<Text, Text> attributes;
-                getConnection ()->m_client->mutateRows (
-                    s_tableTxs, txsBatches, attributes);
-                getConnection ()->m_client->mutateRows (
-                    s_tableTxIndex, txIndexBatches, attributes);
                 getConnection ()->m_client->mutateRow (
                     s_tableLedgers, ledgerSeqStr, ledgerMutations, attributes);
                 JLOG (m_journal.info) << "done";
@@ -312,6 +275,71 @@ private:
             JLOG (m_journal.fatal) << "mismatch hash " << cells[0].value << " got for " << ledgerSeqStr;
             return false;
         }
+    }
+
+    void prepareTxs (std::unordered_map<std::string, std::vector<apache::hadoop::hbase::thrift::BatchMutation>>& mutations,
+                     AcceptedLedger::pointer aLedger,
+                     const LedgerIndex& ledgerSeq) noexcept
+    {
+        using namespace apache::thrift;
+        using namespace apache::hadoop::hbase::thrift;
+        // write txs
+        std::vector<BatchMutation>& txsBatches = mutations[s_tableTxs];
+        std::vector<BatchMutation>& txIndexBatches = mutations[s_tableTxIndex];
+        for (auto const& vt : aLedger->getMap ())
+        {
+            uint256 transactionID = vt.second->getTransactionID ();
+
+            m_app.getMasterTransaction ().inLedger (
+                transactionID, ledgerSeq);
+
+            std::string const rowKey (boost::str (
+                boost::format (s_keyTxs) % (ledgerSeq % 16) % ledgerSeq % vt.second->getTxnType () % vt.second->getTxnSeq ()));
+
+            // mutations to table Txs
+            mutationTxs (txsBatches, rowKey, vt.second);
+
+            // mutations to table TxIndex
+            mutationTxIndex (txIndexBatches, rowKey, transactionID);
+        }
+    }
+
+    void mutationTxs (std::vector<apache::hadoop::hbase::thrift::BatchMutation>& txsBatches,
+                      std::string const& rowKey,
+                      AcceptedLedgerTx::pointer vt)
+    {
+        using namespace apache::thrift;
+        using namespace apache::hadoop::hbase::thrift;
+        txsBatches.push_back (BatchMutation ());
+        txsBatches.back ().row = rowKey;
+
+        auto& mutations = txsBatches.back ().mutations;
+
+        mutations.push_back (Mutation ());
+        mutations.back ().column = s_columnRaw;
+        Serializer s;
+        vt->getTxn ()->add (s);
+        mutations.back ().value.assign (s.getString ());
+
+        mutations.push_back (Mutation ());
+        mutations.back ().column = s_columnMeta;
+        mutations.back ().value.assign (vt->getRawMeta ());
+    }
+
+    void mutationTxIndex (std::vector<apache::hadoop::hbase::thrift::BatchMutation>& txIndexBatches,
+                          std::string const& rowKey,
+                          uint256 const& transactionID)
+    {
+        using namespace apache::thrift;
+        using namespace apache::hadoop::hbase::thrift;
+        txIndexBatches.push_back (BatchMutation ());
+        txIndexBatches.back ().row = to_string (transactionID);
+
+        auto& mutations = txIndexBatches.back ().mutations;
+
+        mutations.push_back (Mutation ());
+        mutations.back ().column = s_columnValue;
+        mutations.back ().value.assign (rowKey);
     }
 
 private:
