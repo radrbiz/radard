@@ -35,7 +35,7 @@ namespace ripple {
 
 namespace unl { class Manager; }
 namespace Resource { class Manager; }
-namespace NodeStore { class Database; }
+namespace NodeStore { class Database; class DatabaseShard; }
 
 // VFALCO TODO Fix forward declares required for header dependency loops
 class AmendmentTable;
@@ -109,6 +109,7 @@ public:
     virtual boost::asio::io_service& getIOService () = 0;
     virtual CollectorManager&       getCollectorManager () = 0;
     virtual Family&                 family() = 0;
+    virtual Family*                 shardFamily() = 0;
     virtual TimeKeeper&             timeKeeper() = 0;
     virtual JobQueue&               getJobQueue () = 0;
     virtual NodeCache&              getTempNodeCache () = 0;
@@ -124,6 +125,7 @@ public:
     virtual Cluster&                cluster () = 0;
     virtual Validations&            getValidations () = 0;
     virtual NodeStore::Database&    getNodeStore () = 0;
+    virtual NodeStore::DatabaseShard*   getShardStore() = 0;
     virtual InboundLedgers&         getInboundLedgers () = 0;
     virtual InboundTransactions&    getInboundTransactions () = 0;
     virtual TaggedCache <uint256, AcceptedLedger>&

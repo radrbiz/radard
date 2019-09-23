@@ -101,6 +101,7 @@ private:
     TreeNodeCache treecache_;
     FullBelowCache fullbelow_;
     NodeStore::Database& db_;
+    //bool const shardBacked_;
     beast::Journal j_;
 
     // missing node handler
@@ -120,6 +121,9 @@ public:
             collectorManager.collector(),
                 fullBelowTargetSize, fullBelowExpirationSeconds)
         , db_ (db)
+        //, shardBacked_ (
+        //    dynamic_cast<NodeStore::DatabaseShard*>(&db) != nullptr)
+            
         , j_ (app.journal("SHAMap"))
     {
     }
@@ -306,6 +310,7 @@ public:
     NodeStoreScheduler m_nodeStoreScheduler;
     std::unique_ptr <SHAMapStore> m_shaMapStore;
     std::unique_ptr <NodeStore::Database> m_nodeStore;
+    std::unique_ptr <NodeStore::DatabaseShard> shardStore_;
     PendingSaves pendingSaves_;
     AccountIDCache accountIDCache_;
     boost::optional<OpenLedger> openLedger_;
@@ -314,6 +319,7 @@ public:
     NodeCache m_tempNodeCache;
     std::unique_ptr <CollectorManager> m_collectorManager;
     detail::AppFamily family_;
+    std::unique_ptr <detail::AppFamily> sFamily_;
     CachedSLEs cachedSLEs_;
     LocalCredentials m_localCredentials;
 
@@ -393,7 +399,7 @@ public:
             m_txMaster, *config_))
 
         , m_nodeStore (m_shaMapStore->makeDatabase ("NodeStore.main", 4))
-
+        
         , accountIDCache_(128000)
 
         , m_tempNodeCache ("NodeCache", 16384, 90, stopwatch(),
@@ -417,7 +423,9 @@ public:
         , m_jobQueue (std::make_unique<JobQueue>(
             m_collectorManager->group ("jobq"), m_nodeStoreScheduler,
             logs_->journal("JobQueue"), *logs_))
-
+            
+        , shardStore_ (
+            m_shaMapStore->makeDatabaseShard ("ShardStore", 4, *m_jobQueue))
         //
         // Anything which calls addJob must be a descendant of the JobQueue
         //
@@ -488,6 +496,9 @@ public:
         , m_io_latency_sampler (m_collectorManager->collector()->make_event ("ios_latency"),
             logs_->journal("Application"), std::chrono::milliseconds (100), get_io_service())
     {
+        if (shardStore_)
+            sFamily_ = std::make_unique<detail::AppFamily>(
+                *this, *shardStore_, *m_collectorManager);
         add (m_resourceManager.get ());
 
         //
@@ -543,7 +554,12 @@ public:
     {
         return family_;
     }
-
+    
+    Family* shardFamily() override
+    {
+        return sFamily_.get();
+    }
+    
     TimeKeeper&
     timeKeeper() override
     {
@@ -616,7 +632,12 @@ public:
     {
         return *m_nodeStore;
     }
-
+    
+    NodeStore::DatabaseShard* getShardStore () override
+    {
+        return shardStore_.get();
+    }
+    
     Application::MutexType& getMasterMutex () override
     {
         return m_masterMutex;
@@ -925,6 +946,7 @@ public:
 private:
     void addTxnSeqField();
     void updateTables ();
+    bool validateShards ();
     void startGenesisLedger ();
     Ledger::pointer getLastFullLedger();
     bool loadOldLedger (
@@ -1105,7 +1127,13 @@ void ApplicationImp::setup()
     m_ledgerMaster->tune (config_->getSize (siLedgerSize), config_->getSize (siLedgerAge));
     family().treecache().setTargetSize (config_->getSize (siTreeCacheSize));
     family().treecache().setTargetAge (config_->getSize (siTreeCacheAge));
-
+    if (shardStore_)
+    {
+        //shardStore_->tune(config_->getSize(siNodeCacheSize),
+        //    config_->getSize(siNodeCacheAge));
+        sFamily_->treecache().setTargetSize(config_->getSize(siTreeCacheSize));
+        sFamily_->treecache().setTargetAge(config_->getSize(siTreeCacheAge));
+    }
     //----------------------------------------------------------------------
     //
     // Server
@@ -1757,6 +1785,34 @@ void ApplicationImp::updateTables ()
 
         getNodeStore().import (*source);
     }
+}
+
+bool ApplicationImp::validateShards()
+{
+#if 0
+    if (!m_overlay)
+        Throw<std::runtime_error>("no overlay");
+    if(config_->RUN_STANDALONE)
+    {
+        JLOG(m_journal.fatal()) <<
+            "Shard validation cannot be run in standalone";
+        return false;
+    }
+    if (config_->section(ConfigSection::shardDatabase()).empty())
+    {
+        JLOG (m_journal.fatal()) <<
+            "The [shard_db] configuration setting must be set";
+        return false;
+    }
+    if (!shardStore_)
+    {
+        JLOG(m_journal.fatal()) <<
+            "Invalid [shard_db] configuration";
+        return false;
+    }
+    shardStore_->validate();
+#endif
+    return true;
 }
 
 //------------------------------------------------------------------------------
