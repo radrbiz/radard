@@ -14,7 +14,7 @@
     "coffee-script": "^1.8.0",
     "deep-equal": "0.0.0",
     "extend": "~1.2.0",
-    "lodash": "^3.5.0",
+    "lodash": "^4.17.15",
     "mocha": "^2.1.0",
     "request": "^2.47.0",
     "ripple-lib": "0.13.0-rc6.0",
