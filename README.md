@@ -35,10 +35,34 @@ README for more details.
 For more information, see https://wiki.radarlab.org/transaction_fee.
 
 ### Build instructions:
-  * Coming soon...
+  * Use Ubuntu 14.04/15.04 release system
+  * Install dependencise
+```
+sh Builds/Docker/install_rippled_depends_ubuntu.sh
+```
+  * Compiling
+```
+scons --static use-mysql=1 use-hbase=1 -j4
+```
+  * run unittest
+```
+./build/radard -u
+```
 
 ### Setup instructions:
-  * Coming soon...
+  * Setting storage file path, log path, peers ips, and many others by editing radard.cfg
+  * Running program as standalone mode 
+```
+./build/radard --conf radard.cfg -a
+```
+  * Running program use as network mode
+```
+./build/radard --conf radard.cfg --net 
+```
+  * make sure http worked
+```
+curl http://127.0.0.1:5005/status
+```
 
 ### License
 Radar is open source and permissively licensed under the ISC license. See the LICENSE file for more details.
