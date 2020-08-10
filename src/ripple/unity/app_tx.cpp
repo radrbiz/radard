@@ -43,3 +43,6 @@
 #include <ripple/app/tx/impl/ActiveAccount.cpp>
 #include <ripple/app/tx/impl/Dividend.cpp>
 #include <ripple/app/tx/impl/IssueAsset.cpp>
+#include <ripple/app/tx/impl/RingCancel.cpp>
+#include <ripple/app/tx/impl/RingDeposit.cpp>
+#include <ripple/app/tx/impl/RingWithdraw.cpp>

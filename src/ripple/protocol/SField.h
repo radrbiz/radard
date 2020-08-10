@@ -358,6 +358,10 @@ extern SF_U32 const sfDividendLedger;
 extern SF_U32 const sfReferenceHeight;
 extern SF_U32 const sfReleaseRate;
 extern SF_U32 const sfNextReleaseTime;
+extern SF_U32 const sfRingWithdrawed;
+extern SF_U32 const sfRingDeposited;
+extern SF_U32 const sfRingIndex;
+extern SF_U32 const sfParticipantsNum;
 
 // 32-bit integers (uncommon)
 extern SF_U32 const sfHighQualityIn;
@@ -425,6 +429,7 @@ extern SF_U256 const sfAccountTxnID;
 
 extern SF_U256 const sfDividendHash;
 extern SF_U256 const sfDividendMarker;
+extern SF_U256 const sfRingHash;
 
 // 256-bit (uncommon)
 extern SF_U256 const sfBookDirectory;
@@ -488,6 +493,10 @@ extern SField const sfPaths;
 extern SF_Vec256 const sfIndexes;
 extern SF_Vec256 const sfHashes;
 extern SF_Vec256 const sfAmendments;
+extern SF_Vec256 const sfKeyImage;
+extern SF_Vec256 const sfSignatures;
+extern SF_Vec256 const sfPublicKeyPair;
+extern SF_Vec256 const sfAccounts;
 
 // inner object
 // OBJECT/1 is reserved for end of object
@@ -504,6 +513,7 @@ extern SField const sfSignerEntry;
 extern SField const sfSigner;
 extern SField const sfMajority;
 
+extern SField const sfRingHolder;
 extern SField const sfReferenceHolder;
 extern SField const sfFeeShareTaker;
 extern SField const sfReleasePoint;
@@ -528,6 +538,8 @@ extern SField const sfFeeShareTakers;
 extern SField const sfReleaseSchedule;
 extern SField const sfAmounts;
 extern SField const sfLimits;
+extern SField const sfKeyImages;
+extern SField const sfPublicKeys;
 
 } // ripple
 

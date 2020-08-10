@@ -1,7 +1,7 @@
 //------------------------------------------------------------------------------
 /*
     This file is part of rippled: https://github.com/ripple/rippled
-    Copyright (c) 2012, 2013 Ripple Labs Inc.
+    Copyright (c) 2014 Ripple Labs Inc.
 
     Permission to use, copy, modify, and/or distribute this software for any
     purpose  with  or without fee is hereby granted, provided that the above
@@ -17,27 +17,39 @@
 */
 //==============================================================================
 
-#include <BeastConfig.h>
+#ifndef RIPPLE_TX_RINGDEPOSIT_H_INCLUDED
+#define RIPPLE_TX_RINGDEPOSIT_H_INCLUDED
 
-#include <ripple/crypto/impl/Base58.cpp>
-#include <ripple/crypto/impl/Base58Data.cpp>
-#include <ripple/crypto/impl/CBigNum.cpp>
-#include <ripple/crypto/impl/ec_key.cpp>
-#include <ripple/crypto/impl/ECDSA.cpp>
-#include <ripple/crypto/impl/ECDSACanonical.cpp>
-#include <ripple/crypto/impl/ECDSAKey.cpp>
-#include <ripple/crypto/impl/ECIES.cpp>
-#include <ripple/crypto/impl/GenerateDeterministicKey.cpp>
-#include <ripple/crypto/impl/KeyType.cpp>
-#include <ripple/crypto/impl/openssl.cpp>
-#include <ripple/crypto/impl/RandomNumbers.cpp>
-#include <ripple/crypto/impl/RFC1751.cpp>
-#include <ripple/crypto/impl/AltBn128.cpp>
+#include <ripple/app/tx/impl/Transactor.h>
+#include <ripple/basics/Log.h>
+#include <ripple/protocol/Indexes.h>
 
-#include <ripple/crypto/tests/CKey.test.cpp>
-#include <ripple/crypto/tests/ECDSACanonical.test.cpp>
-#include <ripple/crypto/tests/Ring.test.cpp>
+namespace ripple {
 
-#if DOXYGEN
-#include <ripple/crypto/README.md>
+class RingDeposit
+    : public Transactor
+{
+public:
+    RingDeposit (ApplyContext& ctx)
+        : Transactor(ctx)
+    {
+    }
+
+    static
+    TER
+    preflight (PreflightContext const& ctx);
+
+    static
+    TER
+    preclaim(PreclaimContext const& ctx);
+
+    TER doApply () override;
+
+    
+
+};
+
+}
+
 #endif
+

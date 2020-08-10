@@ -142,6 +142,8 @@ Handler handlerArray[] {
 //      {   "profile",              byRef (&doProfile),             Role::USER,  NEEDS_CURRENT_LEDGER  },
     {   "random",               byRef (&doRandom),              Role::USER,  NO_CONDITION     },
     {   "ripple_path_find",     byRef (&doRipplePathFind),      Role::USER,  NO_CONDITION  },
+    {   "ring_info",            byRef (&doRingInfo),            Role::USER,  NEEDS_CURRENT_LEDGER  },
+    {   "ring_sign",            byRef (&doRingSign),            Role::USER,  NEEDS_CURRENT_LEDGER  },
     {   "sign",                 byRef (&doSign),                Role::USER,  NO_CONDITION     },
     {   "sign_for",             byRef (&doSignFor),             Role::USER,  NO_CONDITION     },
     {   "submit",               byRef (&doSubmit),              Role::USER,  NEEDS_CURRENT_LEDGER  },

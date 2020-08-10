@@ -74,6 +74,8 @@
 #include <ripple/rpc/handlers/Ping.cpp>
 #include <ripple/rpc/handlers/Print.cpp>
 #include <ripple/rpc/handlers/Random.cpp>
+#include <ripple/rpc/handlers/RingInfo.cpp>
+#include <ripple/rpc/handlers/RingSign.cpp>
 #include <ripple/rpc/handlers/RipplePathFind.cpp>
 #include <ripple/rpc/handlers/ServerInfo.cpp>
 #include <ripple/rpc/handlers/ServerState.cpp>

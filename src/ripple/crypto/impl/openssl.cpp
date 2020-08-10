@@ -80,6 +80,19 @@ void add_to (EC_GROUP const* group,
         Throw<std::runtime_error> ("EC_POINT_add() failed");
 }
 
+// ec_point + ec_point
+ec_point add (EC_GROUP const* group,
+            ec_point const& a,
+            ec_point const& b,
+            bn_ctx& ctx)
+{
+    ec_point result(group);
+    if (!EC_POINT_add (group, result.get(), a.get(), b.get(), ctx.get()))
+        Throw<std::runtime_error> ("EC_POINT_add() failed");
+    return result;
+}
+
+// computes generator * n
 ec_point multiply (EC_GROUP const* group,
                    bignum const& n,
                    bn_ctx& ctx)
@@ -91,6 +104,20 @@ ec_point multiply (EC_GROUP const* group,
     return result;
 }
 
+// computes a * n
+ec_point multiply2 (EC_GROUP const* group,
+                    ec_point const& a,
+                    bignum const& n,
+                    bn_ctx& ctx)
+{
+    ec_point result (group);
+    if (! EC_POINT_mul (group, result.get(), nullptr, a.get(), n.get(), ctx.get()))
+        Throw<std::runtime_error> ("EC_POINT_mul() failed");
+
+    return result;
+}
+
+// scalar to point
 ec_point bn2point (EC_GROUP const* group, BIGNUM const* number)
 {
     EC_POINT* result = EC_POINT_bn2point (group, number, nullptr, nullptr);
@@ -98,6 +125,15 @@ ec_point bn2point (EC_GROUP const* group, BIGNUM const* number)
         Throw<std::runtime_error> ("EC_POINT_bn2point() failed");
 
     return ec_point::acquire (result);
+}
+
+// set x,y to point
+ec_point set_coordinates(EC_GROUP const* group, bignum const& x, bignum const& y){
+    ec_point p(group);
+    if(!EC_POINT_set_affine_coordinates_GFp(group, p.get(), x.get(), y.get(), nullptr)){
+        Throw<std::runtime_error> ("EC_POINT_set_affine_coordinates_GFp() runs failed");
+    }
+    return p;
 }
 
 static ec_key ec_key_new_secp256k1_compressed()

@@ -61,6 +61,7 @@ struct ConfigSection
 #define SECTION_SSL_VERIFY              "ssl_verify"
 #define SECTION_SSL_VERIFY_FILE         "ssl_verify_file"
 #define SECTION_SSL_VERIFY_DIR          "ssl_verify_dir"
+#define SECTION_SECRET_TX               "secret_transaction"
 #define SECTION_TX_DB                   "transaction_db"
 #define SECTION_TX_DB_HBASE             "tx_db_hbase"
 #define SECTION_VALIDATORS_FILE         "validators_file"

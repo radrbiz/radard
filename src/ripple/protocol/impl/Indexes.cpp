@@ -24,6 +24,17 @@
 
 namespace ripple {
 
+uint256
+getRingIndex (uint64 const& quantity, Issue const& issue, uint32_t index)
+{
+    return sha512Half(
+        std::uint16_t(spaceRing),
+        issue.account,
+        issue.currency,
+        quantity,
+        index);
+}
+
 // get the index of the node that holds the last 256 ledgers
 uint256
 getLedgerHashIndex ()
@@ -343,6 +354,12 @@ Keylet dividend_t::operator()() const
 {
     return { ltDIVIDEND,
         getLedgerDividendIndex() };
+}
+
+Keylet ring_t::operator()(uint64 const& quantity, Issue const& issue, uint32_t index) const
+{
+    return {ltRING,
+        getRingIndex(quantity, issue, index)};
 }
 
 Keylet refer_t::operator()(AccountID const& id) const

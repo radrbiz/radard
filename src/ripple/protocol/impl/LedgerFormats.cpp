@@ -178,6 +178,19 @@ LedgerFormats::LedgerFormats ()
             << SOElement (sfPreviousTxnID,       SOE_REQUIRED)
             << SOElement (sfPreviousTxnLgrSeq,   SOE_REQUIRED)
             ;
+
+    add("Ring", ltRING)
+            << SOElement (sfLedgerSequence,      SOE_OPTIONAL) // start ledgerIndex
+            << SOElement (sfRingHash,            SOE_OPTIONAL) // calc after closing
+            << SOElement (sfAmount,              SOE_OPTIONAL) // amount deposited
+            << SOElement (sfRingDeposited,       SOE_OPTIONAL) // deposited participants no
+            << SOElement (sfRingWithdrawed,      SOE_OPTIONAL) // withdrawed participants no
+            << SOElement (sfAccounts,            SOE_OPTIONAL) // accounts in the ring
+            << SOElement (sfPublicKeys,          SOE_OPTIONAL) // public keys
+            << SOElement (sfKeyImages,           SOE_OPTIONAL) // double spend check keys [[]]
+            << SOElement (sfRingIndex,           SOE_OPTIONAL)
+            << SOElement (sfParticipantsNum,     SOE_OPTIONAL) // participants number for a ring
+            ;
 }
 
 void LedgerFormats::addCommonFields (Item& item)

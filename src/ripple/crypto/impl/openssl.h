@@ -75,6 +75,14 @@ public:
         return *this;
     }
 
+    static bignum rand(int bits) {
+        bignum rnd;
+        if (0 == BN_rand(rnd.ptr, bits, -1, 0)) {
+            Throw<std::runtime_error> ("bignum::rand : BN_rand failed");
+        }
+        return rnd;
+    }
+
     BIGNUM      * get()        { return ptr; }
     BIGNUM const* get() const  { return ptr; }
 
@@ -173,16 +181,32 @@ public:
     EC_POINT const* get() const  { return ptr; }
 };
 
+// computes b = a + b
 void add_to (EC_GROUP const* group,
              ec_point const& a,
              ec_point& b,
              bn_ctx& ctx);
 
+// ec_point + ec_point
+ec_point add(EC_GROUP const* group,
+        ec_point const& a,
+        ec_point const& b,
+        bn_ctx& ctx);
+
+// computes generator * n
 ec_point multiply (EC_GROUP const* group,
                    bignum const& n,
                    bn_ctx& ctx);
 
+// computes a * n
+ec_point multiply2 (EC_GROUP const* group,
+                    ec_point const& a,
+                    bignum const& n,
+                    bn_ctx& ctx);
+
 ec_point bn2point (EC_GROUP const* group, BIGNUM const* number);
+
+ec_point set_coordinates(EC_GROUP const* group, bignum const& x, bignum const& y);
 
 // output buffer must hold 33 bytes
 void serialize_ec_point (ec_point const& point, std::uint8_t* ptr);

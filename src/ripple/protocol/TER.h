@@ -122,6 +122,9 @@ enum TER
     tefBAD_QUORUM,
     tefNOT_MULTI_SIGNING,
     tefBAD_AUTH_MASTER,
+    tefRING_CLOSED,
+    tefRING_NOT_CLOSED,
+    tefRING_REDUNDANT,
 
     // -99 .. -1: R Retry
     //   sequence too high, no funds for txn fee, originating -account
@@ -181,6 +184,7 @@ enum TER
     tecUNFUNDED_OFFER           = 103,
     tecUNFUNDED_PAYMENT         = 104,
     tecFAILED_PROCESSING        = 105,
+    tecUNFUNDED_TRANSFER        = 106,
     tecDIR_FULL                 = 121,
     tecINSUF_RESERVE_LINE       = 122,
     tecINSUF_RESERVE_OFFER      = 123,

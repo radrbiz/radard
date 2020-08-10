@@ -140,6 +140,31 @@ TxFormats::TxFormats ()
         << SOElement (sfReleaseSchedule,     SOE_REQUIRED)
         ;
 
+    // ring
+    add("RingDeposit", ttRING_DEPOSIT)
+        << SOElement (sfPublicKeyPair,       SOE_REQUIRED) // stealth pk
+        << SOElement (sfAmount,              SOE_REQUIRED)
+        << SOElement (sfRingIndex,           SOE_REQUIRED)
+        ;
+
+    add("RingWithdraw", ttRING_WITHDRAW)
+        //<< SOElement (sfDestination,         SOE_REQUIRED) // withdraw target
+        << SOElement (sfAmount,              SOE_REQUIRED)
+        << SOElement (sfRingIndex,           SOE_REQUIRED)
+        << SOElement (sfDigest,              SOE_REQUIRED)  // c0
+        << SOElement (sfKeyImage,           SOE_REQUIRED)  // keyImage
+        << SOElement (sfSignatures,          SOE_REQUIRED)  // sig
+        ;
+
+    add("RingCancel", ttRING_CANCEL)
+        << SOElement (sfAmount,              SOE_REQUIRED)
+        << SOElement (sfRingIndex,           SOE_REQUIRED)
+        << SOElement (sfDigest,              SOE_REQUIRED)  // c0
+        << SOElement (sfKeyImage,            SOE_REQUIRED)  // keyImage
+        << SOElement (sfSignatures,          SOE_REQUIRED)  // sig
+        << SOElement (sfPublicKeyPair,       SOE_REQUIRED) // stealth pk
+        ;
+
     // The SignerEntries are optional because a SignerList is deleted by
     // setting the SignerQuorum to zero and omitting SignerEntries.
     add ("SignerListSet", ttSIGNER_LIST_SET)

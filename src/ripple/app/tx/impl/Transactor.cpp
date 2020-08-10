@@ -216,6 +216,17 @@ Transactor::checkFee (PreclaimContext const& ctx, std::uint64_t baseFee)
 
 TER Transactor::payFee ()
 {
+    auto const txType = ctx_.tx.getTxnType ();
+    if(txType == ttRING_DEPOSIT){
+        STAmount const amount (ctx_.tx.getFieldAmount (sfAmount));
+        auto const feePaid = multiply (amount, amountFromRate (2 * ctx_.app.config ().FEE_DEFAULT_RATE_NATIVE), amount.issue ()).xrp ();
+        auto const sle = view().peek(
+            keylet::account(account_));
+        mSourceBalance -= feePaid;
+        sle->setFieldAmount (sfBalance, mSourceBalance);
+        return tesSUCCESS;
+    }
+
     auto const feePaid = ctx_.tx[sfFee].xrp();
 
     auto const sle = view().peek(

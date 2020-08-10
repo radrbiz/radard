@@ -50,6 +50,7 @@ bool transResultInfo (TER code, std::string& token, std::string& text)
         { tecUNFUNDED_ADD,           { "tecUNFUNDED_ADD",          "Insufficient VRP balance for WalletAdd."                                       } },
         { tecUNFUNDED_OFFER,         { "tecUNFUNDED_OFFER",        "Insufficient balance to fund created offer."                                   } },
         { tecUNFUNDED_PAYMENT,       { "tecUNFUNDED_PAYMENT",      "Insufficient VRP balance to send."                                             } },
+        { tecUNFUNDED_TRANSFER,      { "tecUNFUNDED_TRANSFER",     "Insufficient balance to transfer."                                             } },
         { tecOWNERS,                 { "tecOWNERS",                "Non-zero owner count."                                                         } },
         { tecNO_ISSUER,              { "tecNO_ISSUER",             "Issuer account does not exist."                                                } },
         { tecNO_AUTH,                { "tecNO_AUTH",               "Not authorized to hold asset."                                                 } },
@@ -83,6 +84,9 @@ bool transResultInfo (TER code, std::string& token, std::string& text)
         { tefREFERENCE_EXIST,        { "tefREFERENCE_EXIST",       "This account has already had a reference."                                     } },
         { tefWRONG_PRIOR,            { "tefWRONG_PRIOR",           "This previous transaction does not match."                                     } },
         { tefBAD_AUTH_MASTER,        { "tefBAD_AUTH_MASTER",       "Auth for unclaimed account needs correct master key."                          } },
+        { tefRING_CLOSED,            { "tefRING_CLOSED",           "Ring already closed"                                                           } },
+        { tefRING_NOT_CLOSED,        { "tefRING_NOT_CLOSED",       "Ring still open"                                                               } },
+        { tefRING_REDUNDANT,         { "tefRING_REDUNDANT",        "Account already in the ring."                                                  } },
 
         { telLOCAL_ERROR,            { "telLOCAL_ERROR",           "Local failure."                                                                } },
         { telBAD_DOMAIN,             { "telBAD_DOMAIN",            "Domain too long."                                                              } },

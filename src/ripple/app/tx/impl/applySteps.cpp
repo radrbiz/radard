@@ -26,6 +26,9 @@
 #include <ripple/app/tx/impl/CreateOffer.h>
 #include <ripple/app/tx/impl/CreateTicket.h>
 #include <ripple/app/tx/impl/Payment.h>
+#include <ripple/app/tx/impl/RingCancel.h>
+#include <ripple/app/tx/impl/RingWithdraw.h>
+#include <ripple/app/tx/impl/RingDeposit.h>
 #include <ripple/app/tx/impl/SetAccount.h>
 #include <ripple/app/tx/impl/SetRegularKey.h>
 #include <ripple/app/tx/impl/SetSignerList.h>
@@ -54,6 +57,9 @@ invoke_preflight (PreflightContext const& ctx)
     case ttOFFER_CANCEL:    return CancelOffer      ::preflight(ctx);
     case ttOFFER_CREATE:    return CreateOffer      ::preflight(ctx);
     case ttPAYMENT:         return Payment          ::preflight(ctx);
+    case ttRING_CANCEL:     return RingCancel       ::preflight(ctx);
+    case ttRING_DEPOSIT:    return RingDeposit      ::preflight(ctx);
+    case ttRING_WITHDRAW:   return RingWithdraw     ::preflight(ctx);
     case ttSUSPAY_CREATE:   return SusPayCreate     ::preflight(ctx);
     case ttSUSPAY_FINISH:   return SusPayFinish     ::preflight(ctx);
     case ttSUSPAY_CANCEL:   return SusPayCancel     ::preflight(ctx);
@@ -129,6 +135,8 @@ invoke_preclaim (PreclaimContext const& ctx)
     case ttOFFER_CANCEL:    return invoke_preclaim<CancelOffer>(ctx);
     case ttOFFER_CREATE:    return invoke_preclaim<CreateOffer>(ctx);
     case ttPAYMENT:         return invoke_preclaim<Payment>(ctx);
+    case ttRING_DEPOSIT:    return invoke_preclaim<RingDeposit>(ctx);
+    case ttRING_WITHDRAW:   return invoke_preclaim<RingWithdraw>(ctx);
     case ttSUSPAY_CREATE:   return invoke_preclaim<SusPayCreate>(ctx);
     case ttSUSPAY_FINISH:   return invoke_preclaim<SusPayFinish>(ctx);
     case ttSUSPAY_CANCEL:   return invoke_preclaim<SusPayCancel>(ctx);
@@ -191,6 +199,8 @@ invoke_apply (ApplyContext& ctx)
     case ttOFFER_CANCEL:    { CancelOffer   p(ctx); return p(); }
     case ttOFFER_CREATE:    { CreateOffer   p(ctx); return p(); }
     case ttPAYMENT:         { Payment       p(ctx); return p(); }
+    case ttRING_DEPOSIT:     { RingDeposit   p(ctx); return p(); }
+    case ttRING_WITHDRAW:    { RingWithdraw  p(ctx); return p(); }
     case ttSUSPAY_CREATE:   { SusPayCreate  p(ctx); return p(); }
     case ttSUSPAY_FINISH:   { SusPayFinish  p(ctx); return p(); }
     case ttSUSPAY_CANCEL:   { SusPayCancel  p(ctx); return p(); }

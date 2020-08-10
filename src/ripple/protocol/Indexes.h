@@ -288,6 +288,12 @@ Keylet page (uint256 const& key)
 Keylet
 susPay (AccountID const& source, std::uint32_t seq);
 
+/** Ring object */
+struct ring_t
+{
+    Keylet operator()(uint64 const& quantity, Issue const& issue, uint32_t index) const;
+};
+static ring_t const ring {};
 } // keylet
 
 uint256
@@ -307,6 +313,9 @@ getAssetStateIndex (AccountID const& a, AccountID const& b, Currency const& curr
 
 uint256
 getAssetStateIndex (AccountID const& a, Issue const& issue);
+
+uint256
+getRingIndex (uint64 const& quantity, Issue const& issue, uint32_t index);
 
 }
 

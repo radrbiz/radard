@@ -57,6 +57,9 @@ enum TxType
     ttADDREFEREE        = 182,
     ttACTIVEACCOUNT     = 183,
     ttISSUE             = 184,
+    ttRING_DEPOSIT      = 187,
+    ttRING_WITHDRAW     = 188,
+    ttRING_CANCEL       = 189
 };
 
 /** Manages the list of known transaction formats.

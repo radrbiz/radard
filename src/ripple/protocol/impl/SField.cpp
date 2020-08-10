@@ -108,6 +108,10 @@ SF_U32 const sfDividendLedger    = make::one<SF_U32::type>(&sfDividendLedger,   
 SF_U32 const sfReferenceHeight   = make::one<SF_U32::type>(&sfReferenceHeight,   STI_UINT32, 182, "ReferenceHeight");  // Deprecated: do not use
 SF_U32 const sfReleaseRate       = make::one<SF_U32::type>(&sfReleaseRate,       STI_UINT32, 183, "ReleaseRate");
 SF_U32 const sfNextReleaseTime   = make::one<SF_U32::type>(&sfNextReleaseTime,   STI_UINT32, 184, "NextReleaseTime");
+SF_U32 const sfRingWithdrawed    = make::one<SF_U32::type>(&sfRingWithdrawed,    STI_UINT32, 185, "RingWithdrawed");
+SF_U32 const sfRingDeposited     = make::one<SF_U32::type>(&sfRingDeposited,     STI_UINT32, 186, "RingDeposited");
+SF_U32 const sfRingIndex         = make::one<SF_U32::type>(&sfRingIndex,         STI_UINT32, 187, "RingIndex");
+SF_U32 const sfParticipantsNum   = make::one<SF_U32::type>(&sfParticipantsNum,    STI_UINT32, 188, "ParticipantsNum");
 
 // 32-bit integers (uncommon)
 SF_U32 const sfHighQualityIn       = make::one<SF_U32::type>(&sfHighQualityIn,       STI_UINT32, 16, "HighQualityIn");
@@ -174,6 +178,7 @@ SF_U256 const sfAccountTxnID    = make::one<SF_U256::type>(&sfAccountTxnID,    S
 
 SF_U256 const sfDividendHash    = make::one<SF_U256::type>(&sfDividendHash,    STI_HASH256, 181, "DividendHash");
 SF_U256 const sfDividendMarker  = make::one<SF_U256::type>(&sfDividendMarker,  STI_HASH256, 182, "DividendMarker");
+SF_U256 const sfRingHash        = make::one<SF_U256::type>(&sfRingHash,        STI_HASH256, 183, "RingHash");
 
 // 256-bit (uncommon)
 SF_U256 const sfBookDirectory = make::one<SF_U256::type>(&sfBookDirectory, STI_HASH256, 16, "BookDirectory");
@@ -241,6 +246,11 @@ SF_Vec256 const sfIndexes    = make::one<SF_Vec256::type>(&sfIndexes,    STI_VEC
 SF_Vec256 const sfHashes     = make::one<SF_Vec256::type>(&sfHashes,     STI_VECTOR256, 2, "Hashes");
 SF_Vec256 const sfAmendments = make::one<SF_Vec256::type>(&sfAmendments, STI_VECTOR256, 3, "Amendments");
 
+SF_Vec256 const sfKeyImage  = make::one<SF_Vec256::type>(&sfKeyImage,  STI_VECTOR256, 181, "KeyImage");
+SF_Vec256 const sfSignatures = make::one<SF_Vec256::type>(&sfSignatures, STI_VECTOR256, 182, "Signatures");
+SF_Vec256 const sfPublicKeyPair = make::one<SF_Vec256::type>(&sfPublicKeyPair, STI_VECTOR256, 183, "PublicKeyPair");
+SF_Vec256 const sfAccounts = make::one<SF_Vec256::type>(&sfAccounts, STI_VECTOR256, 184, "Accounts");
+
 // inner object
 // OBJECT/1 is reserved for end of object
 SField const sfTransactionMetaData = make::one(&sfTransactionMetaData, STI_OBJECT,  2, "TransactionMetaData");
@@ -258,6 +268,7 @@ SField const sfReferenceHolder     = make::one(&sfReferenceHolder,     STI_OBJEC
 SField const sfFeeShareTaker       = make::one(&sfFeeShareTaker,       STI_OBJECT, 182, "FeeShareTaker");
 SField const sfReleasePoint        = make::one(&sfReleasePoint,        STI_OBJECT, 183, "ReleasePoint");
 SField const sfEntry               = make::one(&sfEntry,               STI_OBJECT, 184, "Entry");
+SField const sfRingHolder          = make::one(&sfRingHolder,          STI_OBJECT, 185, "RingHolder");
 
 // inner object (uncommon)
 SField const sfSigner              = make::one(&sfSigner,              STI_OBJECT, 16, "Signer");
@@ -280,6 +291,8 @@ SField const sfFeeShareTakers  = make::one(&sfFeeShareTakers,  STI_ARRAY, 182, "
 SField const sfReleaseSchedule = make::one(&sfReleaseSchedule, STI_ARRAY, 183, "ReleaseSchedule");
 SField const sfAmounts         = make::one(&sfAmounts,         STI_ARRAY, 184, "Amounts");
 SField const sfLimits          = make::one(&sfLimits,          STI_ARRAY, 185, "Limits");
+SField const sfKeyImages       = make::one(&sfKeyImages,       STI_ARRAY, 186, "KeyImages");
+SField const sfPublicKeys      = make::one(&sfPublicKeys,      STI_ARRAY, 187, "PublicKeys");
 
 // array of objects (uncommon)
 SField const sfMajorities      = make::one(&sfMajorities,      STI_ARRAY, 16, "Majorities");
