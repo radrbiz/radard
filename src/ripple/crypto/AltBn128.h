@@ -52,6 +52,12 @@ openssl::ec_point scalarToPoint(uint256 x_);
 uint256
 sha256_s(std::string s);
 
+std::tuple<uint256, std::vector<uint256>, STVector256> ringSign(
+    const std::string &message,
+    const STArray &publicKeys,
+    int index,
+    uint256 privateKey);
+
 bool
 ringVerify(std::string msg,
     uint256 c0, STVector256 keyImage,

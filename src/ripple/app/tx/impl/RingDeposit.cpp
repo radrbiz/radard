@@ -142,7 +142,7 @@ RingDeposit::doApply()
     }
 
     STAmount const amount (ctx_.tx.getFieldAmount(sfAmount));
-    uint32_t partNum = get<uint32_t> (app.config ()[SECTION_SECRET_TX], "participant_number");
+    uint32_t partNum = get<uint32_t> (app.config ()[SECTION_SECRET_TX], "participants_number");
 
     STVector256 const newPk = ctx_.tx.getFieldV256(sfPublicKeyPair);
 
@@ -169,15 +169,16 @@ RingDeposit::doApply()
     auto ringSle = view().peek(keylet::ring(amount.mantissa(), amount.issue(), lastRingIndex));
     if (ringSle){
         int fastInv = get<int> (app.config ()[SECTION_SECRET_TX], "fast_interval");
+        int maxParts = get<int> (app.config ()[SECTION_SECRET_TX], "max_participants");
         const auto startSeq = ringSle->getFieldU32(sfLedgerSequence);
         bool bFastDelay = fastInv > 0 && curLgrSeq - startSeq < fastInv; // true: close delayed
 
         const auto depositedNum = ringSle->getFieldU32(sfRingDeposited);
         auto ringHash = ringSle->getFieldH256(sfRingHash);
         const auto ringPartNum = ringSle->getFieldU32(sfParticipantsNum);
-        if (ringHash == 0 && (depositedNum < ringPartNum || bFastDelay)){ // ring not closed
+        if (ringHash == 0 && (depositedNum <= ringPartNum || bFastDelay)){ // ring not closed
             // push account hash if not redundant
-            auto acctHash = sha512Half(account_, amount.mantissa(), lastRingIndex);
+            auto acctHash = sha512Half(std::string("D"), account_, amount.mantissa(), lastRingIndex);
             auto accounts = ringSle->getFieldV256(sfAccounts);
             if (std::find(accounts.begin(), accounts.end(), acctHash)!=accounts.end())
                 return tefRING_REDUNDANT;
@@ -192,7 +193,7 @@ RingDeposit::doApply()
             obj.setFieldV256(sfPublicKeyPair, newPk);
             ringSle->setFieldArray(sfPublicKeys, ringPks);
 
-            if(depositedNum + 1 >= ringPartNum && !bFastDelay){
+            if((depositedNum + 1 >= ringPartNum && !bFastDelay) || depositedNum + 1 >= maxParts){
                 // become full, close this ring
                 ringSle->setFieldH256(sfRingHash, createRingHash(ringPks, amount.mantissa(), lastRingIndex));
                 lastRingIndex += 1;
@@ -228,7 +229,7 @@ RingDeposit::doApply()
     newRingSle->setFieldU32(sfLedgerSequence, curLgrSeq);
 
     STVector256 accounts(sfAccounts);
-    accounts.push_back(sha512Half(account_, amount.mantissa(), lastRingIndex));
+    accounts.push_back(sha512Half(std::string("D"), account_, amount.mantissa(), lastRingIndex));
     newRingSle->setFieldV256(sfAccounts, accounts);
 
     STArray ringPks (sfPublicKeys);

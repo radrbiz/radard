@@ -118,6 +118,246 @@ sha256_s(std::string s){
     return ret;
 }
 
+std::tuple<uint256, std::vector<uint256>, STVector256> ringSign(
+    const std::string &message,
+    const STArray &publicKeys,
+    int index,
+    uint256 privateKey)
+{
+    auto pt2uin256pair = [](const ec_point &pt)->std::pair<uint256, uint256>{
+        bn_ctx ctx;
+        bignum xBN, yBN;
+        EC_POINT_get_affine_coordinates_GFp(altbn128::group(), pt.get(), xBN.get(), yBN.get(), ctx.get());
+        return std::make_pair(uint256_from_bignum_clear(xBN), uint256_from_bignum_clear(yBN));
+    };
+
+    auto publicKeysToHexString = [](const STArray &publicKeys)->std::string  {
+        Serializer ser;
+        for(auto const pk : publicKeys){
+            STVector256 keyPair = pk.getFieldV256(sfPublicKeyPair);
+            ser.add256(keyPair[0]);
+            ser.add256(keyPair[1]);
+        }
+        std::string serHex = "0x" + ser.getHex();
+        return serHex;
+    };
+
+    // auto debugPointOutput = [](const ec_point &pt, std::string prefix)->std::string {
+    //     bn_ctx ctx;
+    //     bignum xBN, yBN;
+    //     EC_POINT_get_affine_coordinates_GFp(altbn128::group(), pt.get(), xBN.get(), yBN.get(), ctx.get());
+    //     return std::string(prefix
+    //         + "\n\tx=0x"
+    //         + std::string(BN_bn2hex(xBN.get()))
+    //         + ",\n\ty=0x"
+    //         + std::string(BN_bn2hex(yBN.get()))
+    //     );
+    // };
+
+    // auto uint256tostring = [](const uint256& n)->std::string {
+    //     bignum N(n);
+    //     return std::string(BN_bn2hex(N.get()));
+    // };
+
+    auto h1hash = [](const std::string &d)->uint256 {
+        // prefix 0x
+        std::string data = "0x" + d;
+        // to lower case
+        std::transform(data.begin(), data.end(), data.begin(), [](unsigned char c) {
+            return std::tolower(c);
+        });
+        uint256 h1 = sha256_s(data);
+        bignum h1BN = bignum(h1);
+        bn_ctx ctx;
+        BN_mod(h1BN.get(), h1BN.get(), N.get(), ctx.get());
+        return uint256_from_bignum_clear(h1BN);
+    };
+
+    int keyCount = publicKeys.size();
+    std::vector<uint256> c(keyCount);
+    std::vector<uint256> s(keyCount);
+    bn_ctx ctx;
+
+    // STEP 1
+    std::string pksHex = publicKeysToHexString(publicKeys);
+    // log << "step1 data: " << pksHex;
+    uint256 hBin = sha256_s(pksHex);
+
+    ec_point h = scalarToPoint(hBin);
+    // log << debugPointOutput(h, "h:");
+
+    ec_point yTildePt = multiply2(altbn128::group(), h, bignum(privateKey), ctx); // h * privateKey
+    // log << debugPointOutput(yTildePt, "yTildePt:");
+
+    // STEP 2
+        // yTilde
+    // bignum yTildeBN = point2bn(altbn128::group(), yTildePt);
+    // uint256 yTilde = uint256_from_bignum_clear(yTildeBN);
+        // Gu
+    bignum u = bignum::rand(256);
+    // bignum u(from_hex_text<uint256>("1172a7084c95e4c3655602cc810042b28cb968f5dbe7577357990ef0fbf4735"));
+    ec_point GuPt = multiply(altbn128::group(), u, ctx);        // bn128.ecMul(G, u)
+    // log << debugPointOutput(GuPt, "GuPt:");
+    
+        // hu
+    ec_point huPt = multiply2(altbn128::group(), h, u, ctx);    // bn128.ecMul(h, u)
+    // log << debugPointOutput(huPt, "huPt:");
+        // c[idx+1] = h1(...)
+    Serializer ser;
+    for(auto const pk : publicKeys){
+        STVector256 keyPair = pk.getFieldV256(sfPublicKeyPair);
+        ser.add256(keyPair[0]);
+        ser.add256(keyPair[1]);
+    }
+    auto yTildePtPair = pt2uin256pair(yTildePt);
+    ser.add256(yTildePtPair.first);
+    ser.add256(yTildePtPair.second);
+    ser.addRaw(message.data(), message.size());
+    auto GuPtPair = pt2uin256pair(GuPt);
+    ser.add256(GuPtPair.first);
+    ser.add256(GuPtPair.second);
+    auto huPtPair = pt2uin256pair(huPt);
+    ser.add256(huPtPair.first);
+    ser.add256(huPtPair.second);
+    uint256 hStep2 = h1hash(ser.getHex());
+
+    // log << "c[(index+1) % keyCount]=" << uint256tostring(hStep2);
+
+    c[(index+1) % keyCount] = hStep2;
+
+    
+    // STEP 3
+    std::deque<int> indice;
+    for (int i = index+1; i < keyCount; i++) {
+        indice.push_back(i);
+    }
+    for (int i = 0; i < index; i++) {
+        indice.push_back(i);
+    }
+    {
+            std::string idxStr = "";
+            for (int i : indice) {
+                idxStr += to_string(i);
+                idxStr += ", ";
+            }
+            // log << idxStr;
+    }
+    
+    for (int i : indice) {
+        // s[i]
+        bignum sBN = bignum::rand(256);
+        // bignum sBN(from_hex_text<uint256>("4d08ba2afba7642aa4a40e1df7860063c02aedba83934e8809ab37c3d59daf0"));
+        // s[i] = uint256_from_bignum_clear(sBN);
+        
+        bignum cBN(c[i]);
+
+        // log << "sBN: " << uint256tostring(s[i]);
+        // z1
+            // -- bn128.ecMul(G, s[i])
+        ec_point GsPt = multiply(altbn128::group(), sBN, ctx);
+        // log << debugPointOutput(GsPt, "GsPt:");
+            // -- bn128.ecMul(publicKeys[i], c[i])
+        uint256 pkx = publicKeys[i].getFieldV256(sfPublicKeyPair)[0];
+        uint256 pky = publicKeys[i].getFieldV256(sfPublicKeyPair)[1];
+        ec_point pkPt = set_coordinates(altbn128::group(), bignum(pkx), bignum(pky));
+        ec_point pkcPt = multiply2(altbn128::group(), pkPt, cBN, ctx);
+        // log << uint256tostring(c[i]);
+        // log << debugPointOutput(pkPt, "pkPt:");
+        // log << debugPointOutput(pkcPt, "pkcPt:");
+            // -- z1 = bn128.ecAdd(bn128.ecMul(G, s[i]), bn128.ecMul(publicKeys[i], c[i]))
+        ec_point z1Pt = add(altbn128::group(), GsPt, pkcPt, ctx);
+        // log << debugPointOutput(z1Pt, "z1Pt:");
+
+
+        // z2
+            // -- bn128.ecMul(h, s[i])
+        ec_point hsPt = multiply2(altbn128::group(), h, sBN, ctx);
+            // -- bn128.ecMul(yTilde, c[i])
+        ec_point hTcPt = multiply2(altbn128::group(), yTildePt, cBN, ctx);
+            // z2 = bn128.ecAdd(bn128.ecMul(h, s[i]), bn128.ecMul(yTilde, c[i]))
+        ec_point z2Pt = add(altbn128::group(), hsPt, hTcPt, ctx);
+
+        // log << debugPointOutput(z2Pt, "z2Pt:");
+
+        // // c[(i + 1) % keyCount] = h1(...)
+        // c[(i + 1) % keyCount] = sha256(
+        //     publicKeys,
+        //     yTilde,
+        //     message,
+        //     z1,
+        //     z2
+        // );
+        Serializer s3;
+        for(auto const pk : publicKeys){
+            STVector256 keyPair = pk.getFieldV256(sfPublicKeyPair);
+            s3.add256(keyPair[0]);
+            s3.add256(keyPair[1]);
+        }
+        auto yTildePtPair = pt2uin256pair(yTildePt);
+        s3.add256(yTildePtPair.first);
+        s3.add256(yTildePtPair.second);
+        s3.addRaw(message.data(), message.size());
+        
+        auto z1PtPair = pt2uin256pair(z1Pt);
+        s3.add256(z1PtPair.first);
+        s3.add256(z1PtPair.second);
+        auto z2PtPair = pt2uin256pair(z2Pt);
+        s3.add256(z2PtPair.first);
+        s3.add256(z2PtPair.second);
+
+        uint256 hStep3 = h1hash(s3.getHex());
+        // log << "c[(i + 1) % keyCount]=" << uint256tostring(hStep3);
+        c[(i + 1) % keyCount] = hStep3;
+
+        s[i] = uint256_from_bignum_clear(sBN);
+    }
+
+    // log << "======";
+
+    //uint256 zero(from_hex_text<uint256>("0"));
+
+    // STEP 4
+    bignum privateKeyBN(privateKey);
+    // log << "privateKey: " << uint256tostring(privateKey);
+    bignum cBN(c[index]);
+    // log << "c[index]: " << uint256tostring(c[index]);
+    bignum pkc;
+    BN_mul(pkc.get(), privateKeyBN.get(), cBN.get(), ctx.get());
+    // log << "pkc: ";
+    bignum sci;
+    BN_mod(sci.get(), pkc.get(), N.get(), ctx.get());
+    // log << "sci: " << BN_bn2hex(sci.get());
+
+    bignum usci;
+    BN_sub(usci.get(), u.get(), sci.get());
+    // log << "usci: " << BN_bn2hex(usci.get());
+
+    bignum usci1;
+    bignum zero(from_hex_text<uint256>("0"));
+    if (BN_cmp(usci.get(), zero.get()) < 0) {
+        BN_add(usci1.get(), usci.get(), N.get());
+    } else {
+        BN_copy(usci1.get(), usci.get());
+    }
+    // log << "usci1: " << BN_bn2hex(usci1.get());
+
+    bignum sBN;
+    BN_mod(sBN.get(), usci1.get(), N.get(), ctx.get());
+    // log << "sBN: " << BN_bn2hex(sBN.get());
+
+    s[index] = uint256_from_bignum_clear(sBN);
+    // log << "s[index]: " << uint256tostring(s[index]);
+
+    bignum c0BN(c[0]);
+    uint256 c0 = uint256_from_bignum_clear(c0BN);
+
+    // auto yTildePtPair = pt2uin256pair(yTildePt);
+    STVector256 yTilde;
+    yTilde.push_back(yTildePtPair.first);
+    yTilde.push_back(yTildePtPair.second);
+    return std::move(std::make_tuple(c0, s, yTilde));
+}
+
 bool
 ringVerify(std::string msg,
     uint256 c0, STVector256 keyImage,
@@ -170,7 +410,7 @@ ringVerify(std::string msg,
         // TODOcheck point on curve
         ec_point m1 = multiply(altbn128::group(), bn_sig, bc); // G * s
 char *char_m1 = EC_POINT_point2hex(altbn128::group(), m1.get(), (point_conversion_form_t)4, bc.get());
-JLOG(j.debug) << "m1=G * pk result:" << char_m1;
+JLOG(j.debug) << "m1=G * sig[i] result:" << char_m1;
 OPENSSL_free(char_m1);
 
         ec_point m2 = multiply2(altbn128::group(), pt_pk, bn_c, bc); // pk * c

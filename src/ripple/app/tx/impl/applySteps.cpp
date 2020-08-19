@@ -135,6 +135,7 @@ invoke_preclaim (PreclaimContext const& ctx)
     case ttOFFER_CANCEL:    return invoke_preclaim<CancelOffer>(ctx);
     case ttOFFER_CREATE:    return invoke_preclaim<CreateOffer>(ctx);
     case ttPAYMENT:         return invoke_preclaim<Payment>(ctx);
+    case ttRING_CANCEL:     return invoke_preclaim<RingCancel>(ctx);
     case ttRING_DEPOSIT:    return invoke_preclaim<RingDeposit>(ctx);
     case ttRING_WITHDRAW:   return invoke_preclaim<RingWithdraw>(ctx);
     case ttSUSPAY_CREATE:   return invoke_preclaim<SusPayCreate>(ctx);
@@ -199,6 +200,7 @@ invoke_apply (ApplyContext& ctx)
     case ttOFFER_CANCEL:    { CancelOffer   p(ctx); return p(); }
     case ttOFFER_CREATE:    { CreateOffer   p(ctx); return p(); }
     case ttPAYMENT:         { Payment       p(ctx); return p(); }
+    case ttRING_CANCEL:     { RingCancel    p(ctx); return p(); }
     case ttRING_DEPOSIT:     { RingDeposit   p(ctx); return p(); }
     case ttRING_WITHDRAW:    { RingWithdraw  p(ctx); return p(); }
     case ttSUSPAY_CREATE:   { SusPayCreate  p(ctx); return p(); }

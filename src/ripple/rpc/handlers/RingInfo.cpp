@@ -29,17 +29,33 @@ Json::Value doRingInfo (RPC::Context& context)
 {
     Json::Value ret (Json::objectValue);
 
-    uint32_t ringIndex = context.params[jss::index].asUInt();
-
     uint32_t const quantity = context.params["quantity"].asInt();
-
     auto const& currentLedger = context.ledgerMaster.getCurrentLedger ();
+    uint32_t ringIndex;
+    if (context.params.isMember (jss::index))
+        ringIndex = context.params[jss::index].asUInt();
+    else
+    {
+        auto const ringInfo = currentLedger->read(keylet::ring(quantity, vbcIssue(), 0));
+        if (!ringInfo){
+            ret[jss::error_message] = "ring not found.";
+            return ret;
+        }
+        ringIndex = ringInfo->getFieldU32(sfRingIndex);
+    }
+
     JLOG(context.j.info) << "query quantity:" << quantity << ",issue:" << vbcIssue() << ",ringIndex:" << ringIndex;
     auto const ringSle = currentLedger->read(keylet::ring(quantity, vbcIssue(), ringIndex));
     if (!ringSle){
-        ret[jss::error_message] = "ring not found.";
+        const uint32_t fastInv = get<uint32_t> (context.app.config ()[SECTION_SECRET_TX], "fast_interval");
+        const uint32_t partNum = get<uint32_t> (context.app.config ()[SECTION_SECRET_TX], "participants_number");
+        ret["minimum_ledgers"] =  to_string(fastInv);
+        ret["participant_num"] =  to_string(partNum);
+        ret["ring_index"] =  to_string(ringIndex);
         return ret;
     } else {
+        ret["current_ledger"] = to_string(currentLedger->info().seq);
+
         if(ringSle->isFieldPresent(sfRingHash)){
             ret["ring_hash"] = to_string(ringSle->getFieldH256(sfRingHash));
         }
@@ -52,6 +68,9 @@ Json::Value doRingInfo (RPC::Context& context)
         if(ringSle->isFieldPresent(sfPublicKeys)){
             STArray pks = ringSle->getFieldArray(sfPublicKeys);
             Json::Value& jvpks = ret["public_keys"];
+            if(pks.size() == 0){
+                Json::Value& entry = jvpks.append(Json::arrayValue);
+            }
             for(auto const pk : pks){
                 STVector256 keyPair = pk.getFieldV256(sfPublicKeyPair);
                 Json::Value& entry = jvpks.append(Json::arrayValue);
@@ -59,7 +78,8 @@ Json::Value doRingInfo (RPC::Context& context)
                 entry.append(to_string(keyPair[1]));
             }
         }
-        if(ringSle->isFieldPresent(sfKeyImages)){
+        bool bFull = context.params["full"].asBool();
+        if(bFull && ringSle->isFieldPresent(sfKeyImages)){
             STArray images = ringSle->getFieldArray(sfKeyImages);
             Json::Value& jvpks = ret["key_images"];
             for(auto const img : images){

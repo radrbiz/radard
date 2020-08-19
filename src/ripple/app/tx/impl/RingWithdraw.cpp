@@ -88,7 +88,7 @@ RingWithdraw::doApply()
     }
     
     // account redundancy check
-    auto acctHash = sha512Half(dest, amount.mantissa(), ringIndex);
+    auto acctHash = sha512Half(std::string("W"), dest, amount.mantissa(), ringIndex);
     auto accounts = ringSle->getFieldV256(sfAccounts);
     if (std::find(accounts.begin(), accounts.end(), acctHash)!=accounts.end())
         return tefRING_REDUNDANT;

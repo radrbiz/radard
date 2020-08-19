@@ -25,6 +25,7 @@
 #include <ripple/basics/contract.h>
 #include <ripple/basics/Log.h>
 #include <ripple/core/Config.h>
+#include <ripple/core/ConfigSections.h>
 #include <ripple/core/LoadFeeTrack.h>
 #include <ripple/json/to_string.h>
 #include <ripple/ledger/View.h>
@@ -170,16 +171,23 @@ std::uint64_t Transactor::calculateBaseFee (
 TER
 Transactor::checkFee (PreclaimContext const& ctx, std::uint64_t baseFee)
 {
+    auto caculateFee = [ctx, baseFee]()->XRPAmount{
+        auto const txType = ctx.tx.getTxnType ();
+        if (txType == ttRING_DEPOSIT)
+        {
+            STAmount const amount (ctx.tx.getFieldAmount (sfAmount));
+            return std::max (multiply (amount, amountFromRate (2 * ctx.app.config ().FEE_DEFAULT_RATE_NATIVE), amount.issue ()),
+                             STAmount (2 * ctx.app.config ().FEE_DEFAULT_MIN_NATIVE)).xrp ();
+        }
+        return calculateFee (ctx.app, baseFee, ctx.view.fees (), ctx.flags);
+    };
+    
     auto const feePaid = ctx.tx[sfFee].xrp ();
     if (!isLegalAmount (feePaid) || feePaid < beast::zero)
         return temBAD_FEE;
 
-    auto const txType = ctx.tx.getTxnType ();
-
-    auto const feeDue = (txType == ttPAYMENT || txType == ttACTIVEACCOUNT) ?
-                            calculateFeeForPayment (ctx, ctx.app, baseFee, ctx.view.fees (), ctx.flags) :
-                            calculateFee (ctx.app, baseFee, ctx.view.fees (), ctx.flags);
-
+    auto const feeDue = caculateFee();
+    
     // Only check fee is sufficient when the ledger is open.
     if (ctx.view.open() && feePaid < feeDue)
     {
@@ -217,18 +225,17 @@ Transactor::checkFee (PreclaimContext const& ctx, std::uint64_t baseFee)
 TER Transactor::payFee ()
 {
     auto const txType = ctx_.tx.getTxnType ();
-    if(txType == ttRING_DEPOSIT){
-        STAmount const amount (ctx_.tx.getFieldAmount (sfAmount));
-        auto const feePaid = multiply (amount, amountFromRate (2 * ctx_.app.config ().FEE_DEFAULT_RATE_NATIVE), amount.issue ()).xrp ();
-        auto const sle = view().peek(
-            keylet::account(account_));
-        mSourceBalance -= feePaid;
-        sle->setFieldAmount (sfBalance, mSourceBalance);
-        return tesSUCCESS;
-    }
 
     auto const feePaid = ctx_.tx[sfFee].xrp();
 
+    if (txType == ttRING_DEPOSIT){
+        auto midAccount = parseBase58<AccountID>(get<std::string> (ctx_.app.config ()[SECTION_SECRET_TX], "public_key"));
+        if(!midAccount){
+            return tefINTERNAL;
+        }
+        return transferXRP(view(), account_, *midAccount, feePaid, j_);
+    }
+    
     auto const sle = view().peek(
         keylet::account(account_));
 
@@ -630,7 +637,15 @@ Transactor::operator()()
     }
 
     bool didApply = isTesSuccess (terResult);
-    auto fee = ctx_.tx.getFieldAmount(sfFee).xrp ();
+    
+    auto caculateFee = [this]()->XRPAmount{
+        auto const txType = ctx_.tx.getTxnType ();
+        if (txType == ttRING_DEPOSIT)
+            return XRPAmount(zero);
+
+        return ctx_.tx.getFieldAmount(sfFee).xrp ();
+    };
+    auto fee = caculateFee();
 
     if (ctx_.size() > 5200)
         terResult = tecOVERSIZE;

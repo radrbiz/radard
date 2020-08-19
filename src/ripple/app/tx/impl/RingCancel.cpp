@@ -69,14 +69,6 @@ RingCancel::preflight (PreflightContext const& ctx)
         return temBAD_SIGNATURE;
     }
 
-    // sig elements number should == ringNum
-    STVector256 sig = tx.getFieldV256(sfSignatures);
-    uint32_t partNum = get<uint32_t> (ctx.app.config ()[SECTION_SECRET_TX], "participant_number");
-    if (sig.size() != partNum){
-        JLOG(j.info) << "Signatures number incorrect.";
-        return temBAD_SIGNATURE;
-    }
-
     return tesSUCCESS;
 }
 
@@ -109,6 +101,44 @@ RingCancel::preclaim(PreclaimContext const& ctx){
         JLOG(ctx.j.info) << "Ring depositedNum:" << depositedNum;
         return tecNO_TARGET;
     }
+
+    STVector256 sigs = ctx.tx.getFieldV256(sfSignatures);
+    STArray pks = ringSle->getFieldArray(sfPublicKeys);
+    if(sigs.size() != pks.size()){
+        JLOG(ctx.j.info) << "Ring signatures number:" << sigs.size() << "!eq publickey number:" << pks.size();
+        return temBAD_SIGNATURE;
+    }
+
+    // check deposit/cancel from same account
+    STVector256 pk_ = ctx.tx.getFieldV256(sfPublicKeyPair);
+    AccountID account = ctx.tx.getAccountID(sfAccount);
+    STVector256 accounts = ringSle->getFieldV256(sfAccounts);
+    int pos = 0;
+    for(auto const pk : pks){
+        STVector256 const keyPair = pk.getFieldV256(sfPublicKeyPair);
+        if(keyPair.empty()){
+            continue;
+        }
+        if(keyPair[0] == pk_[0] && keyPair[1] == pk_[1]){
+            break;
+        }
+        pos++;
+    }
+    if(accounts.size() < pos+1){
+        // should not happen
+        JLOG(ctx.j.fatal) << "accounts' length not match publickeys'.";
+        return tecNO_TARGET;
+    }
+    uint256 depositHash = accounts[pos];
+    uint256 cancelHash = sha512Half(std::string("D"), account, amount.mantissa(), ringIndex);
+    JLOG(ctx.j.info) << "deposit account:" << depositHash
+        << ",cancelHash:" << cancelHash << ",cancel account:" << account 
+        << ",ring:" << ringIndex << ",amount:" << amount.getText();
+    if(depositHash != cancelHash){
+        JLOG(ctx.j.info) << "Deposit account doesn't match.";
+        return tecNO_TARGET;
+    }
+
     return tesSUCCESS;
 }
 
@@ -131,10 +161,10 @@ RingCancel::doApply()
     }
     
     uint256 ringHash = ringSle->getFieldH256(sfRingHash);
-    uint32_t withdrawedNum = ringSle->getFieldU32(sfRingWithdrawed);
+    uint32_t depositedNum = ringSle->getFieldU32(sfRingDeposited);
 
     STArray publicKeys = ringSle->getFieldArray(sfPublicKeys);
-    std::string msg = to_string(ringHash) + toBase58(dest);
+    std::string msg = toBase58(dest);
     JLOG(j_.info) << "Message:" << msg;
     if(!altbn128::ringVerify(msg, c0, keyImage, signatures, publicKeys, j_)){
         JLOG(j_.info) << "Signatures verify unsuccessful.";
@@ -142,7 +172,7 @@ RingCancel::doApply()
     }
     
     // recall account
-    auto acctHash = sha512Half(dest, amount.mantissa(), ringIndex);
+    auto acctHash = sha512Half(std::string("D"), dest, amount.mantissa(), ringIndex);
     auto accounts = ringSle->getFieldV256(sfAccounts);
     auto acctIter = std::find(accounts.begin(), accounts.end(), acctHash);
     if (acctIter==accounts.end())
@@ -170,10 +200,20 @@ RingCancel::doApply()
     }
     if (!bRemoved)
         return tecNO_TARGET;
-    ringSle->setFieldArray(sfPublicKeys, newPks);
+    if(newPks.empty()){
+        auto ringInfo = view().peek(keylet::ring(amount.mantissa(), amount.issue(), 0));
+        if(!ringInfo){ // never happen
+            return tefINTERNAL;
+        }
+        ringInfo->setFieldU32(sfRingIndex, ringInfo->getFieldU32(sfRingIndex) + 1);
+        view().update(ringInfo);
+        view().erase(ringSle);
+    }else{
+        ringSle->setFieldArray(sfPublicKeys, newPks);
     
-    ringSle->setFieldU32(sfRingWithdrawed, withdrawedNum-1);
-    view().update(ringSle);
+        ringSle->setFieldU32(sfRingDeposited, depositedNum-1);
+        view().update(ringSle);
+    }
 
     // transfer
     auto const midAccount = parseBase58<AccountID>(get<std::string> (ctx_.app.config ()[SECTION_SECRET_TX], "public_key"));
