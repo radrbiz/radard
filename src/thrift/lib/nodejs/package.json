@@ -30,7 +30,7 @@
     "nodeunit": "~0.8.0"
   },
   "devDependencies": {
-    "connect": "2.7.x",
+    "connect": "3.7.x",
     "commander": "2.1.x"
   },
   "scripts": {
