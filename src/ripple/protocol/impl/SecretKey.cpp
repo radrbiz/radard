@@ -130,16 +130,22 @@ sign (PublicKey const& pk,
         h(m.data(), m.size());
         auto const digest =
             sha512_half_hasher::result_type(h);
-        int siglen = 72;
-        unsigned char sig[72];
-        auto const result = secp256k1_ecdsa_sign(
-            secp256k1Context(),
-                digest.data(), sig, &siglen,
-                    sk.data(), secp256k1_nonce_function_rfc6979,
-                        nullptr);
+        //int siglen = 72;
+        //unsigned char sig[72];
+        //auto const result = secp256k1_ecdsa_sign(
+        //    secp256k1Context(),
+        //        digest.data(), sig, &siglen,
+        //            sk.data(), secp256k1_nonce_function_rfc6979,
+        //                nullptr);
+        //if (result != 1)
+        //    LogicError("sign: secp256k1_ecdsa_sign failed");
+        
+        secp256k1_ecdsa_signature sig;
+        auto const result = secp256k1_ecdsa_sign(secp256k1Context(), &sig,
+            digest.data(), sk.data(), secp256k1_nonce_function_rfc6979, nullptr);
         if (result != 1)
             LogicError("sign: secp256k1_ecdsa_sign failed");
-        return Buffer(sig, siglen);
+        return Buffer(sig.data, sizeof(sig.data));
     }
     default:
         LogicError("sign: invalid type");
@@ -197,16 +203,22 @@ derivePublicKey (KeyType type, SecretKey const& sk)
     {
     case KeyType::secp256k1:
     {
-        int len;
-        unsigned char buf[33];
-        auto const result =
-            secp256k1_ec_pubkey_create(
-                secp256k1Context(),
-                    buf, &len, sk.data(), 1);
+        //int len;
+        //unsigned char buf[33];
+        //auto const result =
+        //    secp256k1_ec_pubkey_create(
+        //        secp256k1Context(),
+        //            buf, &len, sk.data(), 1);
+
+        // seck256k1-zkp compatible
+        secp256k1_pubkey pubkey;
+        auto const result = secp256k1_ec_pubkey_create(
+                secp256k1Context(), &pubkey, sk.data());
+
         if (result != 1)
             LogicError("derivePublicKey: failure");
-        return PublicKey(Slice{ buf,
-            static_cast<std::size_t>(len) });
+        return PublicKey(Slice{ pubkey.data,
+            static_cast<std::size_t>(sizeof(pubkey.data)) });
     }
     case KeyType::ed25519:
     {

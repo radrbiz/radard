@@ -180,6 +180,23 @@ TxFormats::TxFormats ()
         << SOElement (sfProposalVote,        SOE_REQUIRED)
         ;
 
+    add("depositCT", ttDEPOSIT_CT)
+        << SOElement (sfAmount,              SOE_REQUIRED)
+        << SOElement (sfCommitment,          SOE_REQUIRED)  // call commit
+        ;
+
+    add("PaymentCT", ttPAYMENT_CT)                          // transfer from ct2ct
+        << SOElement (sfDestination,         SOE_REQUIRED)
+        //<< SOElement (sfPaymentKey,          SOE_REQUIRED)  // public_tx_key
+        << SOElement (sfAmount,              SOE_REQUIRED)
+        //<< SOElement (sfSignature,          SOE_REQUIRED)   // excess signature
+        ;
+
+    add("WithdrawCT", ttWITHDRAW_CT)                        // withdraw from contidential to account
+        << SOElement (sfPublicKey,               SOE_REQUIRED)  // kernel_excess public key
+        << SOElement (sfMessageKey,          SOE_REQUIRED)  // message
+        ;
+
     // The SignerEntries are optional because a SignerList is deleted by
     // setting the SignerQuorum to zero and omitting SignerEntries.
     add ("SignerListSet", ttSIGNER_LIST_SET)

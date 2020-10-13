@@ -90,14 +90,17 @@ enum LedgerEntryType
 
     ltSUSPAY            = 'u',
 
+    ltRING              = 'g',
+
+    ltPROPOSAL          = 'p',
+
+    ltCT                = 'C',
+
     // No longer used or supported. Left here to prevent accidental
     // reassignment of the ledger type.
     ltNICKNAME          = 'n',
 
     ltNotUsed01         = 'c',
-
-    ltRING              = 'g',
-    ltPROPOSAL          = 'p',
 };
 
 /**
@@ -126,6 +129,7 @@ enum LedgerNameSpace
     spaceSignerList     = 'N',
     spaceRing           = 'G',
     spaceProposal       = 'P',
+    spaceCT             = 'C',
 
     // No longer used or supported. Left here to reserve the space and
     // avoid accidental reuse of the space.

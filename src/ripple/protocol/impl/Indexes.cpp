@@ -43,6 +43,13 @@ getProposalIndex (uint32_t const& index)
         index);
 }
 
+getCTIndex(const unsigned char* commit, uint32_t ledger_index){
+
+    return sha512Half(std::uint16_t(spaceCT),
+        commit,
+        ledger_index);
+}
+
 // get the index of the node that holds the last 256 ledgers
 uint256
 getLedgerHashIndex ()
@@ -374,6 +381,12 @@ Keylet proposal_t::operator()(uint32_t const& index) const
 {
     return {ltPROPOSAL,
         getProposalIndex(index)};
+}
+
+Keylet ct_t::operator()(const unsigned char* commit, uint32_t ledger_index) const
+{
+    return {ltCT,
+        getCTIndex(commit, ledger_index)};
 }
 
 Keylet refer_t::operator()(AccountID const& id) const

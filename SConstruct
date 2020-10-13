@@ -583,6 +583,12 @@ def config_env(toolchain, variant, env):
             else:
                 env.Append(LIBS=zk_libs)
 
+        #if ARGUMENTS.get('use-secpzk'):
+        #    secpzk_libs=["gmp"]
+        #    env.Append(CCFLAGS=[
+        #        '-fpermissive'
+        #        ])
+
         if Beast.system.osx:
             env.Append(LIBS=[
                 'crypto',
@@ -883,10 +889,14 @@ def get_common_sources(toolchain):
         warning_flags = {}
     else:
         warning_flags = {'CCFLAGS': ['-Wno-unused-function']}
+    env.Append(CPPPATH=['src/secp256k1/include'])
     append_sources(
         result,
         'src/ripple/unity/secp256k1.cpp',
-        CPPPATH=['src/secp256k1'],
+        CPPDEFINES=['ENABLE_MODULE_GENERATOR=1','ENABLE_MODULE_RANGEPROOF=1', 'enable_experimental=1',
+        'ECMULT_GEN_PREC_BITS=4', "ECMULT_WINDOW_SIZE=15", "ENABLE_MODULE_SCHNORRSIG=1",
+        'ENABLE_MODULE_ECDH=1'],
+        CPPPATH=['src/secp256k1', 'src/secp256k1/src'],
         **warning_flags)
     return result
 

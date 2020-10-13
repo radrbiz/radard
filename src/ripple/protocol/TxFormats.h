@@ -63,7 +63,10 @@ enum TxType
     ttPROPOSAL_CREATE   = 190,
     ttPROPOSAL_CLOSE    = 191,
     ttPROPOSAL_VOTE     = 192,
-    ttASSET_RELEASE     = 193
+    ttASSET_RELEASE     = 193,
+    ttDEPOSIT_CT        = 194,
+    ttPAYMENT_CT        = 195,
+    ttWITHDRAW_CT       = 196,
 };
 
 /** Manages the list of known transaction formats.

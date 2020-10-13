@@ -410,7 +410,7 @@ extern SF_U64 const sfDividendCoinsVBCSprd;
 extern SF_U64 const sfDividendVRank;
 extern SF_U64 const sfDividendVSprd;
 extern SF_U64 const sfDividendTSprd;
-
+extern SF_U64 const sfShieldValue;
 
 // 128-bit
 extern SF_U128 const sfEmailHash;
@@ -435,6 +435,9 @@ extern SF_U256 const sfAccountTxnID;
 extern SF_U256 const sfDividendHash;
 extern SF_U256 const sfDividendMarker;
 extern SF_U256 const sfRingHash;
+// for confidential transaction
+extern SF_U256 const sfMaskCT;
+extern SF_U256 const sfCommitment;
 
 // 256-bit (uncommon)
 extern SF_U256 const sfBookDirectory;
@@ -484,6 +487,7 @@ extern SF_Blob const sfProposalAppendix;
 
 // account
 extern SF_Account const sfAccount;
+extern SF_Account const sfAccountCT;
 extern SF_Account const sfOwner;
 extern SF_Account const sfDestination;
 extern SF_Account const sfIssuer;

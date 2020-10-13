@@ -30,6 +30,7 @@
 #pragma warning ( disable: 4319 )
 #endif
 #include <secp256k1/src/secp256k1.c>
+
 #if defined(_MSC_VER) && _MSC_VER >= 1900
 #pragma warning ( pop )
 #endif

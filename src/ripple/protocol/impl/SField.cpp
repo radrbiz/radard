@@ -85,6 +85,7 @@ SF_U8 const sfDividendState     = make::one<SF_U8::type>(&sfDividendState,     S
 SF_U8 const sfDividendType      = make::one<SF_U8::type>(&sfDividendType,      STI_UINT8, 182, "DividendType");
 SF_U8 const sfProposalOptions   = make::one<SF_U8::type>(&sfProposalOptions,   STI_UINT8, 183, "ProposalOptions");
 SF_U8 const sfProposalVote      = make::one<SF_U8::type>(&sfProposalVote,      STI_UINT8, 184, "ProposalVote");
+SF_U8 const sfCommitType        = make::one<SF_U8::type>(&sfCommitType,        STI_UINT8, 185, "CommitType");
 
 // 16-bit integers
 SF_U16 const sfLedgerEntryType = make::one<SF_U16::type>(&sfLedgerEntryType, STI_UINT16, 1, "LedgerEntryType", SField::sMD_Never);
@@ -160,6 +161,7 @@ SF_U64 const sfDividendVRank    = make::one<SF_U64::type>(&sfDividendVRank,    S
 SF_U64 const sfDividendVSprd    = make::one<SF_U64::type>(&sfDividendVSprd,    STI_UINT64, 185, "DividendVSprd");
 SF_U64 const sfDividendCoins    = make::one<SF_U64::type>(&sfDividendCoins,    STI_UINT64, 186, "DividendCoins");
 SF_U64 const sfDividendTSprd    = make::one<SF_U64::type>(&sfDividendTSprd,    STI_UINT64, 187, "DividendTSprd");
+SF_U64 const sfShieldValue      = make::one<SF_U64::type>(&sfShieldValue,      STI_UINT64, 188, "ShieldValue");
 
 // 128-bit
 SF_U128 const sfEmailHash = make::one<SF_U128::type>(&sfEmailHash, STI_HASH128, 1, "EmailHash");
@@ -184,6 +186,8 @@ SF_U256 const sfAccountTxnID    = make::one<SF_U256::type>(&sfAccountTxnID,    S
 SF_U256 const sfDividendHash    = make::one<SF_U256::type>(&sfDividendHash,    STI_HASH256, 181, "DividendHash");
 SF_U256 const sfDividendMarker  = make::one<SF_U256::type>(&sfDividendMarker,  STI_HASH256, 182, "DividendMarker");
 SF_U256 const sfRingHash        = make::one<SF_U256::type>(&sfRingHash,        STI_HASH256, 183, "RingHash");
+SF_U256 const sfMaskCT          = make::one<SF_U256::type>(&sfMaskCT           STI_HASH256, 184, "MaskCT");
+SF_U256 const sfCommitment      = make::one<SF_U256::type>(&sfCommitment,      STI_HASH256, 185, "Commitment");
 
 // 256-bit (uncommon)
 SF_U256 const sfBookDirectory = make::one<SF_U256::type>(&sfBookDirectory, STI_HASH256, 16, "BookDirectory");
@@ -244,6 +248,7 @@ SF_Account const sfRegularKey  = make::one<SF_Account::type>(&sfRegularKey,  STI
 
 SF_Account const sfReferee     = make::one<SF_Account::type>(&sfReferee,     STI_ACCOUNT, 181, "Referee");
 SF_Account const sfReference   = make::one<SF_Account::type>(&sfReference,   STI_ACCOUNT, 182, "Reference");
+SF_Account const sfAccountCT   = make::one<SF_Account::type>(&sfAccountCT,   STI_ACCOUNT, 183, "AccountCT"); // account_view_key
 
 // path set
 SField const sfPaths = make::one(&sfPaths, STI_PATHSET, 1, "Paths");
@@ -302,6 +307,7 @@ SField const sfLimits          = make::one(&sfLimits,          STI_ARRAY, 185, "
 SField const sfKeyImages       = make::one(&sfKeyImages,       STI_ARRAY, 186, "KeyImages");
 SField const sfPublicKeys      = make::one(&sfPublicKeys,      STI_ARRAY, 187, "PublicKeys");
 SField const sfProposalVotes   = make::one(&sfProposalVotes,   STI_ARRAY, 188, "ProposalVotes");
+SField const sfCommitments     = make::one(&sfCommitments,     STI_ARRAY, 189, "Commitments");
 
 // array of objects (uncommon)
 SField const sfMajorities      = make::one(&sfMajorities,      STI_ARRAY, 16, "Majorities");

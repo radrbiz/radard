@@ -37,6 +37,7 @@
 #include <ripple/crypto/tests/CKey.test.cpp>
 #include <ripple/crypto/tests/ECDSACanonical.test.cpp>
 #include <ripple/crypto/tests/Ring.test.cpp>
+#include <ripple/crypto/tests/RangeProof.test.cpp>
 
 #if DOXYGEN
 #include <ripple/crypto/README.md>

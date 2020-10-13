@@ -80,6 +80,7 @@
 #include <ripple/rpc/handlers/RipplePathFind.cpp>
 #include <ripple/rpc/handlers/ServerInfo.cpp>
 #include <ripple/rpc/handlers/ServerState.cpp>
+#include <ripple/rpc/handlers/SignCT.cpp>
 #include <ripple/rpc/handlers/SignFor.cpp>
 #include <ripple/rpc/handlers/SignHandler.cpp>
 #include <ripple/rpc/handlers/Stop.cpp>

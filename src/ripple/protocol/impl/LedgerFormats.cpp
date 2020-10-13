@@ -28,7 +28,7 @@ LedgerFormats::LedgerFormats ()
             << SOElement (sfAccount,             SOE_REQUIRED)
             << SOElement (sfSequence,            SOE_REQUIRED)
             << SOElement (sfBalance,             SOE_REQUIRED)
-			<< SOElement (sfBalanceVBC,          SOE_REQUIRED)
+            << SOElement (sfBalanceVBC,          SOE_REQUIRED)
             << SOElement (sfOwnerCount,          SOE_REQUIRED)
             << SOElement (sfPreviousTxnID,       SOE_REQUIRED)
             << SOElement (sfPreviousTxnLgrSeq,   SOE_REQUIRED)
@@ -48,6 +48,9 @@ LedgerFormats::LedgerFormats ()
             << SOElement (sfDividendVSprd,       SOE_OPTIONAL)
             << SOElement (sfDividendTSprd,       SOE_OPTIONAL)
             << SOElement (sfProposalVotes,       SOE_OPTIONAL)
+            << SOElement (sfAccountCT,           SOE_OPTIONAL)
+            << SOElement (sfMaskCT,              SOE_OPTIONAL)
+            << SOElement (sfShieldValue,         SOE_OPTIONAL)
             ;
 
     add ("Asset", ltASSET)
@@ -192,6 +195,7 @@ LedgerFormats::LedgerFormats ()
             << SOElement (sfRingIndex,           SOE_OPTIONAL)
             << SOElement (sfParticipantsNum,     SOE_OPTIONAL) // participants number for a ring
             ;
+
     add("Proposal", ltPROPOSAL)
             << SOElement (sfAccount,             SOE_OPTIONAL)
             << SOElement (sfProposalIndex,       SOE_OPTIONAL)
@@ -200,6 +204,15 @@ LedgerFormats::LedgerFormats ()
             << SOElement (sfProposalAppendix,    SOE_OPTIONAL)
             << SOElement (sfProposalCloseLedger, SOE_OPTIONAL)
             ;
+
+    add("Ct", ltCT)
+        << SOElement (sfLedgerSequence,      SOE_OPTIONAL)      // created ledgerIndex
+        << SOElement (sfProof,             SOE_OPTIONAL)
+        << SOElement (sfMaskCT,              SOE_OPTIONAL)      // uint256 blind factor
+        << SOElement (sfShieldValue,         SOE_OPTIONAL)      // uint64_t value
+        //<< SOElement (sfCommitment,          SOE_OPTIONAL)      // uint256 commit
+        ;
+
 }
 
 void LedgerFormats::addCommonFields (Item& item)

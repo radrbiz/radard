@@ -285,10 +285,16 @@ PublicKey::verify (Slice const& m,
         if (mustBeFullyCanonical && canonicality !=
                 ECDSACanonicality::fullyCanonical)
             return false;
+        secp256k1_ecdsa_signature secp_sig;
+        if (sig.size() > 64){
+            return false;
+        }
+        memcpy(secp_sig.data, sig.data(), sig.size());
+
+        secp256k1_pubkey secp_pk;
+        memcpy(secp_pk.data, secpp(buf_), sizeof(buf_));
         return secp256k1_ecdsa_verify(
-            secp256k1Context(), secpp(digest.data()),
-                secpp(sig.data()), sig.size(),
-                    secpp(buf_), size_) == 1;
+            secp256k1Context(), &secp_sig, secpp(digest.data()), &secp_pk) == 1;
     }
     default:
     case KeyType::ed25519:
@@ -330,10 +336,18 @@ verify (PublicKey const& pk,
         h(m.data(), m.size());
         auto const digest =
             sha512_half_hasher::result_type(h);
+
+        // secp256 compatible
+        secp256k1_ecdsa_signature secp_sig;
+        if (sig.size() > 64){
+            return false;
+        }
+        memcpy(secp_sig.data, sig.data(), sig.size());
+
+        secp256k1_pubkey secp_pk;
+        memcpy(secp_pk.data, secpp(pk.data()), pk.size());
         return secp256k1_ecdsa_verify(
-            secp256k1Context(), digest.data(),
-                sig.data(), sig.size(),
-                    pk.data(), pk.size()) == 1;
+            secp256k1Context(), &secp_sig, secpp(digest.data()), &secp_pk) == 1;
     }
     case KeyType::ed25519:
     {

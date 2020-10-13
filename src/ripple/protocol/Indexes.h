@@ -302,6 +302,13 @@ struct proposal_t
 };
 static proposal_t const proposal {};
 
+/* ct index */
+struct ct_t
+{
+    Keylet operator()(const unsigned char* commit, uint32_t ledger_index) const;
+};
+static ct_t const ct {};
+
 } // keylet
 
 uint256
@@ -327,6 +334,9 @@ getRingIndex (uint64 const& quantity, Issue const& issue, uint32_t index);
 
 uint256
 getProposalIndex (uint32_t const& index);
+
+uint256
+getCTIndex(const unsigned char* commit, uint32_t ledger_index);
 
 }
 

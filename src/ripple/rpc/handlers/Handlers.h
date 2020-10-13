@@ -71,6 +71,7 @@ Json::Value doServerState           (RPC::Context&); // for machines
 Json::Value doSessionClose          (RPC::Context&);
 Json::Value doSessionOpen           (RPC::Context&);
 Json::Value doSign                  (RPC::Context&);
+Json::Value doSignCT                (RPC::Context&);
 Json::Value doSignFor               (RPC::Context&);
 Json::Value doStop                  (RPC::Context&);
 Json::Value doSubmit                (RPC::Context&);
