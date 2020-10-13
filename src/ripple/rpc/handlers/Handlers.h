@@ -95,6 +95,9 @@ Json::Value doWalletPropose         (RPC::Context&);
 Json::Value doWalletSeed            (RPC::Context&);
 Json::Value doWalletUnlock          (RPC::Context&);
 Json::Value doWalletVerify          (RPC::Context&);
+Json::Value doProposalInfo          (RPC::Context&);
+Json::Value doAccountVote           (RPC::Context&);
+Json::Value doVoteCounting          (RPC::Context&);
 
 } // ripple
 

@@ -4,6 +4,11 @@
 #include <sys/time.h>
 #include <sys/resource.h>
 #endif
+
+#include <ripple/app/misc/DividendMaster.h>
+#include <ripple/app/main/Application.h>
+
+#if RIPPLE_THRIFT_AVAILABLE
 #include <boost/multiprecision/cpp_int.hpp>
 #include <boost/graph/adjacency_list.hpp>
 #include <boost/graph/depth_first_search.hpp>
@@ -11,9 +16,9 @@
 #include <beast/threads/RecursiveMutex.h>
 
 #include <ripple/app/ledger/LedgerMaster.h>
-#include <ripple/app/main/Application.h>
+
 //#include <ripple/app/misc/DefaultMissingNodeHandler.h>
-#include <ripple/app/misc/DividendMaster.h>
+
 #include <ripple/app/misc/NetworkOPs.h>
 #include <ripple/basics/Log.h>
 #include <ripple/protocol/SystemParameters.h>
@@ -773,3 +778,34 @@ make_DividendMaster(Application& app, beast::Journal journal)
 }
 
 }
+
+#else
+
+namespace ripple {
+class NullDividendMaster : public DividendMaster
+{
+public:    
+    SHAMapHash getResultHash() {return SHAMapHash();}
+    void setResultHash(SHAMapHash) {}
+    int getDividendState() {return 0;}
+    void setDividendState(int) {}
+    void setFloodPool(Section const& keyValues) {}
+    std::set<AccountID> getFloodPool() {return {};}
+    
+    bool calcDividend (const uint32_t ledgerIndex){return true;}
+    bool dumpTransactionMap (const uint32_t ledgerIndex) {return true;}
+    std::pair<bool, Json::Value> checkDividend (const uint32_t ledgerIndex) {return {};}
+    bool launchDividend (const uint32_t ledgerIndex) {return true;}
+    int getMarkerAccount(uint32_t ledgerIndex, AccountID& marker) {return 0;}
+    void getMissingTxns () {}
+    bool floodDividend(AccountID dst, uint64_t value, bool bFlood) {return true;}
+};
+
+std::unique_ptr<DividendMaster>
+make_DividendMaster(Application& app, beast::Journal journal)
+{
+    return std::make_unique<NullDividendMaster>();
+}
+}
+
+#endif

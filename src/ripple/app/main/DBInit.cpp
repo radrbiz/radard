@@ -359,4 +359,30 @@ const char* PathFindDBInit[] =
 int PathFindDBCount = std::extent<decltype(PathFindDBInit)>::value;
 */
 
+
+// Proposal vote counting db
+const char* VoteCountingDBInit[] =
+{
+    "PRAGMA synchronous=NORMAL;",
+    "PRAGMA journal_mode=WAL;",
+    "PRAGMA journal_size_limit=1582080;",
+
+#if (ULONG_MAX > UINT_MAX) && !defined (NO_SQLITE_MMAP)
+    "PRAGMA mmap_size=17179869184;",
+#endif
+
+    "BEGIN TRANSACTION;",
+
+    "CREATE TABLE IF NOT EXISTS VoteCounting (                \
+        ID          INTEGER PRIMARY KEY AUTOINCREMENT, \
+        Proposal    INTEGER, \
+        Ledger      INTEGER, \
+        Statistic   TEXT, \
+        Timestamp   DATETIME DEFAULT CURRENT_TIMESTAMP \
+    );",
+    "END TRANSACTION;"
+};
+
+int VoteCountiongDBCount = std::extent<decltype(VoteCountingDBInit)>::value;
+
 } // ripple

@@ -96,6 +96,34 @@ std::uint32_t RangeSet::getPrev (std::uint32_t v) const
     return absent;
 }
 
+std::uint32_t RangeSet::getMiddle(std::uint32_t first, std::uint32_t last) const
+{
+    if (first > last) {
+        return absent;
+    } else if (first == last) {
+        return first;
+    }
+    uint32_t mid = (uint64_t(first) + last) / 2;
+    if (hasValue(mid)) {
+        return mid;
+    }
+    uint32_t pre = getPrev(mid);
+    if (pre != absent && pre > first) {
+        return pre;
+    }
+    uint32_t next = getNext(mid);
+    if (next != absent && next < last) {
+        return next;
+    }
+    if (pre != absent) {
+        return pre;
+    }
+    if (next != absent) {
+        return next;
+    }
+    return absent;
+}
+
 // Return the largest number not in the set that is less than the given number
 //
 std::uint32_t RangeSet::prevMissing (std::uint32_t v) const

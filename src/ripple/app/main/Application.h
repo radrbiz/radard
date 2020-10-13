@@ -157,6 +157,8 @@ public:
     //        NOTE This will be replaced by class Validators
     //
     virtual DatabaseCon& getWalletDB () = 0;
+    
+    virtual DatabaseCon& getVoteCountingDB() = 0;
 
     /// Global signals.
     struct Signals

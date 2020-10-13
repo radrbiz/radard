@@ -333,6 +333,8 @@ extern SF_U8 const sfTransactionResult;
 
 extern SF_U8 const sfDividendState;
 extern SF_U8 const sfDividendType;
+extern SF_U8 const sfProposalOptions;
+extern SF_U8 const sfProposalVote;
 
 // 16-bit integers
 extern SF_U16 const sfLedgerEntryType;
@@ -362,6 +364,9 @@ extern SF_U32 const sfRingWithdrawed;
 extern SF_U32 const sfRingDeposited;
 extern SF_U32 const sfRingIndex;
 extern SF_U32 const sfParticipantsNum;
+extern SF_U32 const sfProposalIndex;
+extern SF_U32 const sfProposalExpire;
+extern SF_U32 const sfProposalCloseLedger;
 
 // 32-bit integers (uncommon)
 extern SF_U32 const sfHighQualityIn;
@@ -475,6 +480,8 @@ extern SF_Blob const sfMemoFormat;
 
 // variable length (uncommon)
 extern SF_Blob const sfProof;
+extern SF_Blob const sfProposalAppendix;
+
 // account
 extern SF_Account const sfAccount;
 extern SF_Account const sfOwner;
@@ -514,6 +521,7 @@ extern SField const sfSigner;
 extern SField const sfMajority;
 
 extern SField const sfRingHolder;
+extern SField const sfVoteRecords;
 extern SField const sfReferenceHolder;
 extern SField const sfFeeShareTaker;
 extern SField const sfReleasePoint;
@@ -540,6 +548,7 @@ extern SField const sfAmounts;
 extern SField const sfLimits;
 extern SField const sfKeyImages;
 extern SField const sfPublicKeys;
+extern SField const sfProposalVotes;
 
 } // ripple
 

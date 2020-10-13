@@ -29,6 +29,7 @@
 #include <ripple/app/tx/impl/RingCancel.h>
 #include <ripple/app/tx/impl/RingWithdraw.h>
 #include <ripple/app/tx/impl/RingDeposit.h>
+#include <ripple/app/tx/impl/Proposal.h>
 #include <ripple/app/tx/impl/SetAccount.h>
 #include <ripple/app/tx/impl/SetRegularKey.h>
 #include <ripple/app/tx/impl/SetSignerList.h>
@@ -37,6 +38,7 @@
 
 #include <ripple/app/tx/impl/AddReferee.h>
 #include <ripple/app/tx/impl/ActiveAccount.h>
+#include <ripple/app/tx/impl/AssetRelease.h>
 #include <ripple/app/tx/impl/Dividend.h>
 #include <ripple/app/tx/impl/IssueAsset.h>
 
@@ -51,6 +53,7 @@ invoke_preflight (PreflightContext const& ctx)
     case ttDIVIDEND:        return Dividend         ::preflight(ctx);
     case ttADDREFEREE:      return AddReferee       ::preflight(ctx);
     case ttISSUE:           return IssueAsset       ::preflight(ctx);
+    case ttASSET_RELEASE:   return AssetRelease     ::preflight(ctx);
     case ttACTIVEACCOUNT:   return ActiveAccount    ::preflight(ctx);
 
     case ttACCOUNT_SET:     return SetAccount       ::preflight(ctx);
@@ -60,6 +63,10 @@ invoke_preflight (PreflightContext const& ctx)
     case ttRING_CANCEL:     return RingCancel       ::preflight(ctx);
     case ttRING_DEPOSIT:    return RingDeposit      ::preflight(ctx);
     case ttRING_WITHDRAW:   return RingWithdraw     ::preflight(ctx);
+    case ttPROPOSAL_CREATE: return CreateProposal   ::preflight(ctx);
+    case ttPROPOSAL_CLOSE:  return CloseProposal    ::preflight(ctx);
+    case ttPROPOSAL_VOTE:   return VoteProposal     ::preflight(ctx);
+    
     case ttSUSPAY_CREATE:   return SusPayCreate     ::preflight(ctx);
     case ttSUSPAY_FINISH:   return SusPayFinish     ::preflight(ctx);
     case ttSUSPAY_CANCEL:   return SusPayCancel     ::preflight(ctx);
@@ -129,6 +136,7 @@ invoke_preclaim (PreclaimContext const& ctx)
     case ttDIVIDEND:        return invoke_preclaim<Dividend>(ctx);
     case ttADDREFEREE:      return invoke_preclaim<AddReferee>(ctx);
     case ttISSUE:           return invoke_preclaim<IssueAsset>(ctx);
+    case ttASSET_RELEASE:   return invoke_preclaim<AssetRelease>(ctx);
     case ttACTIVEACCOUNT:   return invoke_preclaim<ActiveAccount>(ctx);
 
     case ttACCOUNT_SET:     return invoke_preclaim<SetAccount>(ctx);
@@ -138,6 +146,9 @@ invoke_preclaim (PreclaimContext const& ctx)
     case ttRING_CANCEL:     return invoke_preclaim<RingCancel>(ctx);
     case ttRING_DEPOSIT:    return invoke_preclaim<RingDeposit>(ctx);
     case ttRING_WITHDRAW:   return invoke_preclaim<RingWithdraw>(ctx);
+    case ttPROPOSAL_CREATE: return invoke_preclaim<CreateProposal>(ctx);
+    case ttPROPOSAL_CLOSE:  return invoke_preclaim<CloseProposal>(ctx);
+    case ttPROPOSAL_VOTE:   return invoke_preclaim<VoteProposal>(ctx);
     case ttSUSPAY_CREATE:   return invoke_preclaim<SusPayCreate>(ctx);
     case ttSUSPAY_FINISH:   return invoke_preclaim<SusPayFinish>(ctx);
     case ttSUSPAY_CANCEL:   return invoke_preclaim<SusPayCancel>(ctx);
@@ -194,6 +205,7 @@ invoke_apply (ApplyContext& ctx)
     case ttDIVIDEND:        { Dividend      p(ctx); return p(); }
     case ttADDREFEREE:      { AddReferee    p(ctx); return p(); }
     case ttISSUE:           { IssueAsset    p(ctx); return p(); }
+    case ttASSET_RELEASE:   { AssetRelease  p(ctx); return p(); }
     case ttACTIVEACCOUNT:   { ActiveAccount p(ctx); return p(); }
 
     case ttACCOUNT_SET:     { SetAccount    p(ctx); return p(); }
@@ -203,6 +215,9 @@ invoke_apply (ApplyContext& ctx)
     case ttRING_CANCEL:     { RingCancel    p(ctx); return p(); }
     case ttRING_DEPOSIT:     { RingDeposit   p(ctx); return p(); }
     case ttRING_WITHDRAW:    { RingWithdraw  p(ctx); return p(); }
+    case ttPROPOSAL_CREATE: { CreateProposal  p(ctx); return p(); }
+    case ttPROPOSAL_CLOSE:  { CloseProposal  p(ctx); return p(); }
+    case ttPROPOSAL_VOTE:   { VoteProposal  p(ctx); return p(); }
     case ttSUSPAY_CREATE:   { SusPayCreate  p(ctx); return p(); }
     case ttSUSPAY_FINISH:   { SusPayFinish  p(ctx); return p(); }
     case ttSUSPAY_CANCEL:   { SusPayCancel  p(ctx); return p(); }

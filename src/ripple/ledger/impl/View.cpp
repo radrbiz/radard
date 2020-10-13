@@ -1530,6 +1530,14 @@ assetRelease (ApplyView& view,
         else
             std::tie (released, bIsReleaseFinished) = assetReleased (view, amount, assetStateIndex, sleAssetState, j);
 
+        auto sleAsset = view.read (keylet::asset (amount.issue()));
+        if (sleAsset && sleAsset->isFieldPresent(sfReleaseSchedule) && sleAsset->getFieldArray(sfReleaseSchedule).empty()){
+            // release all
+            released = amount;
+            bIsReleaseFinished = true;
+            JLOG(j.info) << "asset amount:" << amount << ",delivered:" << delivered << ",releasing left amount:" << released;
+        }
+
         bool bIssuerHigh = amount.getIssuer() > owner;
 
         // update reserve

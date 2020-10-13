@@ -83,6 +83,8 @@ SF_U8 const sfTransactionResult = make::one<SF_U8::type>(&sfTransactionResult, S
 
 SF_U8 const sfDividendState     = make::one<SF_U8::type>(&sfDividendState,     STI_UINT8, 181, "DividendState");
 SF_U8 const sfDividendType      = make::one<SF_U8::type>(&sfDividendType,      STI_UINT8, 182, "DividendType");
+SF_U8 const sfProposalOptions   = make::one<SF_U8::type>(&sfProposalOptions,   STI_UINT8, 183, "ProposalOptions");
+SF_U8 const sfProposalVote      = make::one<SF_U8::type>(&sfProposalVote,      STI_UINT8, 184, "ProposalVote");
 
 // 16-bit integers
 SF_U16 const sfLedgerEntryType = make::one<SF_U16::type>(&sfLedgerEntryType, STI_UINT16, 1, "LedgerEntryType", SField::sMD_Never);
@@ -111,7 +113,10 @@ SF_U32 const sfNextReleaseTime   = make::one<SF_U32::type>(&sfNextReleaseTime,  
 SF_U32 const sfRingWithdrawed    = make::one<SF_U32::type>(&sfRingWithdrawed,    STI_UINT32, 185, "RingWithdrawed");
 SF_U32 const sfRingDeposited     = make::one<SF_U32::type>(&sfRingDeposited,     STI_UINT32, 186, "RingDeposited");
 SF_U32 const sfRingIndex         = make::one<SF_U32::type>(&sfRingIndex,         STI_UINT32, 187, "RingIndex");
-SF_U32 const sfParticipantsNum   = make::one<SF_U32::type>(&sfParticipantsNum,    STI_UINT32, 188, "ParticipantsNum");
+SF_U32 const sfParticipantsNum   = make::one<SF_U32::type>(&sfParticipantsNum,   STI_UINT32, 188, "ParticipantsNum");
+SF_U32 const sfProposalIndex     = make::one<SF_U32::type>(&sfProposalIndex,     STI_UINT32, 189, "ProposalIndex");
+SF_U32 const sfProposalExpire    = make::one<SF_U32::type>(&sfProposalExpire,    STI_UINT32, 190, "ProposalExpire");
+SF_U32 const sfProposalCloseLedger = make::one<SF_U32::type>(&sfProposalCloseLedger,    STI_UINT32, 191, "ProposalCloseLedger");
 
 // 32-bit integers (uncommon)
 SF_U32 const sfHighQualityIn       = make::one<SF_U32::type>(&sfHighQualityIn,       STI_UINT32, 16, "HighQualityIn");
@@ -227,6 +232,8 @@ SF_Blob const sfMemoFormat      = make::one<SF_Blob::type>(&sfMemoFormat,    STI
 //                                                                                   16 has not been used yet...
 SF_Blob const sfProof          = make::one<SF_Blob::type>(&sfProof,          STI_VL, 17, "Proof");
 
+SF_Blob const sfProposalAppendix = make::one<SF_Blob::type>(&sfProposalAppendix,    STI_VL, 181, "ProposalAppendix");
+
 // account
 SF_Account const sfAccount     = make::one<SF_Account::type>(&sfAccount,     STI_ACCOUNT, 1, "Account");
 SF_Account const sfOwner       = make::one<SF_Account::type>(&sfOwner,       STI_ACCOUNT, 2, "Owner");
@@ -269,6 +276,7 @@ SField const sfFeeShareTaker       = make::one(&sfFeeShareTaker,       STI_OBJEC
 SField const sfReleasePoint        = make::one(&sfReleasePoint,        STI_OBJECT, 183, "ReleasePoint");
 SField const sfEntry               = make::one(&sfEntry,               STI_OBJECT, 184, "Entry");
 SField const sfRingHolder          = make::one(&sfRingHolder,          STI_OBJECT, 185, "RingHolder");
+SField const sfVoteRecords         = make::one(&sfVoteRecords,         STI_OBJECT, 186, "VoteRecords");
 
 // inner object (uncommon)
 SField const sfSigner              = make::one(&sfSigner,              STI_OBJECT, 16, "Signer");
@@ -293,6 +301,7 @@ SField const sfAmounts         = make::one(&sfAmounts,         STI_ARRAY, 184, "
 SField const sfLimits          = make::one(&sfLimits,          STI_ARRAY, 185, "Limits");
 SField const sfKeyImages       = make::one(&sfKeyImages,       STI_ARRAY, 186, "KeyImages");
 SField const sfPublicKeys      = make::one(&sfPublicKeys,      STI_ARRAY, 187, "PublicKeys");
+SField const sfProposalVotes   = make::one(&sfProposalVotes,   STI_ARRAY, 188, "ProposalVotes");
 
 // array of objects (uncommon)
 SField const sfMajorities      = make::one(&sfMajorities,      STI_ARRAY, 16, "Majorities");

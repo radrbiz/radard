@@ -119,6 +119,21 @@ RingDeposit::preclaim(PreclaimContext const& ctx){
             JLOG(ctx.j.info) << "RingIndex:" << ringIndexReq << " is obsolete";
             return tefRING_CLOSED;
         }
+
+        // check dup publickey
+        auto const ringSle = ctx.view.read(keylet::ring(amount.mantissa(), amount.issue(), lastRingIndex));
+        if(ringSle && ringSle->isFieldPresent(sfPublicKeys)){
+            STArray const ringPks = ringSle->getFieldArray(sfPublicKeys);
+            STVector256 const newPk = ctx.tx.getFieldV256(sfPublicKeyPair);
+            for(auto const pks : ringPks){
+                STVector256 pkPair = pks.getFieldV256(sfPublicKeyPair);
+                uint256 pkx = pkPair[0];
+                if(pkx == newPk[0] || pkx == newPk[1]){
+                    JLOG(ctx.j.info) << "Dup public key:" << pkx;
+                    return telBAD_PUBLIC_KEY;
+                }
+            }
+        }
     }
 
     return tesSUCCESS;

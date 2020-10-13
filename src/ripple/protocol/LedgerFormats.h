@@ -96,7 +96,8 @@ enum LedgerEntryType
 
     ltNotUsed01         = 'c',
 
-    ltRING              = 'g'
+    ltRING              = 'g',
+    ltPROPOSAL          = 'p',
 };
 
 /**
@@ -124,6 +125,7 @@ enum LedgerNameSpace
     spaceAssetState     = 'S',
     spaceSignerList     = 'N',
     spaceRing           = 'G',
+    spaceProposal       = 'P',
 
     // No longer used or supported. Left here to reserve the space and
     // avoid accidental reuse of the space.

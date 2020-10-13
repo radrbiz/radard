@@ -43,6 +43,8 @@ public:
     std::uint32_t getLast () const;
     std::uint32_t getPrev (std::uint32_t) const;
 
+    std::uint32_t getMiddle(std::uint32_t, std::uint32_t) const;
+
     // largest number not in the set that is less than the given number
     std::uint32_t prevMissing (std::uint32_t) const;
 

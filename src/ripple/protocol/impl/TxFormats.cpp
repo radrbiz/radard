@@ -165,11 +165,30 @@ TxFormats::TxFormats ()
         << SOElement (sfPublicKeyPair,       SOE_REQUIRED) // stealth pk
         ;
 
+    add("CreateProposal", ttPROPOSAL_CREATE)
+        << SOElement (sfProposalOptions,     SOE_REQUIRED)
+        << SOElement (sfProposalExpire,      SOE_REQUIRED)
+        << SOElement (sfProposalAppendix,    SOE_OPTIONAL)
+        ;
+    
+    add("CloseProposal", ttPROPOSAL_CLOSE)
+        << SOElement (sfProposalIndex,       SOE_REQUIRED)
+        ;
+    
+    add("VoteProposal", ttPROPOSAL_VOTE)
+        << SOElement (sfProposalIndex,       SOE_REQUIRED)
+        << SOElement (sfProposalVote,        SOE_REQUIRED)
+        ;
+
     // The SignerEntries are optional because a SignerList is deleted by
     // setting the SignerQuorum to zero and omitting SignerEntries.
     add ("SignerListSet", ttSIGNER_LIST_SET)
         << SOElement (sfSignerQuorum,        SOE_REQUIRED)
         << SOElement (sfSignerEntries,       SOE_OPTIONAL)
+        ;
+
+    add("AssetRelease", ttASSET_RELEASE)
+        << SOElement (sfAmount,              SOE_REQUIRED)
         ;
 }
 

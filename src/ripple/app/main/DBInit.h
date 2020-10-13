@@ -27,12 +27,14 @@ extern const char* TxnDBInit[];
 extern const char* TxnDBInitMySQL[];
 extern const char* LedgerDBInit[];
 extern const char* WalletDBInit[];
+extern const char* VoteCountingDBInit[];
 
 // VFALCO TODO Figure out what these counts are for
 extern int TxnDBCount;
 extern int TxnDBCountMySQL;
 extern int LedgerDBCount;
 extern int WalletDBCount;
+extern int VoteCountiongDBCount;
 
 } // ripple
 

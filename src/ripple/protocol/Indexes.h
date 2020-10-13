@@ -294,6 +294,14 @@ struct ring_t
     Keylet operator()(uint64 const& quantity, Issue const& issue, uint32_t index) const;
 };
 static ring_t const ring {};
+
+/** proposal object */
+struct proposal_t
+{
+    Keylet operator()(uint32_t const& index) const;
+};
+static proposal_t const proposal {};
+
 } // keylet
 
 uint256
@@ -316,6 +324,9 @@ getAssetStateIndex (AccountID const& a, Issue const& issue);
 
 uint256
 getRingIndex (uint64 const& quantity, Issue const& issue, uint32_t index);
+
+uint256
+getProposalIndex (uint32_t const& index);
 
 }
 

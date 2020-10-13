@@ -59,7 +59,11 @@ enum TxType
     ttISSUE             = 184,
     ttRING_DEPOSIT      = 187,
     ttRING_WITHDRAW     = 188,
-    ttRING_CANCEL       = 189
+    ttRING_CANCEL       = 189,
+    ttPROPOSAL_CREATE   = 190,
+    ttPROPOSAL_CLOSE    = 191,
+    ttPROPOSAL_VOTE     = 192,
+    ttASSET_RELEASE     = 193
 };
 
 /** Manages the list of known transaction formats.

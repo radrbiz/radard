@@ -35,6 +35,14 @@ getRingIndex (uint64 const& quantity, Issue const& issue, uint32_t index)
         index);
 }
 
+uint256
+getProposalIndex (uint32_t const& index)
+{
+    return sha512Half(
+        std::uint16_t(spaceProposal),
+        index);
+}
+
 // get the index of the node that holds the last 256 ledgers
 uint256
 getLedgerHashIndex ()
@@ -360,6 +368,12 @@ Keylet ring_t::operator()(uint64 const& quantity, Issue const& issue, uint32_t i
 {
     return {ltRING,
         getRingIndex(quantity, issue, index)};
+}
+
+Keylet proposal_t::operator()(uint32_t const& index) const
+{
+    return {ltPROPOSAL,
+        getProposalIndex(index)};
 }
 
 Keylet refer_t::operator()(AccountID const& id) const

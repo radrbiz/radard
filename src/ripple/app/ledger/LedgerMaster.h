@@ -132,6 +132,8 @@ public:
 
     virtual Ledger::pointer getLedgerByHash (uint256 const& hash) = 0;
 
+    virtual Ledger::pointer getLedgerByCloseTime(uint32 closeTime) = 0;
+
     virtual void setLedgerRangePresent (
         std::uint32_t minV, std::uint32_t maxV) = 0;
 

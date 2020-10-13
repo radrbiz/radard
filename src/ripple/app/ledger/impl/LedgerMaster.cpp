@@ -1583,6 +1583,39 @@ public:
         return Ledger::pointer ();
     }
 
+    // find first ledger that it's close time is larger than specified time in log(N) time
+    Ledger::pointer getLedgerByCloseTime(uint32 closeTime) override {
+        uint32_t first = mCompleteLedgers.getFirst();
+        uint32_t last = mCompleteLedgers.getLast();
+        if (first == RangeSet::absent || last == RangeSet::absent) {
+            return Ledger::pointer();
+        }
+        while (first < last) {
+            uint32_t mid = mCompleteLedgers.getMiddle(first, last);
+            if (mid == RangeSet::absent) {
+                break;
+            }
+            Ledger::pointer midLedger = getLedgerBySeq(mid);
+            uint32_t midClose = midLedger->info().closeTime;
+            if (midClose < closeTime && first != mid) {
+                first = mid;
+            } else if (midClose > closeTime && last != mid) {
+                last = mid;
+            } else {
+                return midLedger;
+            }
+        }
+        Ledger::pointer firstLedger = getLedgerBySeq(first);
+        if (firstLedger->info().closeTime >= closeTime) {
+            return firstLedger;
+        }
+        Ledger::pointer lastLedger = getLedgerBySeq(last);
+        if (lastLedger->info().closeTime >= closeTime) {
+            return lastLedger;
+        }
+        return Ledger::pointer();
+    }
+
     void doLedgerCleaner(Json::Value const& parameters) override
     {
         mLedgerCleaner->doClean (parameters);

@@ -85,6 +85,8 @@ public:
 
     STObject const& back() const { return v_.back(); }
 
+    void erase(std::size_t i) { v_.erase(v_.begin() + i); }
+
     template <class... Args>
     void
     emplace_back(Args&&... args)

@@ -351,6 +351,7 @@ public:
     std::unique_ptr <DatabaseCon> mTxnDB;
     std::unique_ptr <DatabaseCon> mLedgerDB;
     std::unique_ptr <DatabaseCon> mWalletDB;
+    std::unique_ptr <DatabaseCon> mVoteCountingDB;
     std::unique_ptr <Overlay> m_overlay;
     std::vector <std::unique_ptr<beast::Stoppable>> websocketServers_;
 
@@ -752,6 +753,11 @@ public:
         assert (mWalletDB.get() != nullptr);
         return *mWalletDB;
     }
+    DatabaseCon& getVoteCountingDB () override
+    {
+        assert (mVoteCountingDB.get() != nullptr);
+        return *mVoteCountingDB;
+    }
 
     bool serverOkay (std::string& reason) override;
 
@@ -792,6 +798,16 @@ public:
                 LedgerDBInit, LedgerDBCount);
         mWalletDB = std::make_unique <DatabaseCon> (setup, "wallet.db",
                 WalletDBInit, WalletDBCount);
+
+        // init proposal vote counting db
+        if (config_->exists(SECTION_PROPOSAL_VOTE)) {
+            auto const& proposalVoteConfig = config_->section (SECTION_PROPOSAL_VOTE);
+            std::string voteCountingDB = get<std::string>(proposalVoteConfig, "vote_counting_db");
+            if (!voteCountingDB.empty()) {
+                mVoteCountingDB = std::make_unique <DatabaseCon> (setup, voteCountingDB,
+                    VoteCountingDBInit, VoteCountiongDBCount);
+            }
+        }
 
         return
             mTxnDB.get () != nullptr &&

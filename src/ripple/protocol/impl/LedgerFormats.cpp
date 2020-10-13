@@ -47,6 +47,7 @@ LedgerFormats::LedgerFormats ()
             << SOElement (sfDividendVRank,       SOE_OPTIONAL)
             << SOElement (sfDividendVSprd,       SOE_OPTIONAL)
             << SOElement (sfDividendTSprd,       SOE_OPTIONAL)
+            << SOElement (sfProposalVotes,       SOE_OPTIONAL)
             ;
 
     add ("Asset", ltASSET)
@@ -190,6 +191,14 @@ LedgerFormats::LedgerFormats ()
             << SOElement (sfKeyImages,           SOE_OPTIONAL) // double spend check keys [[]]
             << SOElement (sfRingIndex,           SOE_OPTIONAL)
             << SOElement (sfParticipantsNum,     SOE_OPTIONAL) // participants number for a ring
+            ;
+    add("Proposal", ltPROPOSAL)
+            << SOElement (sfAccount,             SOE_OPTIONAL)
+            << SOElement (sfProposalIndex,       SOE_OPTIONAL)
+            << SOElement (sfProposalOptions,     SOE_OPTIONAL)
+            << SOElement (sfProposalExpire,      SOE_OPTIONAL)
+            << SOElement (sfProposalAppendix,    SOE_OPTIONAL)
+            << SOElement (sfProposalCloseLedger, SOE_OPTIONAL)
             ;
 }
 
